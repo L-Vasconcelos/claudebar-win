@@ -76,6 +76,33 @@ Icono de bandeja, por estado / ritmo:
 
 > El token solo se usa para leer **tu propia** cuota. No se guarda, loguea ni envía a ningún otro sitio.
 
+## Instalación
+
+**Opción 1 — Descargar (recomendado)**
+Baja `ClaudeBarWin.exe` de la [última release](https://github.com/Yovancas/claudebar-win/releases/latest)
+y ejecútalo. Es un build autocontenido — **no requiere .NET**. El icono aparece en la bandeja
+(Windows 11: arrástralo fuera del desbordamiento `^` para fijarlo).
+
+> Windows SmartScreen puede avisar porque el .exe no está firmado → **Más información → Ejecutar de todas formas**.
+
+**Opción 2 — winget**
+```powershell
+winget install Yovancas.ClaudeBarWin
+```
+*(Disponible cuando el manifest se mergee en el repo comunitario de winget.)*
+
+**Opción 3 — compilar desde el código** — ver [Compilar desde el código](#compilar-desde-el-código).
+
+Arranque automático: click derecho en el icono → **Ajustes → Iniciar con Windows**.
+
+## Requisitos
+
+- **Windows 10/11 (x64)**.
+- **Claude Code** (CLI o app) instalado y con sesión iniciada — la app lee tu token OAuth local
+  (`~/.claude/.credentials.json`) para sacar tu cuota real. Nada sale de tu máquina.
+- Nada más para ejecutar el build de la release. Para compilar: **.NET SDK 9** (vale user-local
+  en `%USERPROFILE%\.dotnet`, sin admin).
+
 ## Configuración (todo desde el click derecho)
 
 ```
@@ -96,19 +123,38 @@ Click derecho en el propio dashboard abre el mismo menú. Los submenús abren ha
 quedarse en el monitor primario. "Iniciar con Windows" crea/borra un acceso directo en la carpeta de
 Inicio (sin tocar el registro). Ajustes avanzados en `%APPDATA%\ClaudeBarWin\config.json`.
 
-## Compilar / ejecutar
+## Compilar desde el código
 
-Requiere el .NET SDK 9 (vale una instalación user-local en `%USERPROFILE%\.dotnet`, sin admin):
+Requiere el **.NET SDK 9** (vale user-local en `%USERPROFILE%\.dotnet`, sin admin):
 
 ```powershell
+git clone https://github.com/Yovancas/claudebar-win.git
+cd claudebar-win
 .\run.ps1            # build + run
-.\run.ps1 publish    # publish\ClaudeBarWin.exe autocontenido (no requiere .NET para ejecutar)
+.\run.ps1 publish    # publish\ClaudeBarWin.exe autocontenido (no requiere .NET)
 ```
 
-Modos diagnóstico: `--report`, `--render-test`, `--db-test`, `--dump-menu`.
+## Comandos útiles
 
-Para autostart, usa *Iniciar con Windows* del menú, o un acceso directo a
-`publish\ClaudeBarWin.exe` en `shell:startup`.
+| Comando | Qué hace |
+|---|---|
+| `.\run.ps1` | Compila y ejecuta (debug) |
+| `.\run.ps1 publish` | Exe autocontenido en `publish\` |
+| `ClaudeBarWin.exe --report` | Vuelca la cuota + pace a consola/`%TEMP%` (sin GUI) |
+| `ClaudeBarWin.exe --render-test` | Renderiza el dashboard a `%TEMP%\claudebar-render` |
+| `ClaudeBarWin.exe --render-demo` | Renderiza las capturas del README (datos demo) |
+| `ClaudeBarWin.exe --db-test` | Prueba la base SQLite del histórico |
+| `ClaudeBarWin.exe --dump-menu` | Imprime la estructura del menú |
+
+Todo lo demás está en el **menú de click derecho** (icono o panel). Los ajustes se guardan en
+`%APPDATA%\ClaudeBarWin\config.json`; el histórico de % real en `%APPDATA%\ClaudeBarWin\history.db`.
+
+## Desinstalar
+
+- Sal desde el menú de bandeja (**Salir**) y borra `ClaudeBarWin.exe`.
+- Borra ajustes + histórico: elimina la carpeta `%APPDATA%\ClaudeBarWin\`.
+- Si activaste *Iniciar con Windows*, desactívalo antes (o borra el acceso directo de `shell:startup`).
+- Si lo instalaste por winget: `winget uninstall Yovancas.ClaudeBarWin`.
 
 ## Créditos
 

@@ -79,6 +79,33 @@ Tray icon, by status / pace:
 
 > The token is only used to read **your own** usage. It is never stored, logged, or sent anywhere else.
 
+## Install
+
+**Option 1 — Download (recommended)**
+Grab `ClaudeBarWin.exe` from the [latest release](https://github.com/Yovancas/claudebar-win/releases/latest)
+and run it. It's a self-contained build — **no .NET required**. The icon lands in the system tray
+(Windows 11: drag it out of the `^` overflow to pin it).
+
+> Windows SmartScreen may warn because the .exe is unsigned → **More info → Run anyway**.
+
+**Option 2 — winget**
+```powershell
+winget install Yovancas.ClaudeBarWin
+```
+*(Available once the manifest is merged into the winget community repo.)*
+
+**Option 3 — build from source** — see [Build from source](#build-from-source).
+
+Auto-start on login: right-click the tray icon → **Settings → Start with Windows**.
+
+## Requirements
+
+- **Windows 10/11 (x64)**.
+- **Claude Code** (CLI or app) installed and signed in — the app reads your local OAuth token
+  (`~/.claude/.credentials.json`) to fetch your real quota. Nothing leaves your machine.
+- Nothing else to run the release build. To build from source: **.NET SDK 9** (a user-local install
+  in `%USERPROFILE%\.dotnet` works, no admin).
+
 ## Configuration (all from the right-click menu)
 
 ```
@@ -99,20 +126,38 @@ Right-click the dashboard itself to open the same menu. Submenus open leftward s
 the primary monitor. "Start with Windows" creates/removes a shortcut in the Startup folder
 (no registry). Advanced settings live in `%APPDATA%\ClaudeBarWin\config.json`.
 
-## Build / run
+## Build from source
 
-Requires the .NET SDK 9 (a user-local install in `%USERPROFILE%\.dotnet` works, no admin):
+Requires the **.NET SDK 9** (a user-local install in `%USERPROFILE%\.dotnet` works, no admin):
 
 ```powershell
+git clone https://github.com/Yovancas/claudebar-win.git
+cd claudebar-win
 .\run.ps1            # build + run
 .\run.ps1 publish    # self-contained publish\ClaudeBarWin.exe (no .NET needed to run)
 ```
 
-Diagnostic modes: `--report` (dump current usage + pace to console/temp), `--render-test`
-(render the dashboard to `%TEMP%\claudebar-render`), `--db-test`, `--dump-menu`.
+## Useful commands
 
-For autostart, use the menu's *Start with Windows*, or drop a shortcut to
-`publish\ClaudeBarWin.exe` in `shell:startup`.
+| Command | What it does |
+|---|---|
+| `.\run.ps1` | Build and run (debug) |
+| `.\run.ps1 publish` | Self-contained single-file `publish\ClaudeBarWin.exe` |
+| `ClaudeBarWin.exe --report` | Print current quota + pace to console/`%TEMP%` (no GUI) |
+| `ClaudeBarWin.exe --render-test` | Render the dashboard to `%TEMP%\claudebar-render` |
+| `ClaudeBarWin.exe --render-demo` | Render the README screenshots (synthetic data) |
+| `ClaudeBarWin.exe --db-test` | Smoke-test the SQLite history store |
+| `ClaudeBarWin.exe --dump-menu` | Print the right-click menu structure |
+
+Everything else is in the **right-click menu** (on the tray icon or the panel itself). Settings persist
+to `%APPDATA%\ClaudeBarWin\config.json`; the real-% history lives in `%APPDATA%\ClaudeBarWin\history.db`.
+
+## Uninstall
+
+- Quit from the tray menu (**Exit**), then delete `ClaudeBarWin.exe`.
+- Remove settings + history: delete the `%APPDATA%\ClaudeBarWin\` folder.
+- If you enabled *Start with Windows*, untick it first (or remove the shortcut from `shell:startup`).
+- Installed via winget: `winget uninstall Yovancas.ClaudeBarWin`.
 
 ## Notes
 
