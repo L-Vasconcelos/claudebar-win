@@ -23,11 +23,18 @@ The 5h/7d bars and their values are coloured by **pace** (burn-rate), the chart 
 **Spend $** (stacked by model) and **Quota %** (real utilisation over time), and the panel auto-sizes
 to whatever sections you enable.
 
+**Drag it anywhere, dial in the opacity** — the panel is a movable, see-through widget:
+
+<p align="center">
+  <img src="assets/move.gif" alt="Drag the panel anywhere on screen" width="380">
+  <img src="assets/opacity.gif" alt="Adjustable window opacity" width="380">
+</p>
+
 Tray icon, by status / pace:
 
 <p align="center"><img src="assets/tray-icons.png" alt="Tray icon badges" width="360"></p>
 
-<sub>Screenshots use synthetic demo data.</sub>
+<sub>Screenshots/animations use synthetic demo data.</sub>
 
 ## What it shows
 

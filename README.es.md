@@ -23,11 +23,18 @@ Las barras de 5h/7d y sus valores se colorean por **ritmo** (pace), la gráfica 
 **Gasto $** (apilado por modelo) y **Cuota %** (utilización real en el tiempo), y el panel se
 auto-ajusta a las secciones que actives.
 
+**Arrástralo donde quieras y ajústale la opacidad** — el panel es un widget movible y semitransparente:
+
+<p align="center">
+  <img src="assets/move.gif" alt="Arrastra el panel por la pantalla" width="380">
+  <img src="assets/opacity.gif" alt="Opacidad ajustable" width="380">
+</p>
+
 Icono de bandeja, por estado / ritmo:
 
 <p align="center"><img src="assets/tray-icons.png" alt="Insignias del icono" width="360"></p>
 
-<sub>Las capturas usan datos de demo sintéticos.</sub>
+<sub>Las capturas/animaciones usan datos de demo sintéticos.</sub>
 
 ## Qué muestra
 
