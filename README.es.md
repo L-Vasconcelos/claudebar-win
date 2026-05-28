@@ -11,6 +11,24 @@ inspirado en [CodeZeno/Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Cl
 y [ccstatusline](https://github.com/sirmalloc/ccstatusline); ideas de UI de
 [steipete/CodexBar](https://github.com/steipete/CodexBar).
 
+## Capturas
+
+<p align="center">
+  <img src="assets/dashboard-dark.png" alt="Dashboard — tema oscuro" width="300">
+  <img src="assets/dashboard-light.png" alt="Dashboard — tema claro" width="300">
+  <img src="assets/dashboard-cli.png" alt="Tema CLI — gráfica Cuota %" width="300">
+</p>
+
+Las barras de 5h/7d y sus valores se colorean por **ritmo** (pace), la gráfica alterna entre
+**Gasto $** (apilado por modelo) y **Cuota %** (utilización real en el tiempo), y el panel se
+auto-ajusta a las secciones que actives.
+
+Icono de bandeja, por estado / ritmo:
+
+<p align="center"><img src="assets/tray-icons.png" alt="Insignias del icono" width="360"></p>
+
+<sub>Las capturas usan datos de demo sintéticos.</sub>
+
 ## Qué muestra
 
 - **Icono de bandeja** con la ventana más cargada (sesión 5h / semana 7d), coloreado

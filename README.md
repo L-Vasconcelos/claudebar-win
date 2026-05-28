@@ -11,6 +11,24 @@ Data approach inspired by [CodeZeno/Claude-Code-Usage-Monitor](https://github.co
 and [ccstatusline](https://github.com/sirmalloc/ccstatusline); UI ideas from
 [steipete/CodexBar](https://github.com/steipete/CodexBar).
 
+## Screenshots
+
+<p align="center">
+  <img src="assets/dashboard-dark.png" alt="Dashboard — dark theme" width="300">
+  <img src="assets/dashboard-light.png" alt="Dashboard — light theme" width="300">
+  <img src="assets/dashboard-cli.png" alt="CLI theme — Quota % chart" width="300">
+</p>
+
+The 5h/7d bars and their values are coloured by **pace** (burn-rate), the chart toggles between
+**Spend $** (stacked by model) and **Quota %** (real utilisation over time), and the panel auto-sizes
+to whatever sections you enable.
+
+Tray icon, by status / pace:
+
+<p align="center"><img src="assets/tray-icons.png" alt="Tray icon badges" width="360"></p>
+
+<sub>Screenshots use synthetic demo data.</sub>
+
 ## What it shows
 
 - **Tray icon** with the higher of your two windows (5h session / 7d weekly), colour-coded

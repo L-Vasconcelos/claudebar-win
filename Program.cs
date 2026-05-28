@@ -35,6 +35,13 @@ internal static class Program
             return;
         }
 
+        if (args.Contains("--render-demo"))
+        {
+            ApplicationConfiguration.Initialize();
+            RunRenderDemo();
+            return;
+        }
+
         if (args.Contains("--notify-demo"))
         {
             ApplicationConfiguration.Initialize();
@@ -212,6 +219,120 @@ internal static class Program
         };
         t.Start();
         Application.Run(ctx);
+    }
+
+    // ---- README screenshots from synthetic demo data (no personal usage) ----
+
+    private static AppSnapshot DemoSnapshot(DateTime now)
+    {
+        var usage = new RealUsage
+        {
+            FiveHour = new UsageWindow(62, new DateTimeOffset(now.AddHours(1).AddMinutes(40), TimeSpan.Zero)),
+            SevenDay = new UsageWindow(84, new DateTimeOffset(now.AddDays(2).AddHours(6), TimeSpan.Zero)),
+            SevenDaySonnet = new UsageWindow(12, new DateTimeOffset(now.AddDays(2), TimeSpan.Zero)),
+            ExtraUsageEnabled = false
+        };
+        var spend = new WindowStats { CostUsd = 456.8, Messages = 1234 };
+        spend.CostByModel["Opus"] = 420.50;
+        spend.CostByModel["Sonnet"] = 35.20;
+        spend.CostByModel["Haiku"] = 1.10;
+
+        var paceFive = new PaceResult("5h", 62, 1.30,
+            new DateTimeOffset(now.AddHours(1).AddMinutes(10), TimeSpan.Zero),
+            new DateTimeOffset(now.AddHours(1).AddMinutes(40), TimeSpan.Zero), true, PaceStatus.Critical);
+        var paceSeven = new PaceResult("7d", 84, 0.95, null,
+            new DateTimeOffset(now.AddDays(2).AddHours(6), TimeSpan.Zero), false, PaceStatus.Ok);
+
+        return new AppSnapshot
+        {
+            Usage = usage, LatestState = UsageFetchState.Ok, UsageAtUtc = now,
+            Spend = spend, SpendDays = 7,
+            Health = new HealthStatus(HealthLevel.Operational, "All Systems Operational"),
+            PaceFive = paceFive, PaceSeven = paceSeven
+        };
+    }
+
+    private static List<HistoryBucket> DemoBuckets(DateTime now)
+    {
+        var list = new List<HistoryBucket>();
+        var rnd = new Random(7);
+        for (int i = 0; i < 12; i++)
+        {
+            double op = 8 + i * 2.6 + 6 * Math.Abs(Math.Sin(i * 0.9)) + rnd.NextDouble() * 4; // rising, peak on the right
+            double so = rnd.NextDouble() * 7;
+            double ha = rnd.NextDouble() * 1.5;
+            var t = now.AddHours(-5 * (12 - i)).ToLocalTime();
+            list.Add(new HistoryBucket(t, t.ToString("ddd HH'h'"), op, so, ha, 0));
+        }
+        return list;
+    }
+
+    private static List<PctPoint> DemoPct(DateTime now)
+    {
+        var list = new List<PctPoint>();
+        const int n = 80;
+        double stepMin = 7.0 * 24 * 60 / n;
+        for (int i = 0; i < n; i++)
+        {
+            var t = now.AddMinutes(-(n - i) * stepMin);
+            double seven = 84.0 * i / (n - 1);          // weekly ramp to 84%
+            double fiveSaw = (i % 16) / 16.0 * 72;       // 5h sawtooth
+            list.Add(new PctPoint(t, fiveSaw, seven));
+        }
+        return list;
+    }
+
+    private static void RunRenderDemo()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "claudebar-demo");
+        Directory.CreateDirectory(dir);
+        var now = DateTime.UtcNow;
+        var snap = DemoSnapshot(now);
+        var buckets = DemoBuckets(now);
+        var pct = DemoPct(now);
+        var plan = new PlanInfo("max", "default_claude_max_5x");
+
+        var shots = new (string theme, string mode, ChartRange range, string file)[]
+        {
+            ("dark", "spend", ChartRange.Hours5, "dashboard-dark.png"),
+            ("light", "spend", ChartRange.Hours5, "dashboard-light.png"),
+            ("cli", "percent", ChartRange.Week1, "dashboard-cli.png")
+        };
+        foreach (var (theme, mode, range, file) in shots)
+        {
+            var cfg = new AppConfig
+            {
+                Theme = theme, ChartMode = mode, ChartPctWindow = "7d", Language = "en",
+                ShowSpendEstimate = true, ShowHealth = true, ShowChart = true
+            };
+            using var form = new DashboardForm();
+            form.PrepareForRender(snap, cfg, plan, buckets, pct, range);
+            using var bmp = new Bitmap(form.Width, form.Height);
+            form.DrawToBitmap(bmp, new Rectangle(0, 0, form.Width, form.Height));
+            bmp.Save(Path.Combine(dir, file));
+        }
+
+        // Tray icon badges by status.
+        var samples = new (int pct, UsageStatus st)[]
+        { (42, UsageStatus.Ok), (78, UsageStatus.Warn), (95, UsageStatus.Critical), (130, UsageStatus.Critical) };
+        const int scale = 3, pad = 10, icon = 32;
+        using (var strip = new Bitmap((icon * scale + pad) * samples.Length + pad, icon * scale + pad * 2))
+        using (var g = Graphics.FromImage(strip))
+        {
+            g.Clear(Color.FromArgb(45, 45, 48));
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+            int x = pad;
+            foreach (var s in samples)
+            {
+                using var ic = TrayIconRenderer.Render(s.pct, Theme.StatusColor(Theme.Dark, s.st));
+                using var b = ic.ToBitmap();
+                g.DrawImage(b, new Rectangle(x, pad, icon * scale, icon * scale));
+                x += icon * scale + pad;
+            }
+            strip.Save(Path.Combine(dir, "tray-icons.png"));
+        }
+
+        Console.WriteLine(dir);
     }
 
     private static async Task RunRenderTest()
