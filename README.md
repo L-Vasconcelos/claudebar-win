@@ -1,114 +1,107 @@
 # ClaudeBar for Windows
 
-Un equivalente Windows del [ClaudeBar](https://github.com/tddworks/ClaudeBar) de macOS:
-una app de **bandeja del sistema** que muestra tu **cuota real de Claude Code** en tiempo real.
+*[Español](README.es.md)*
 
-C#/.NET 9 + WinForms, sin dependencias externas. Enfoque de datos inspirado en
-[CodeZeno/Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Claude-Code-Usage-Monitor).
+A Windows **system-tray** monitor for your **Claude Code** usage — a Windows take on the
+macOS [ClaudeBar](https://github.com/tddworks/ClaudeBar). It shows your **real 5h / 7d quota**,
+predicts when you'll run out, and charts your usage over time.
 
-## Qué muestra
+C#/.NET 9 + WinForms. No external dependencies except `Microsoft.Data.Sqlite`.
+Data approach inspired by [CodeZeno/Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Claude-Code-Usage-Monitor)
+and [ccstatusline](https://github.com/sirmalloc/ccstatusline); UI ideas from
+[steipete/CodexBar](https://github.com/steipete/CodexBar).
 
-- **Icono de bandeja** con el % más alto (sesión 5h o semana 7d), coloreado:
-  🟢 ok · 🟠 alto (≥70%) · 🔴 crítico (≥90%). `!` gris = sin datos/sesión caducada.
-- **Tooltip** con % y cuenta atrás de reset de cada ventana.
-- **Dashboard** (clic en el icono): barras de **5h** y **7d** con **% real** y
-  **"resetea en Xh Ym"**, límites semanales por modelo (Opus/Sonnet) si aplican, y un
-  **gasto estimado** local por modelo (lo que CodeZeno no muestra).
-- **Notificaciones por hitos** al cruzar 25 / 50 / 75 / 95% (configurables), con
-  indicador de color que escala 🟢 → 🟡 → 🟠 → 🔴 según se acerca al 100%.
-- **Relanzar el exe** abre el dashboard (instancia única).
+## What it shows
 
-## De dónde sale el dato
+- **Tray icon** with the higher of your two windows (5h session / 7d weekly), colour-coded
+  (🟢 ok · 🟠 ≥70% · 🔴 ≥90%). Icon can show the **percentage**, the **pace**, or **both**.
+- **Tooltip** with each window's % and reset countdown.
+- **Dashboard** (click the icon):
+  - **5h** and **7d** bars with **real %** and *"resets in Xh Ym"*, each coloured by its **pace**.
+  - **Pace line** — burn-rate vs the ideal, plus an ETA and a ⚠ if you're projected to run out
+    before the reset.
+  - Per-model weekly limits (Opus/Sonnet) when present.
+  - **Usage chart** with a `Spend $` ↔ `Quota %` toggle:
+    - **Spend $** — stacked area of cost-equivalent by model (from local transcripts).
+    - **Quota %** — your real utilisation over time, with a `5h`/`7d` selector.
+    - Ranges: last **1H / 5H / 24H / 7D / 30D**.
+  - **Estimated spend** by model (7d), and an **Anthropic service-health** indicator.
+- **Proactive notifications**: usage milestones (25/50/75/95%, 🟢→🔴) and a pace alert when
+  you're projected to exhaust a window before its reset.
+- **Themes** (System / Dark / Light / CLI + import `.itermcolors`) and **9 languages**
+  (System + English, Español, Nederlands, Français, Deutsch, 日本語, 한국어, 繁體中文) — both
+  default to your Windows settings.
+- Everything is configurable from the **right-click menu**.
 
-1. **Cuota real (principal):** `GET https://api.anthropic.com/api/oauth/usage` con tu
-   token OAuth local (`Authorization: Bearer …` + `anthropic-beta: oauth-2025-04-20`).
-   Devuelve `five_hour` / `seven_day` con `utilization` (%) y `resets_at`. Es **tu límite
-   real**, el mismo que respeta Claude Code.
-2. **Refresh de token:** si el token local está caducado, hace `POST platform.claude.com/v1/oauth/token`
-   (`grant_type=refresh_token`, client_id de Claude Code) y reescribe `~/.claude/.credentials.json`
-   preservando el resto. Si falla, fallback a `claude -p .` headless. Solo se dispara en expiry.
-3. **Estado del servicio:** `GET status.claude.com/api/v2/status.json` (Statuspage, sin auth) →
-   indicador ● operativo/degradado/caído en el dashboard.
-4. **Gasto estimado (secundario):** parsea los `.jsonl` locales (método `ccusage`) →
-   coste-equivalente USD por modelo en la ventana de 7d. Es una **estimación** de lo que
-   costaría por API, no lo que cobra tu suscripción.
+## How the data works
 
-> El token solo se usa para leer **tu propia** cuota. No se guarda, loguea ni envía a
-> ningún otro sitio.
+1. **Real quota (primary):** `GET https://api.anthropic.com/api/oauth/usage` with your local
+   OAuth token (`Authorization: Bearer …` + `anthropic-beta: oauth-2025-04-20`). Returns
+   `five_hour` / `seven_day` with `utilization` (%) and `resets_at` — the *same limits Claude
+   Code respects*. On HTTP 429 it backs off and serves the last good value.
+2. **Real-% history:** each successful poll is sampled into SQLite (`%APPDATA%\ClaudeBarWin\history.db`)
+   so the `Quota %` chart can show your true utilisation over time. The API only gives a
+   snapshot, so this history starts empty and fills in as it runs.
+3. **Pace:** *ritmo* = used% vs the ideal for how much of the window has elapsed (works from
+   minute one); *ETA* extrapolates from the recent slope of the % history.
+4. **Token refresh:** if the local token is expired, it `POST`s to
+   `platform.claude.com/v1/oauth/token` (Claude Code's public client_id) and rewrites
+   `~/.claude/.credentials.json`, preserving the rest. Falls back to a headless `claude -p .`.
+   Only runs when expired.
+5. **Service health:** `GET status.claude.com/api/v2/status.json` (no auth).
+6. **Estimated spend (secondary):** parses local `.jsonl` transcripts (`ccusage` method) into a
+   USD-equivalent by model. It's an *estimate* of API cost, not what your subscription charges.
 
-## Configuración (todo desde el click derecho)
+> The token is only used to read **your own** usage. It is never stored, logged, or sent anywhere else.
 
-Click derecho en el icono de la bandeja:
+## Configuration (all from the right-click menu)
 
 ```
 Dashboard
-Actualizar ahora
-Ventana del panel ▶             Posición (abajo/arriba dcha/izq · centro · arrastrar)
-                                ☑ Fijado (no se cierra solo)  ·  ☑ Siempre encima
-Frecuencia de actualización ▶   30s · 1min · 5min · 15min   (radio)
-Notificaciones ▶                ☑ Activadas
-                                Avisar al llegar a…  ☑25% ☑50% ☑75% ☑95%
-Umbral de color ▶               70/90 (def.) · 80/95 · 60/85   (radio)
-Ajustes ▶                       ☑ Mostrar gasto estimado · ☑ Mostrar estado del servicio
-                                ☑ Iniciar con Windows
-                                Tema ▶  Sistema · Oscuro · Claro · CLI · Importar .itermcolors…
-                                Idioma ▶  Sistema + English/Español/Nederlands/Français/
-                                          Deutsch/日本語/한국어/繁體中文
-                                Editar config (avanzado)… · Abrir carpeta de datos
-Salir
+Refresh now
+Panel window ▶        Position (corners · center · drag) · ☑ Pinned · ☑ Always on top · Opacity ▶
+Update frequency ▶    30s · 1min · 5min · 15min
+Notifications ▶       ☑ Enabled · Notify at ☑25% ☑50% ☑75% ☑95%
+Color threshold ▶     70/90 · 80/95 · 60/85
+Settings ▶            ☑ Show estimated spend · ☑ Show service status · ☑ Usage chart
+                      Icon mode ▶ % / ▲ / % ▲  ·  ☑ Pace alerts  ·  ☑ Start with Windows
+                      Theme ▶ System/Dark/Light/CLI · Import .itermcolors…
+                      Language ▶ (System + 8) · Edit config… · Open data folder
+Exit
 ```
 
-Idioma y Tema por defecto = **Sistema** (siguen el idioma de Windows y el modo claro/oscuro).
-Los submenús abren hacia la izquierda para no salirse al segundo monitor.
+Right-click the dashboard itself to open the same menu. Submenus open leftward so they stay on
+the primary monitor. "Start with Windows" creates/removes a shortcut in the Startup folder
+(no registry). Advanced settings live in `%APPDATA%\ClaudeBarWin\config.json`.
 
-"Iniciar con Windows" crea/borra un acceso directo en la carpeta de Inicio del usuario
-(sin tocar el registro, reversible). Los cambios se aplican al instante.
+## Build / run
 
-### config.json (avanzado)
-
-`%APPDATA%\ClaudeBarWin\config.json` (menú → *Editar config (avanzado)…*):
-
-```json
-{
-  "RefreshSeconds": 60,
-  "WarnThresholdPct": 70,
-  "CriticalThresholdPct": 90,
-  "NotificationsEnabled": true,
-  "NotifyMilestones": [25, 50, 75, 95],
-  "ShowSpendEstimate": true,
-  "SpendWindowDays": 7
-}
-```
-
-Los cambios se recogen en el siguiente refresco (o *Actualizar ahora*).
-
-## Compilar / ejecutar
-
-Requiere .NET SDK 9 (instalación user-local en `%USERPROFILE%\.dotnet` vale, sin admin).
+Requires the .NET SDK 9 (a user-local install in `%USERPROFILE%\.dotnet` works, no admin):
 
 ```powershell
 .\run.ps1            # build + run
-.\run.ps1 publish    # genera publish\ClaudeBarWin.exe autocontenido (sin .NET instalado)
+.\run.ps1 publish    # self-contained publish\ClaudeBarWin.exe (no .NET needed to run)
 ```
 
-Modos diagnóstico:
+Diagnostic modes: `--report` (dump current usage + pace to console/temp), `--render-test`
+(render the dashboard to `%TEMP%\claudebar-render`), `--db-test`, `--dump-menu`.
 
-```powershell
-ClaudeBarWin.exe --report        # vuelca la cuota actual a consola/temp (sin GUI)
-ClaudeBarWin.exe --render-test   # renderiza icono+dashboard a %TEMP%\claudebar-render
-```
+For autostart, use the menu's *Start with Windows*, or drop a shortcut to
+`publish\ClaudeBarWin.exe` in `shell:startup`.
 
-Para arranque automático: acceso directo a `publish\ClaudeBarWin.exe` en `shell:startup`.
+## Notes
 
-## Notas
+- On Windows 11 a new tray icon goes to the overflow (`^`) — drag it onto the taskbar to pin it.
+- The `claude -p .` refresh only fires if the token is expired; with Claude Code running it
+  stays fresh on its own and rarely runs.
 
-- En Windows 11 los iconos de bandeja nuevos van al desbordamiento (`^`); arrástralo a la
-  barra para fijarlo.
-- El refresh vía `claude -p .` solo se dispara si el token está caducado; en un equipo con
-  Claude Code abierto el token se mantiene fresco solo y casi nunca se ejecuta.
+## Credits
 
-## Roadmap
+Inspired by [ClaudeBar](https://github.com/tddworks/ClaudeBar) (macOS),
+[CodeZeno/Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Claude-Code-Usage-Monitor),
+[ccstatusline](https://github.com/sirmalloc/ccstatusline) and
+[CodexBar](https://github.com/steipete/CodexBar). Not affiliated with Anthropic.
 
-- Soporte Codex/ChatGPT (segundo proveedor, como CodeZeno).
-- Cuenta atrás en el propio icono / mini-widget anclado a la barra.
-- Temas e import de `.itermcolors` (como el ClaudeBar original).
+## License
+
+[MIT](LICENSE)
