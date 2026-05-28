@@ -33,6 +33,8 @@ public sealed class TrayAppContext : ApplicationContext
     private readonly List<(ToolStripMenuItem item, string id)> _themeItems = new();
     private readonly List<(ToolStripMenuItem item, string mode)> _iconItems = new();
     private ToolStripMenuItem _miPaceAlerts = null!;
+    private ToolStripMenuItem _miUpdate = null!;
+    private UpdateInfo? _update;
     private ToolStripMenuItem _miNotifications = null!;
     private ToolStripMenuItem _miSpend = null!;
     private ToolStripMenuItem _miStartup = null!;
@@ -114,6 +116,7 @@ public sealed class TrayAppContext : ApplicationContext
 
         _ = RefreshAsync();
         _timer.Start();
+        _ = CheckUpdatesAsync(silent: true);   // silent check on startup; flags the menu if newer
     }
 
     public static string DescribeMenu()
@@ -122,14 +125,14 @@ public sealed class TrayAppContext : ApplicationContext
         var sb = new System.Text.StringBuilder();
         sb.AppendLine(s.Dashboard);
         sb.AppendLine(s.Refresh);
-        sb.AppendLine($"{s.PanelWindow} ▶  {s.Position} (5 presets + drag) · ☑ {s.Sticky} · ☑ {s.AlwaysOnTop} · {s.Opacity} ▶");
+        sb.AppendLine($"{s.MenuAppearance} ▶  {s.Theme} ▶ ({s.ImportTheme}) · {s.Opacity} ▶ · {s.Position} ▶ · ☑ {s.Sticky} · ☑ {s.AlwaysOnTop}");
+        sb.AppendLine($"{s.MenuSections} ▶  ☑ {s.ShowSpend} · ☑ {s.ShowServiceStatus} · ☑ {s.UsageChart}");
+        sb.AppendLine($"{s.Notifications} ▶  ☑ {s.Enabled} · {s.NotifyWhenReaching} ☑25/50/75/95% · ☑ {s.PaceAlerts}");
+        sb.AppendLine($"{s.MenuIcon} ▶  % / ▲ / % ▲ · {s.ColorThreshold} ▶ (70/90 · 80/95 · 60/85)");
         sb.AppendLine($"{s.UpdateFrequency} ▶  {s.Sec30} · {s.Min1} · {s.Min5} · {s.Min15}");
-        sb.AppendLine($"{s.Notifications} ▶  ☑ {s.Enabled} · {s.NotifyWhenReaching} ☑25/50/75/95%");
-        sb.AppendLine($"{s.ColorThreshold} ▶  70/90 · 80/95 · 60/85");
-        sb.AppendLine($"{s.Settings} ▶  ☑ {s.ShowSpend} · ☑ {s.ShowServiceStatus} · ☑ {s.UsageChart}");
-        sb.AppendLine($"          {s.IconMode} ▶ % / ▲ / % ▲  ·  ☑ {s.PaceAlerts}  ·  ☑ {s.StartWithWindows}");
-        sb.AppendLine($"          {s.Theme} ▶ {s.ThemeSystem}/{s.ThemeDark}/{s.ThemeLight}/{s.ThemeCli} · {s.ImportTheme}");
-        sb.AppendLine($"          {s.Language} ▶ (system + 8) · {s.EditConfig} · {s.OpenDataFolder}");
+        sb.AppendLine($"{s.Language} ▶  (system + 8)");
+        sb.AppendLine($"{s.CheckUpdates}  ·  ☑ {s.StartWithWindows}");
+        sb.AppendLine($"{s.MenuAdvanced} ▶  {s.OpenBilling} · {s.EditConfig} · {s.OpenDataFolder} · {s.About}");
         sb.AppendLine(s.Exit);
         return sb.ToString();
     }
@@ -199,8 +202,35 @@ public sealed class TrayAppContext : ApplicationContext
         menu.Items.Add(_s.Refresh, null, async (_, _) => await RefreshAsync());
         menu.Items.Add(new ToolStripSeparator());
 
-        // Panel window
-        var window = Sub(_s.PanelWindow);
+        // Appearance ▶ (theme, opacity, position, sticky, on-top)
+        var appearance = Sub(_s.MenuAppearance);
+        var theme = Sub(_s.Theme);
+        var themeIds = new List<string> { "system", "dark", "light", "cli" };
+        if (_config.ImportedTheme is not null) themeIds.Add("imported");
+        foreach (var id in themeIds)
+        {
+            var it = new ToolStripMenuItem(ThemeLabel(id));
+            it.Click += (_, _) => MutateConfig(c => c.Theme = id);
+            _themeItems.Add((it, id));
+            theme.DropDownItems.Add(it);
+        }
+        theme.DropDownItems.Add(new ToolStripSeparator());
+        _miImportTheme = new ToolStripMenuItem(_s.ImportTheme);
+        _miImportTheme.Click += (_, _) => ImportItermColors();
+        theme.DropDownItems.Add(_miImportTheme);
+        appearance.DropDownItems.Add(theme);
+
+        var opacity = Sub(_s.Opacity);
+        foreach (var pct in new[] { 100, 90, 80, 70, 60 })
+        {
+            double val = pct / 100.0;
+            var it = new ToolStripMenuItem($"{pct}%");
+            it.Click += (_, _) => MutateConfig(c => c.DashboardOpacity = val);
+            _opacityItems.Add((it, val));
+            opacity.DropDownItems.Add(it);
+        }
+        appearance.DropDownItems.Add(opacity);
+
         var posMenu = Sub(_s.Position);
         foreach (var key in PositionKeys)
         {
@@ -213,40 +243,30 @@ public sealed class TrayAppContext : ApplicationContext
         var customInfo = new ToolStripMenuItem(_s.PosCustom) { Enabled = false };
         _posItems.Add((customInfo, "Custom"));
         posMenu.DropDownItems.Add(customInfo);
-        window.DropDownItems.Add(posMenu);
+        appearance.DropDownItems.Add(posMenu);
 
         _miSticky = new ToolStripMenuItem(_s.Sticky);
         _miSticky.Click += (_, _) => MutateConfig(c => c.DashboardSticky = !c.DashboardSticky);
-        window.DropDownItems.Add(_miSticky);
-
+        appearance.DropDownItems.Add(_miSticky);
         _miOnTop = new ToolStripMenuItem(_s.AlwaysOnTop);
         _miOnTop.Click += (_, _) => MutateConfig(c => c.DashboardAlwaysOnTop = !c.DashboardAlwaysOnTop);
-        window.DropDownItems.Add(_miOnTop);
+        appearance.DropDownItems.Add(_miOnTop);
+        menu.Items.Add(appearance);
 
-        var opacity = Sub(_s.Opacity);
-        foreach (var pct in new[] { 100, 90, 80, 70, 60 })
-        {
-            double val = pct / 100.0;
-            var it = new ToolStripMenuItem($"{pct}%");
-            it.Click += (_, _) => MutateConfig(c => c.DashboardOpacity = val);
-            _opacityItems.Add((it, val));
-            opacity.DropDownItems.Add(it);
-        }
-        window.DropDownItems.Add(opacity);
-        menu.Items.Add(window);
+        // Sections ▶
+        var sections = Sub(_s.MenuSections);
+        _miSpend = new ToolStripMenuItem(_s.ShowSpend);
+        _miSpend.Click += (_, _) => MutateConfig(c => c.ShowSpendEstimate = !c.ShowSpendEstimate);
+        sections.DropDownItems.Add(_miSpend);
+        _miHealth = new ToolStripMenuItem(_s.ShowServiceStatus);
+        _miHealth.Click += (_, _) => MutateConfig(c => c.ShowHealth = !c.ShowHealth);
+        sections.DropDownItems.Add(_miHealth);
+        _miChart = new ToolStripMenuItem(_s.UsageChart);
+        _miChart.Click += (_, _) => MutateConfig(c => c.ShowChart = !c.ShowChart);
+        sections.DropDownItems.Add(_miChart);
+        menu.Items.Add(sections);
 
-        // Update frequency
-        var freq = Sub(_s.UpdateFrequency);
-        foreach (var secs in FreqSeconds)
-        {
-            var it = new ToolStripMenuItem(FreqLabel(secs));
-            it.Click += (_, _) => MutateConfig(c => c.RefreshSeconds = secs);
-            _freqItems.Add((it, secs));
-            freq.DropDownItems.Add(it);
-        }
-        menu.Items.Add(freq);
-
-        // Notifications
+        // Notifications ▶ (incl. pace alerts)
         var notif = Sub(_s.Notifications);
         _miNotifications = new ToolStripMenuItem(_s.Enabled);
         _miNotifications.Click += (_, _) => MutateConfig(c => c.NotificationsEnabled = !c.NotificationsEnabled);
@@ -265,9 +285,22 @@ public sealed class TrayAppContext : ApplicationContext
             _milestoneItems.Add((it, pct));
             notif.DropDownItems.Add(it);
         }
+        notif.DropDownItems.Add(new ToolStripSeparator());
+        _miPaceAlerts = new ToolStripMenuItem(_s.PaceAlerts);
+        _miPaceAlerts.Click += (_, _) => MutateConfig(c => c.PaceAlerts = !c.PaceAlerts);
+        notif.DropDownItems.Add(_miPaceAlerts);
         menu.Items.Add(notif);
 
-        // Color threshold
+        // Icon ▶ (display mode + colour threshold)
+        var iconMenu = Sub(_s.MenuIcon);
+        foreach (var (label, mode) in new[] { ("%", "percent"), ("▲", "pace"), ("% ▲", "both") })
+        {
+            var it = new ToolStripMenuItem(label);
+            it.Click += (_, _) => MutateConfig(c => c.IconDisplayMode = mode);
+            _iconItems.Add((it, mode));
+            iconMenu.DropDownItems.Add(it);
+        }
+        iconMenu.DropDownItems.Add(new ToolStripSeparator());
         var thr = Sub(_s.ColorThreshold);
         foreach (var (warn, crit) in ThresholdOptions)
         {
@@ -277,58 +310,21 @@ public sealed class TrayAppContext : ApplicationContext
             _thresholdItems.Add((it, warn, crit));
             thr.DropDownItems.Add(it);
         }
-        menu.Items.Add(thr);
+        iconMenu.DropDownItems.Add(thr);
+        menu.Items.Add(iconMenu);
 
-        // Settings
-        var settings = Sub(_s.Settings);
-        _miSpend = new ToolStripMenuItem(_s.ShowSpend);
-        _miSpend.Click += (_, _) => MutateConfig(c => c.ShowSpendEstimate = !c.ShowSpendEstimate);
-        settings.DropDownItems.Add(_miSpend);
-
-        _miHealth = new ToolStripMenuItem(_s.ShowServiceStatus);
-        _miHealth.Click += (_, _) => MutateConfig(c => c.ShowHealth = !c.ShowHealth);
-        settings.DropDownItems.Add(_miHealth);
-
-        _miChart = new ToolStripMenuItem(_s.UsageChart);
-        _miChart.Click += (_, _) => MutateConfig(c => c.ShowChart = !c.ShowChart);
-        settings.DropDownItems.Add(_miChart);
-
-        var iconMode = Sub(_s.IconMode);
-        foreach (var (label, mode) in new[] { ("%", "percent"), ("▲", "pace"), ("% ▲", "both") })
+        // Refresh frequency ▶
+        var freq = Sub(_s.UpdateFrequency);
+        foreach (var secs in FreqSeconds)
         {
-            var it = new ToolStripMenuItem(label);
-            it.Click += (_, _) => MutateConfig(c => c.IconDisplayMode = mode);
-            _iconItems.Add((it, mode));
-            iconMode.DropDownItems.Add(it);
+            var it = new ToolStripMenuItem(FreqLabel(secs));
+            it.Click += (_, _) => MutateConfig(c => c.RefreshSeconds = secs);
+            _freqItems.Add((it, secs));
+            freq.DropDownItems.Add(it);
         }
-        settings.DropDownItems.Add(iconMode);
+        menu.Items.Add(freq);
 
-        _miPaceAlerts = new ToolStripMenuItem(_s.PaceAlerts);
-        _miPaceAlerts.Click += (_, _) => MutateConfig(c => c.PaceAlerts = !c.PaceAlerts);
-        settings.DropDownItems.Add(_miPaceAlerts);
-
-        _miStartup = new ToolStripMenuItem(_s.StartWithWindows);
-        _miStartup.Click += (_, _) => { StartupManager.Toggle(); };
-        settings.DropDownItems.Add(_miStartup);
-
-        // Theme submenu
-        var theme = Sub(_s.Theme);
-        var themeIds = new List<string> { "system", "dark", "light", "cli" };
-        if (_config.ImportedTheme is not null) themeIds.Add("imported");
-        foreach (var id in themeIds)
-        {
-            var it = new ToolStripMenuItem(ThemeLabel(id));
-            it.Click += (_, _) => MutateConfig(c => c.Theme = id);
-            _themeItems.Add((it, id));
-            theme.DropDownItems.Add(it);
-        }
-        theme.DropDownItems.Add(new ToolStripSeparator());
-        _miImportTheme = new ToolStripMenuItem(_s.ImportTheme);
-        _miImportTheme.Click += (_, _) => ImportItermColors();
-        theme.DropDownItems.Add(_miImportTheme);
-        settings.DropDownItems.Add(theme);
-
-        // Language submenu
+        // Language ▶
         var lang = Sub(_s.Language);
         var sys = new ToolStripMenuItem(_s.SystemDefault);
         sys.Click += (_, _) => MutateConfig(c => c.Language = "system");
@@ -342,13 +338,26 @@ public sealed class TrayAppContext : ApplicationContext
             _langItems.Add((it, code));
             lang.DropDownItems.Add(it);
         }
-        settings.DropDownItems.Add(lang);
+        menu.Items.Add(lang);
 
-        settings.DropDownItems.Add(new ToolStripSeparator());
-        settings.DropDownItems.Add(_s.OpenBilling, null, (_, _) => OpenBilling());
-        settings.DropDownItems.Add(_s.EditConfig, null, (_, _) => OpenConfig());
-        settings.DropDownItems.Add(_s.OpenDataFolder, null, (_, _) => OpenProjects());
-        menu.Items.Add(settings);
+        menu.Items.Add(new ToolStripSeparator());
+
+        // Updates · Start with Windows · Advanced
+        _miUpdate = new ToolStripMenuItem(_s.CheckUpdates);
+        _miUpdate.Click += async (_, _) => await CheckUpdatesAsync(silent: false);
+        menu.Items.Add(_miUpdate);
+
+        _miStartup = new ToolStripMenuItem(_s.StartWithWindows);
+        _miStartup.Click += (_, _) => { StartupManager.Toggle(); };
+        menu.Items.Add(_miStartup);
+
+        var advanced = Sub(_s.MenuAdvanced);
+        advanced.DropDownItems.Add(_s.OpenBilling, null, (_, _) => OpenBilling());
+        advanced.DropDownItems.Add(_s.EditConfig, null, (_, _) => OpenConfig());
+        advanced.DropDownItems.Add(_s.OpenDataFolder, null, (_, _) => OpenProjects());
+        advanced.DropDownItems.Add(new ToolStripSeparator());
+        advanced.DropDownItems.Add(_s.About, null, (_, _) => ShowAbout());
+        menu.Items.Add(advanced);
 
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_s.Exit, null, (_, _) => ExitApp());
@@ -382,6 +391,10 @@ public sealed class TrayAppContext : ApplicationContext
         string iconMode = string.IsNullOrEmpty(c.IconDisplayMode) ? "percent" : c.IconDisplayMode;
         foreach (var (item, mode) in _iconItems) item.Checked = mode == iconMode;
         _miPaceAlerts.Checked = c.PaceAlerts;
+
+        _miUpdate.Text = _update is { IsNewer: true }
+            ? string.Format(_s.UpdateAvailableFmt, _update.LatestTag)
+            : _s.CheckUpdates;
 
         foreach (var (item, pos) in _posItems)
             item.Checked = string.Equals(c.DashboardPosition, pos, StringComparison.OrdinalIgnoreCase);
@@ -702,6 +715,54 @@ public sealed class TrayAppContext : ApplicationContext
     {
         try { Process.Start(new ProcessStartInfo("https://console.anthropic.com/settings/billing") { UseShellExecute = true }); }
         catch { }
+    }
+
+    private async Task CheckUpdatesAsync(bool silent)
+    {
+        var info = await UpdateChecker.CheckAsync();
+        _update = info;
+        if (_miUpdate is not null)
+            _miUpdate.Text = info is { IsNewer: true } ? string.Format(_s.UpdateAvailableFmt, info.LatestTag) : _s.CheckUpdates;
+
+        if (silent) return;
+
+        if (info is null)
+        {
+            MessageBox.Show(_s.UpdateFailed, "ClaudeBar", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        if (!info.IsNewer)
+        {
+            MessageBox.Show(string.Format(_s.UpToDateFmt, info.CurrentVersion), "ClaudeBar", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        string changelog = info.Changelog.Length > 900 ? info.Changelog[..900] + "…" : info.Changelog;
+        string msg = string.Format(_s.UpdatePromptFmt, info.CurrentVersion, info.LatestTag);
+        if (changelog.Length > 0) msg += $"\n\n{_s.Changelog}:\n{changelog}";
+
+        var r = MessageBox.Show(msg, $"ClaudeBar {info.LatestTag}", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+        if (r != DialogResult.Yes) return;
+
+        if (info.AssetUrl is null)
+        {
+            try { Process.Start(new ProcessStartInfo(info.HtmlUrl) { UseShellExecute = true }); } catch { }
+            return;
+        }
+        var path = await UpdateChecker.DownloadAsync(info.AssetUrl, info.LatestTag);
+        if (path is null)
+        {
+            MessageBox.Show(_s.UpdateFailed, "ClaudeBar", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        MessageBox.Show(string.Format(_s.UpdateDownloadedFmt, path), "ClaudeBar", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        try { Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }); } catch { }
+    }
+
+    private void ShowAbout()
+    {
+        string msg = $"ClaudeBar for Windows\nv{UpdateChecker.CurrentVersion}\n\n{UpdateChecker.RepoUrl}";
+        MessageBox.Show(msg, $"{_s.About} — ClaudeBar", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void OpenConfig()

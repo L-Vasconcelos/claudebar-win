@@ -93,6 +93,25 @@ public sealed class Strings
     public string PaceAlertTitle { get; init; } = "⚠ Quota pace";
     /// <summary>{0} = window name, {1} = ETA time.</summary>
     public string PaceAlertBodyFmt { get; init; } = "At this rate you'll run out of {0} quota by {1}, before the reset";
+
+    // Menu groups + updates
+    public string MenuAppearance { get; init; } = "Appearance";
+    public string MenuSections { get; init; } = "Sections";
+    public string MenuIcon { get; init; } = "Icon";
+    public string MenuAdvanced { get; init; } = "Advanced";
+    public string About { get; init; } = "About";
+    public string CheckUpdates { get; init; } = "Check for updates";
+    public string Checking { get; init; } = "Checking for updates…";
+    /// <summary>{0} = latest version.</summary>
+    public string UpdateAvailableFmt { get; init; } = "⬇ Update available {0}";
+    /// <summary>{0} = current version.</summary>
+    public string UpToDateFmt { get; init; } = "You're up to date (v{0}).";
+    /// <summary>{0} = current, {1} = latest.</summary>
+    public string UpdatePromptFmt { get; init; } = "Current version: v{0}\nLatest available: {1}\n\nDownload it now?";
+    /// <summary>{0} = path.</summary>
+    public string UpdateDownloadedFmt { get; init; } = "Downloaded to:\n{0}\n\nClose ClaudeBar and replace the running .exe with this file.";
+    public string UpdateFailed { get; init; } = "Couldn't check/download the update.";
+    public string Changelog { get; init; } = "What's new";
 }
 
 public static class Localization
@@ -220,7 +239,20 @@ public static class Localization
         WinSession = "de sesión (5h)",
         WinWeekly = "semanal (7d)",
         PaceAlertTitle = "⚠ Ritmo de cuota",
-        PaceAlertBodyFmt = "A este ritmo te quedas sin cuota {0} el {1}, antes del reset"
+        PaceAlertBodyFmt = "A este ritmo te quedas sin cuota {0} el {1}, antes del reset",
+        MenuAppearance = "Apariencia",
+        MenuSections = "Secciones",
+        MenuIcon = "Icono",
+        MenuAdvanced = "Avanzado",
+        About = "Acerca de",
+        CheckUpdates = "Buscar actualizaciones",
+        Checking = "Buscando actualizaciones…",
+        UpdateAvailableFmt = "⬇ Actualización disponible {0}",
+        UpToDateFmt = "Estás al día (v{0}).",
+        UpdatePromptFmt = "Versión actual: v{0}\nÚltima disponible: {1}\n\n¿Descargar ahora?",
+        UpdateDownloadedFmt = "Descargado en:\n{0}\n\nCierra ClaudeBar y reemplaza el .exe en uso por este archivo.",
+        UpdateFailed = "No se pudo comprobar/descargar la actualización.",
+        Changelog = "Novedades"
     };
 
     private static readonly Strings Dutch = new()
@@ -295,7 +327,20 @@ public static class Localization
         WinSession = "sessie (5h)",
         WinWeekly = "wekelijks (7d)",
         PaceAlertTitle = "⚠ Quotatempo",
-        PaceAlertBodyFmt = "Met dit tempo is je {0}-quota op rond {1}, vóór de reset"
+        PaceAlertBodyFmt = "Met dit tempo is je {0}-quota op rond {1}, vóór de reset",
+        MenuAppearance = "Weergave",
+        MenuSections = "Secties",
+        MenuIcon = "Pictogram",
+        MenuAdvanced = "Geavanceerd",
+        About = "Over",
+        CheckUpdates = "Controleren op updates",
+        Checking = "Controleren op updates…",
+        UpdateAvailableFmt = "⬇ Update beschikbaar {0}",
+        UpToDateFmt = "Je bent up-to-date (v{0}).",
+        UpdatePromptFmt = "Huidige versie: v{0}\nNieuwste: {1}\n\nNu downloaden?",
+        UpdateDownloadedFmt = "Gedownload naar:\n{0}\n\nSluit ClaudeBar en vervang de actieve .exe door dit bestand.",
+        UpdateFailed = "Kan de update niet controleren/downloaden.",
+        Changelog = "Wat is er nieuw"
     };
 
     private static readonly Strings French = new()
@@ -370,7 +415,20 @@ public static class Localization
         WinSession = "de session (5h)",
         WinWeekly = "hebdomadaire (7d)",
         PaceAlertTitle = "⚠ Rythme de quota",
-        PaceAlertBodyFmt = "À ce rythme, tu épuises le quota {0} vers {1}, avant la réinitialisation"
+        PaceAlertBodyFmt = "À ce rythme, tu épuises le quota {0} vers {1}, avant la réinitialisation",
+        MenuAppearance = "Apparence",
+        MenuSections = "Sections",
+        MenuIcon = "Icône",
+        MenuAdvanced = "Avancé",
+        About = "À propos",
+        CheckUpdates = "Rechercher des mises à jour",
+        Checking = "Recherche de mises à jour…",
+        UpdateAvailableFmt = "⬇ Mise à jour disponible {0}",
+        UpToDateFmt = "Tu es à jour (v{0}).",
+        UpdatePromptFmt = "Version actuelle : v{0}\nDernière : {1}\n\nTélécharger maintenant ?",
+        UpdateDownloadedFmt = "Téléchargé dans :\n{0}\n\nFerme ClaudeBar et remplace le .exe en cours par ce fichier.",
+        UpdateFailed = "Impossible de vérifier/télécharger la mise à jour.",
+        Changelog = "Nouveautés"
     };
 
     private static readonly Strings German = new()
@@ -445,7 +503,20 @@ public static class Localization
         WinSession = "Sitzung (5h)",
         WinWeekly = "wöchentlich (7d)",
         PaceAlertTitle = "⚠ Kontingent-Tempo",
-        PaceAlertBodyFmt = "In diesem Tempo ist dein {0}-Kontingent um {1} aufgebraucht, vor dem Reset"
+        PaceAlertBodyFmt = "In diesem Tempo ist dein {0}-Kontingent um {1} aufgebraucht, vor dem Reset",
+        MenuAppearance = "Darstellung",
+        MenuSections = "Abschnitte",
+        MenuIcon = "Symbol",
+        MenuAdvanced = "Erweitert",
+        About = "Über",
+        CheckUpdates = "Nach Updates suchen",
+        Checking = "Suche nach Updates…",
+        UpdateAvailableFmt = "⬇ Update verfügbar {0}",
+        UpToDateFmt = "Du bist auf dem neuesten Stand (v{0}).",
+        UpdatePromptFmt = "Aktuelle Version: v{0}\nNeueste: {1}\n\nJetzt herunterladen?",
+        UpdateDownloadedFmt = "Heruntergeladen nach:\n{0}\n\nSchließe ClaudeBar und ersetze die laufende .exe durch diese Datei.",
+        UpdateFailed = "Update konnte nicht geprüft/geladen werden.",
+        Changelog = "Neuerungen"
     };
 
     private static readonly Strings Japanese = new()
@@ -520,7 +591,20 @@ public static class Localization
         WinSession = "セッション(5h)",
         WinWeekly = "週間(7d)",
         PaceAlertTitle = "⚠ クォータのペース",
-        PaceAlertBodyFmt = "このペースだと{0}のクォータは{1}頃に尽きます（リセット前）"
+        PaceAlertBodyFmt = "このペースだと{0}のクォータは{1}頃に尽きます（リセット前）",
+        MenuAppearance = "外観",
+        MenuSections = "セクション",
+        MenuIcon = "アイコン",
+        MenuAdvanced = "詳細",
+        About = "情報",
+        CheckUpdates = "更新を確認",
+        Checking = "更新を確認中…",
+        UpdateAvailableFmt = "⬇ 更新あり {0}",
+        UpToDateFmt = "最新です (v{0})。",
+        UpdatePromptFmt = "現在のバージョン: v{0}\n最新: {1}\n\n今すぐダウンロードしますか？",
+        UpdateDownloadedFmt = "ダウンロード先:\n{0}\n\nClaudeBar を閉じて、実行中の .exe をこのファイルに置き換えてください。",
+        UpdateFailed = "更新の確認/ダウンロードに失敗しました。",
+        Changelog = "変更点"
     };
 
     private static readonly Strings Korean = new()
@@ -595,7 +679,20 @@ public static class Localization
         WinSession = "세션(5h)",
         WinWeekly = "주간(7d)",
         PaceAlertTitle = "⚠ 할당량 페이스",
-        PaceAlertBodyFmt = "이 페이스면 {0} 할당량이 {1}경 소진됩니다 (리셋 전)"
+        PaceAlertBodyFmt = "이 페이스면 {0} 할당량이 {1}경 소진됩니다 (리셋 전)",
+        MenuAppearance = "모양",
+        MenuSections = "섹션",
+        MenuIcon = "아이콘",
+        MenuAdvanced = "고급",
+        About = "정보",
+        CheckUpdates = "업데이트 확인",
+        Checking = "업데이트 확인 중…",
+        UpdateAvailableFmt = "⬇ 업데이트 있음 {0}",
+        UpToDateFmt = "최신 버전입니다 (v{0}).",
+        UpdatePromptFmt = "현재 버전: v{0}\n최신: {1}\n\n지금 다운로드할까요?",
+        UpdateDownloadedFmt = "다운로드 위치:\n{0}\n\nClaudeBar를 닫고 실행 중인 .exe를 이 파일로 교체하세요.",
+        UpdateFailed = "업데이트 확인/다운로드에 실패했습니다.",
+        Changelog = "변경 사항"
     };
 
     private static readonly Strings TradChinese = new()
@@ -670,6 +767,19 @@ public static class Localization
         WinSession = "工作階段(5h)",
         WinWeekly = "每週(7d)",
         PaceAlertTitle = "⚠ 配額速度",
-        PaceAlertBodyFmt = "照這個速度，你的{0}配額會在 {1} 用完（重設前）"
+        PaceAlertBodyFmt = "照這個速度，你的{0}配額會在 {1} 用完（重設前）",
+        MenuAppearance = "外觀",
+        MenuSections = "區段",
+        MenuIcon = "圖示",
+        MenuAdvanced = "進階",
+        About = "關於",
+        CheckUpdates = "檢查更新",
+        Checking = "正在檢查更新…",
+        UpdateAvailableFmt = "⬇ 有更新 {0}",
+        UpToDateFmt = "已是最新版本 (v{0})。",
+        UpdatePromptFmt = "目前版本：v{0}\n最新：{1}\n\n要立即下載嗎？",
+        UpdateDownloadedFmt = "已下載到:\n{0}\n\n關閉 ClaudeBar 並用此檔案取代執行中的 .exe。",
+        UpdateFailed = "無法檢查／下載更新。",
+        Changelog = "更新內容"
     };
 }
