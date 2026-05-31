@@ -623,7 +623,10 @@ public sealed class DashboardForm : Form
         if (!draw) return bottom + ChartFooter;
 
         double total = _chartData.Sum(b => b.CostUsd);
-        g.DrawString($"{_s.ChartTotal} ${total:0.00}", smallFont, dim, x, top - 1);
+        var totalText = $"{_s.ChartTotal} ${total:0.00}";
+        var totalSz = g.MeasureString(totalText, smallFont);
+        g.DrawString(totalText, smallFont, dim, x, top - 1);
+        var totalRect = new RectangleF(x, top - 1, totalSz.Width, totalSz.Height);
 
         float X(int i) => n == 1 ? x + w / 2f : x + (float)i * w / (n - 1);
         float Y(double v) => bottom - (float)(v / max) * (ChartH - 14);
@@ -653,7 +656,7 @@ public sealed class DashboardForm : Form
         int peakIdx = 0;
         for (int i = 1; i < n; i++)
             if (_chartData[i].CostUsd > _chartData[peakIdx].CostUsd) peakIdx = i;
-        AnnotatePeak(g, smallFont, $"{_s.ChartPeak} ${max:0.00}", X(peakIdx), Y(max), x, w, top);
+        AnnotatePeak(g, smallFont, $"{_s.ChartPeak} ${max:0.00}", X(peakIdx), Y(max), x, w, top, totalRect);
 
         int labelEvery = Math.Max(1, (int)Math.Ceiling(n / 8.0));
         for (int i = 0; i < n; i += labelEvery)
@@ -709,7 +712,10 @@ public sealed class DashboardForm : Form
                      : _theme.Ok;
 
         // current value (top-left)
-        g.DrawString($"{current:0.#}%", smallFont, dim, x, top - 1);
+        var curText = $"{current:0.#}%";
+        var curSz = g.MeasureString(curText, smallFont);
+        g.DrawString(curText, smallFont, dim, x, top - 1);
+        var curRect = new RectangleF(x, top - 1, curSz.Width, curSz.Height);
 
         // filled area under the line
         var poly = new List<PointF>(n + 2);
@@ -730,7 +736,7 @@ public sealed class DashboardForm : Form
         // peak annotation
         int peakIdx = 0;
         for (int i = 1; i < n; i++) if (pts[i].v > pts[peakIdx].v) peakIdx = i;
-        AnnotatePeak(g, smallFont, $"{_s.ChartPeak} {peak:0.#}%", X(peakIdx), Y(peak), x, w, top);
+        AnnotatePeak(g, smallFont, $"{_s.ChartPeak} {peak:0.#}%", X(peakIdx), Y(peak), x, w, top, curRect);
 
         // x-axis time labels
         int labelEvery = Math.Max(1, (int)Math.Ceiling(n / 6.0));
@@ -744,13 +750,24 @@ public sealed class DashboardForm : Form
         return bottom + ChartFooter;
     }
 
-    private void AnnotatePeak(Graphics g, Font font, string text, float peakX, float peakY, int x, int w, int top)
+    private void AnnotatePeak(Graphics g, Font font, string text, float peakX, float peakY, int x, int w, int top, RectangleF avoid)
     {
         using var marker = new SolidBrush(_theme.Foreground);
         g.FillEllipse(marker, peakX - 2.5f, peakY - 2.5f, 5, 5);
         var psz = g.MeasureString(text, font);
         float pxp = Math.Clamp(peakX - psz.Width / 2f, x, x + w - psz.Width);
-        g.DrawString(text, font, marker, pxp, Math.Max(top - 2, peakY - psz.Height - 1));
+        float pyp = Math.Max(top - 2, peakY - psz.Height - 1);
+        // Avoid colliding with the top-left label (total / current %): when the peak
+        // sits at the top-left, both labels land on the same row and become unreadable.
+        var rect = new RectangleF(pxp, pyp, psz.Width, psz.Height);
+        if (rect.IntersectsWith(avoid))
+        {
+            pyp = peakY + 4;                       // drop the peak label below its marker
+            rect = new RectangleF(pxp, pyp, psz.Width, psz.Height);
+            if (rect.IntersectsWith(avoid))        // still tight → shift right past the label
+                pxp = Math.Clamp(avoid.Right + 6, x, x + w - psz.Width);
+        }
+        g.DrawString(text, font, marker, pxp, pyp);
     }
 
     private Color Pick(Color bg)
