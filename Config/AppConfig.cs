@@ -65,6 +65,18 @@ public sealed class AppConfig
     /// <summary>Bestiario de la mascota a renderizar (de momento solo "cat").</summary>
     public string MascotKind { get; set; } = "cat";
 
+    // Dashboard layout (v0.3)
+    /// <summary>Tamaño de la mascota en la cabecera: "compact" (6×6) o "large" (8×8).</summary>
+    public string MascotSize { get; set; } = "compact";
+    /// <summary>Sección Cuota plegada en el dashboard.</summary>
+    public bool CollapsedQuota { get; set; } = false;
+    /// <summary>Sección Sesiones plegada.</summary>
+    public bool CollapsedSessions { get; set; } = false;
+    /// <summary>Sección Gasto plegada (por defecto sí, para un panel compacto).</summary>
+    public bool CollapsedSpend { get; set; } = true;
+    /// <summary>Sección Gráfica plegada (por defecto sí).</summary>
+    public bool CollapsedChart { get; set; } = true;
+
     [JsonIgnore]
     public static string ConfigPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
