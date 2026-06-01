@@ -55,6 +55,16 @@ public sealed class AppConfig
     /// <summary>Dashboard window opacity (0.3–1.0).</summary>
     public double DashboardOpacity { get; set; } = 1.0;
 
+    // Live sessions (hook de Claude Code -> Named Pipe)
+    /// <summary>Interruptor maestro de la feature de sesiones en vivo (listener del pipe + mascota + lista).</summary>
+    public bool LiveSessionsEnabled { get; set; } = false;
+    /// <summary>Mostrar la mascota ASCII que reacciona a la fase global de las sesiones.</summary>
+    public bool ShowMascot { get; set; } = true;
+    /// <summary>No avisar mientras una ventana de Claude Code/terminal sea la del primer plano.</summary>
+    public bool SuppressWhenFocused { get; set; } = true;
+    /// <summary>Bestiario de la mascota a renderizar (de momento solo "cat").</summary>
+    public string MascotKind { get; set; } = "cat";
+
     [JsonIgnore]
     public static string ConfigPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
