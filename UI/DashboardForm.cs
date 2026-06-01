@@ -450,8 +450,8 @@ public sealed class DashboardForm : Form
             labelFont, smallFont, mono, ref _gearRect);
 
         y = DashboardDataView.Draw(g, draw, x, y, w,
-            _snap, _liveView, _cfg, _s, _theme, _mascotFrame,
-            labelFont, smallFont, tabFont, mono,
+            _snap, _liveView, _cfg, _s, _theme,
+            labelFont, smallFont, tabFont,
             _chartMode, _chartRange, _chartPctWindow,
             _chartData, _pctData, _chartLoading,
             _sectionRects, _tabRects, _modeRects, _pctWinRects, _liveRowRects);

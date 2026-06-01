@@ -45,8 +45,7 @@ public static class DashboardDataView
     /// </summary>
     public static int Draw(Graphics g, bool draw, int x, int y, int w,
         AppSnapshot? snap, LiveSessionsView live, AppConfig cfg, Strings s, Theme theme,
-        int mascotFrame,
-        Font labelFont, Font smallFont, Font tabFont, Font mono,
+        Font labelFont, Font smallFont, Font tabFont,
         string chartMode, ChartRange chartRange, string chartPctWindow,
         List<HistoryBucket> chartData, List<PctPoint> pctData, bool chartLoading,
         Dictionary<string, Rectangle> sectionRects,
@@ -64,11 +63,11 @@ public static class DashboardDataView
         y = Section(g, draw, "quota", s.SectionQuota, !cfg.CollapsedQuota, x, y, w, theme, labelFont, sectionRects,
             yy => DrawQuotaBody(g, draw, snap, cfg, s, theme, x, yy, w, labelFont, smallFont, fg, dim));
 
-        // 2) Sesiones en vivo (mascota + lista de instancias)
+        // 2) Sesiones en vivo (solo lista de instancias; la mascota la pinta la cabecera, no se duplica aquí)
         if (cfg.LiveSessionsEnabled)
         {
             y = Section(g, draw, "sessions", s.SectionSessions, !cfg.CollapsedSessions, x, y, w, theme, labelFont, sectionRects,
-                yy => DrawLiveSessionsBody(g, draw, live, cfg, s, theme, mascotFrame, x, yy, w, smallFont, mono, fg, dim, liveRowRects));
+                yy => DrawLiveSessionsBody(g, draw, live, s, x, yy, w, smallFont, fg, dim, liveRowRects));
         }
         else { liveRowRects.Clear(); }
 
@@ -248,22 +247,13 @@ public static class DashboardDataView
         return y + 16;
     }
 
-    // Cuerpo de DrawLiveSessions SIN su propia cabecera (la pone Section). Mascota + lista de instancias.
-    internal static int DrawLiveSessionsBody(Graphics g, bool draw, LiveSessionsView view, AppConfig cfg, Strings s, Theme theme,
-        int mascotFrame, int x, int y, int w, Font smallFont, Font mono, Brush fg, Brush dim,
+    // Cuerpo de DrawLiveSessions SIN su propia cabecera (la pone Section). Solo lista de instancias:
+    // la mascota la pinta DashboardHeader, así que NO se vuelve a dibujar aquí (evita duplicado).
+    internal static int DrawLiveSessionsBody(Graphics g, bool draw, LiveSessionsView view, Strings s,
+        int x, int y, int w, Font smallFont, Brush fg, Brush dim,
         Dictionary<string, Rectangle> liveRowRects)
     {
         liveRowRects.Clear();
-
-        // Mascota (si está activada): bloque ASCII multilínea por (fase, tamaño) + etiqueta de fase.
-        if (cfg.ShowMascot)
-        {
-            var size = MascotSprite.ParseSize(cfg.MascotSize);
-            var sz = MascotRenderer.Draw(g, draw, x, y, view.GlobalPhase, size, mascotFrame, theme, mono);
-            if (draw)
-                g.DrawString(PhaseLabel(s, view.GlobalPhase), smallFont, dim, x + sz.Width + 12, y + 2);
-            y += sz.Height + 4;
-        }
 
         // Lista de instancias
         if (view.Instances.Count == 0)
