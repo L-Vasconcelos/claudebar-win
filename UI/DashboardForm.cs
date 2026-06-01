@@ -65,6 +65,10 @@ public sealed class DashboardForm : Form
     /// <summary>Emitido cuando el panel de ajustes cambia un valor: el host lo aplica vía MutateConfig.</summary>
     public event Action<Action<AppConfig>>? SettingsChanged;
 
+    /// <summary>Emitido cuando se clica una fila del panel cuya clave NO es mutación simple de config
+    /// (claves "special:*", p.ej. "special:importtheme"/"special:hooktoggle"). El host las maneja.</summary>
+    public event Action<string>? SpecialActionRequested;
+
     /// <summary>Cambia a la vista de ajustes (⚙). Reajusta el alto del popup y repinta.</summary>
     public void ShowSettings() { _viewMode = "settings"; Relayout(); Invalidate(); }
 
@@ -284,6 +288,7 @@ public sealed class DashboardForm : Form
                 if (r.Contains(e.Location))
                 {
                     if (DashboardSettingsView.ActionFor(key) is { } a) SettingsChanged?.Invoke(a);
+                    else SpecialActionRequested?.Invoke(key); // claves "special:*": diálogo/instalador en el host
                     Invalidate();
                     return;
                 }

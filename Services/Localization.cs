@@ -170,6 +170,27 @@ public static class Localization
         return Get(code);
     }
 
+    /// <summary>Orden de ciclo del selector de idioma del panel: "system" + los 8 códigos.</summary>
+    public static readonly string[] LanguageCycle =
+        new[] { "system" }.Concat(Languages.Select(l => l.Code)).ToArray();
+
+    /// <summary>Nombre legible de un código de idioma ("system" → SystemDefault; resto → nativo).</summary>
+    public static string LanguageDisplayName(string code, Strings s)
+    {
+        if (string.IsNullOrEmpty(code) || code == "system") return s.SystemDefault;
+        foreach (var (c, native) in Languages)
+            if (c == code) return native;
+        return code;
+    }
+
+    /// <summary>Siguiente idioma en el ciclo (envuelve al principio).</summary>
+    public static string NextLanguage(string current)
+    {
+        var cur = string.IsNullOrEmpty(current) ? "system" : current;
+        int i = Array.IndexOf(LanguageCycle, cur);
+        return LanguageCycle[(i < 0 ? 0 : (i + 1) % LanguageCycle.Length)];
+    }
+
     public static string ResolveSystemCode()
     {
         var two = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.ToLowerInvariant();

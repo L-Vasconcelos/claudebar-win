@@ -86,6 +86,11 @@ public sealed class TrayAppContext : ApplicationContext
         _foreground = new ForegroundDetector();
         _dashboard.SetLiveSessionsProvider(() => _sessionAgg.BuildView(_sessions.Snapshot()));
         _dashboard.SettingsChanged += a => MutateConfig(a);
+        _dashboard.SpecialActionRequested += key =>
+        {
+            if (key == "special:importtheme") ImportItermColors();
+            else if (key == "special:hooktoggle") ToggleHooks();
+        };
 
         _sessions.Changed += OnSessionsChanged;
 
@@ -257,6 +262,25 @@ public sealed class TrayAppContext : ApplicationContext
     {
         if (_lastSnapshot is null || _lastUsage is null) return;
         UpdateUi(_lastSnapshot); // recalcula icono; UpdateUi ya pinta con _lastSnapshot
+    }
+
+    /// <summary>Acción especial del panel de ajustes (fila "Importar .itermcolors"): abre el diálogo,
+    /// importa la paleta y la aplica como tema "imported". Necesita UI (OpenFileDialog), por eso vive aquí.</summary>
+    private void ImportItermColors()
+    {
+        try
+        {
+            using var dlg = new OpenFileDialog
+            {
+                Title = _s.ImportTheme,
+                Filter = "iTerm colors (*.itermcolors)|*.itermcolors|All files (*.*)|*.*"
+            };
+            if (dlg.ShowDialog() != DialogResult.OK) return;
+            var colors = ItermColorsImporter.TryImport(dlg.FileName);
+            if (colors is null) return;
+            MutateConfig(c => { c.ImportedTheme = colors; c.Theme = "imported"; });
+        }
+        catch { }
     }
 
     private void ToggleHooks()
