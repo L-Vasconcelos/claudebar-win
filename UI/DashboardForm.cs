@@ -2,6 +2,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using ClaudeBarWin.Config;
+using ClaudeBarWin.Models;
 using ClaudeBarWin.Services;
 
 namespace ClaudeBarWin.UI;
@@ -52,6 +53,11 @@ public sealed class DashboardForm : Form
     // Chart
     private Func<ChartRange, Task<List<HistoryBucket>>>? _historyProvider;
     private Func<ChartRange, Task<List<PctPoint>>>? _pctProvider;
+
+    // Live sessions (mascot + instance list)
+    private Func<LiveSessionsView>? _liveProvider;
+    private LiveSessionsView _liveView = new();
+    private int _mascotFrame;
     private ChartRange _chartRange = ChartRange.Hours5;
     private string _chartMode = "spend";       // "spend" | "percent"
     private string _chartPctWindow = "7d";     // "5h" | "7d"
@@ -61,10 +67,12 @@ public sealed class DashboardForm : Form
     private readonly Dictionary<ChartRange, Rectangle> _tabRects = new();
     private readonly Dictionary<string, Rectangle> _modeRects = new();   // "spend"/"percent"
     private readonly Dictionary<string, Rectangle> _pctWinRects = new(); // "5h"/"7d"
+    private readonly Dictionary<string, Rectangle> _liveRowRects = new(); // sessionId → row
 
     public event Action<Point>? Moved;
     public event Action<string>? ChartModeChanged;
     public event Action<string>? ChartWindowChanged;
+    public event Action<string>? SessionClicked;
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -81,11 +89,20 @@ public sealed class DashboardForm : Form
         Padding = new Padding(18);
 
         _tick = new System.Windows.Forms.Timer { Interval = 1000 };
-        _tick.Tick += (_, _) => { if (Visible) Invalidate(); };
+        _tick.Tick += (_, _) => { if (Visible) { _mascotFrame++; Invalidate(); } };
     }
 
     public void SetHistoryProvider(Func<ChartRange, Task<List<HistoryBucket>>> provider) => _historyProvider = provider;
     public void SetPercentProvider(Func<ChartRange, Task<List<PctPoint>>> provider) => _pctProvider = provider;
+    public void SetLiveSessionsProvider(Func<LiveSessionsView> provider) => _liveProvider = provider;
+
+    /// <summary>Llamar cuando cambien las sesiones en vivo (desde el hilo de UI vía BeginInvoke).</summary>
+    public void OnLiveSessionsChanged()
+    {
+        if (_liveProvider is not null) _liveView = _liveProvider();
+        Relayout();
+        Invalidate();
+    }
 
     /// <summary>Show the same config menu on right-click, without the auto-hide closing it.</summary>
     public void AttachContextMenu(ContextMenuStrip menu)
@@ -100,6 +117,7 @@ public sealed class DashboardForm : Form
         _snap = snap;
         _cfg = cfg;
         _plan = plan;
+        if (_cfg.LiveSessionsEnabled && _liveProvider is not null) _liveView = _liveProvider();
         _s = Localization.ForConfig(cfg);
         _theme = ThemeResolver.Resolve(cfg);
         _sticky = cfg.DashboardSticky;
@@ -296,6 +314,11 @@ public sealed class DashboardForm : Form
             }
         }
 
+        foreach (var (id, rect) in _liveRowRects)
+        {
+            if (rect.Contains(e.Location)) { SessionClicked?.Invoke(id); return; }
+        }
+
         _dragging = true;
         _dragOffset = new Point(Cursor.Position.X - Location.X, Cursor.Position.Y - Location.Y);
         Cursor = Cursors.SizeAll;
@@ -313,7 +336,8 @@ public sealed class DashboardForm : Form
         bool overClickable = _closeRect.Contains(e.Location)
             || _tabRects.Values.Any(r => r.Contains(e.Location))
             || _modeRects.Values.Any(r => r.Contains(e.Location))
-            || _pctWinRects.Values.Any(r => r.Contains(e.Location));
+            || _pctWinRects.Values.Any(r => r.Contains(e.Location))
+            || _liveRowRects.Values.Any(r => r.Contains(e.Location));
         Cursor = overClickable ? Cursors.Hand : Cursors.Default;
     }
 
@@ -422,6 +446,13 @@ public sealed class DashboardForm : Form
                 y += 20;
             }
         }
+
+        if (_cfg.LiveSessionsEnabled)
+        {
+            y += 8;
+            y = DrawLiveSessions(g, draw, x, y, w, smallFont, fg, dim);
+        }
+        else { _liveRowRects.Clear(); }
 
         if (_cfg.ShowChart)
         {
@@ -679,6 +710,76 @@ public sealed class DashboardForm : Form
         }
         return bottom + ChartFooter;
     }
+
+    private int DrawLiveSessions(Graphics g, bool draw, int x, int y, int w, Font smallFont, Brush fg, Brush dim)
+    {
+        _liveRowRects.Clear();
+        var view = _liveView;
+
+        // Cabecera de sección
+        if (draw)
+            g.DrawString(_s.LiveSessionsTitle, smallFont, dim, x, y);
+        y += 18;
+
+        // Mascota (si está activada)
+        if (_cfg.ShowMascot)
+        {
+            var frames = MascotSprite.Frames(view.GlobalPhase);
+            var frame = frames[_mascotFrame % frames.Count];
+            var label = PhaseLabel(view.GlobalPhase);
+            using var mono = new Font("Consolas", 11f, FontStyle.Regular, GraphicsUnit.Point);
+            if (draw)
+            {
+                using var accent = new SolidBrush(PhaseColor(view.GlobalPhase));
+                g.DrawString(frame, mono, accent, x, y);
+                g.DrawString(label, smallFont, dim, x + 110, y + 2);
+            }
+            y += 22;
+        }
+
+        // Lista de instancias
+        if (view.Instances.Count == 0)
+        {
+            if (draw) g.DrawString(_s.NoActiveSessions, smallFont, dim, x, y);
+            y += 18;
+        }
+        else
+        {
+            foreach (var s in view.Instances)
+            {
+                var rect = new Rectangle(x, y, w, 16);
+                if (draw)
+                {
+                    g.DrawString(s.ProjectName, smallFont, fg, x, y);
+                    var st = PhaseLabel(s.Phase);
+                    var size = g.MeasureString(st, smallFont);
+                    g.DrawString(st, smallFont, dim, x + w - size.Width, y);
+                }
+                _liveRowRects[s.SessionId] = rect;
+                y += 18;
+            }
+        }
+        return y;
+    }
+
+    private string PhaseLabel(SessionPhase p) => p switch
+    {
+        SessionPhase.Idle => _s.SessionPhaseIdle,
+        SessionPhase.Processing => _s.SessionPhaseProcessing,
+        SessionPhase.WaitingForApproval => _s.SessionPhaseWaitingApproval,
+        SessionPhase.WaitingForInput => _s.SessionPhaseWaitingInput,
+        SessionPhase.Compacting => _s.SessionPhaseCompacting,
+        _ => _s.SessionPhaseIdle,
+    };
+
+    private Color PhaseColor(SessionPhase p) => p switch
+    {
+        SessionPhase.WaitingForApproval => _theme.Warn,
+        SessionPhase.Processing => _theme.Ok,
+        SessionPhase.Compacting => _theme.Ok,
+        SessionPhase.WaitingForInput => _theme.Warn,
+        _ => _theme.Dim,
+    };
 
     private int DrawPercentBody(Graphics g, bool draw, int x, int top, int w, Font smallFont, Brush dim)
     {
