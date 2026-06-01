@@ -75,6 +75,12 @@ public sealed class Strings
     public string HealthDegraded { get; init; } = "Degraded";
     public string HealthOutage { get; init; } = "Outage";
 
+    // Dashboard sections (v0.3)
+    public string SectionQuota { get; init; } = "Quota";
+    public string SectionSessions { get; init; } = "Sessions";
+    public string SectionSpend { get; init; } = "Spend";
+    public string SectionChart { get; init; } = "Chart";
+
     // Chart & misc
     public string UsageChart { get; init; } = "Usage chart";
     public string NoData { get; init; } = "No data in this range";
@@ -247,6 +253,10 @@ public static class Localization
         HealthOk = "Operativo",
         HealthDegraded = "Degradado",
         HealthOutage = "Caído",
+        SectionQuota = "Cuota",
+        SectionSessions = "Sesiones",
+        SectionSpend = "Gasto",
+        SectionChart = "Gráfica",
         UsageChart = "Gráfica de uso",
         NoData = "Sin datos en este rango",
         OpenBilling = "Abrir facturación…",
