@@ -8,6 +8,7 @@
 AppId={{A7C3E1F2-5B8D-4E9A-9C1F-3D2E4F6A8B0C}
 AppName=ClaudeBar for Windows
 AppVersion={#MyVersion}
+VersionInfoVersion={#MyVersion}
 AppPublisher=Yovan Castro
 AppPublisherURL=https://github.com/Yovancas/claudebar-win
 DefaultDirName={localappdata}\Programs\ClaudeBarWin
