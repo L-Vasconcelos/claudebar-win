@@ -26,6 +26,10 @@
     <InternalsVisibleTo Include="ClaudeBarWin.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="hooks\claudebar-hook.ps1" />
+  </ItemGroup>
+
   <!-- The test project lives in a subfolder; exclude it from the root project's default glob. -->
   <ItemGroup>
     <Compile Remove="ClaudeBarWin.Tests\**\*.cs" />
