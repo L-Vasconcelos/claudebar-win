@@ -407,9 +407,28 @@ internal static class Program
             form.PrepareForRender(snap, cfg, plan, buckets, pct, ChartRange.Hours5);
             using var bmp = new Bitmap(form.Width, form.Height);
             form.DrawToBitmap(bmp, new Rectangle(0, 0, form.Width, form.Height));
-            bmp.Save(Path.Combine(dir, "dashboard.png"));
+            bmp.Save(Path.Combine(dir, "data.png"));
+
+            // Vista de ajustes (mismo form): cambia el modo y reajusta el alto.
+            form.ShowSettings();
+            using var bmpS = new Bitmap(form.Width, form.Height);
+            form.DrawToBitmap(bmpS, new Rectangle(0, 0, form.Width, form.Height));
+            bmpS.Save(Path.Combine(dir, "settings.png"));
         }
 
+        // Mascota grande: sesiones en vivo ON + tamaño "large" para verla en la cabecera.
+        cfg.LiveSessionsEnabled = true;
+        cfg.ShowMascot = true;
+        cfg.MascotSize = "large";
+        using (var formL = new DashboardForm())
+        {
+            formL.PrepareForRender(snap, cfg, plan, buckets, pct, ChartRange.Hours5);
+            using var bmpL = new Bitmap(formL.Width, formL.Height);
+            formL.DrawToBitmap(bmpL, new Rectangle(0, 0, formL.Width, formL.Height));
+            bmpL.Save(Path.Combine(dir, "mascot-large.png"));
+        }
+
+        Console.WriteLine("rendered data.png + settings.png + mascot-large.png");
         Console.WriteLine(dir);
     }
 }
