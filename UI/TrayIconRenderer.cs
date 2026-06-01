@@ -19,16 +19,16 @@ public static class TrayIconRenderer
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool DestroyIcon(IntPtr hIcon);
 
-    public static Icon Render(int percent, Color bg)
+    public static Icon Render(int percent, Color bg, bool pending = false)
     {
         percent = Math.Clamp(percent, 0, 999);
-        return RenderBadge(percent >= 100 ? "99+" : percent.ToString(), bg);
+        return RenderBadge(percent >= 100 ? "99+" : percent.ToString(), bg, pending);
     }
 
     /// <summary>Neutral badge for "no data / auth expired / offline".</summary>
-    public static Icon RenderError(Color bg) => RenderBadge("!", bg);
+    public static Icon RenderError(Color bg, bool pending = false) => RenderBadge("!", bg, pending);
 
-    private static Icon RenderBadge(string text, Color bg)
+    private static Icon RenderBadge(string text, Color bg, bool pending)
     {
         const int size = 32;
         using var bmp = new Bitmap(size, size);
@@ -49,6 +49,17 @@ public static class TrayIconRenderer
                 LineAlignment = StringAlignment.Center
             };
             g.DrawString(text, font, Brushes.White, new RectangleF(0, -1, size, size), sf);
+
+            if (pending)
+            {
+                var amber = Color.FromArgb(0xF5, 0xA6, 0x23);
+                int d = 12;
+                var badge = new Rectangle(size - d - 1, 0, d, d);
+                using var fill = new SolidBrush(amber);
+                using var ring = new Pen(Color.FromArgb(0x1A, 0x1A, 0x1A), 1.5f);
+                g.FillEllipse(fill, badge);
+                g.DrawEllipse(ring, badge);
+            }
         }
 
         IntPtr hIcon = bmp.GetHicon();
