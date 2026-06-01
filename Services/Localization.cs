@@ -81,6 +81,12 @@ public sealed class Strings
     public string SectionSpend { get; init; } = "Spend";
     public string SectionChart { get; init; } = "Chart";
 
+    // Settings panel (v0.3)
+    public string Back { get; init; } = "Back";
+    public string MascotSizeLabel { get; init; } = "Mascot size";
+    public string MascotSizeCompact { get; init; } = "compact";
+    public string MascotSizeLarge { get; init; } = "large";
+
     // Chart & misc
     public string UsageChart { get; init; } = "Usage chart";
     public string NoData { get; init; } = "No data in this range";
@@ -257,6 +263,10 @@ public static class Localization
         SectionSessions = "Sesiones",
         SectionSpend = "Gasto",
         SectionChart = "Gráfica",
+        Back = "Volver",
+        MascotSizeLabel = "Tamaño mascota",
+        MascotSizeCompact = "compacta",
+        MascotSizeLarge = "grande",
         UsageChart = "Gráfica de uso",
         NoData = "Sin datos en este rango",
         OpenBilling = "Abrir facturación…",
