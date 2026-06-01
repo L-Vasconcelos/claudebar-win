@@ -49,6 +49,7 @@ public sealed class TrayAppContext : ApplicationContext
     private Theme _theme;
     private string _menuLangCode;
     private Icon? _currentIcon;
+    private Icon? _updateIcon; // icono PROPIO y estable para la UI de NetSparkle; se dispone solo al cerrar, nunca en el ciclo del tray
 
     private RealUsage? _lastUsage;
     private DateTime _lastUsageAtUtc;
@@ -114,7 +115,10 @@ public sealed class TrayAppContext : ApplicationContext
         _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignalName);
         new Thread(ShowSignalLoop) { IsBackground = true, Name = "ShowSignalListener" }.Start();
 
-        _updates = new SparkleUpdateService(_currentIcon);
+        // Icono PROPIO para las ventanas de NetSparkle: NO reutilizar _currentIcon, que UpdateUi
+        // dispone/reemplaza en cada refresco (dejaría a NetSparkle con un Icon disposed → crash al abrir su ventana).
+        _updateIcon = TrayIconRenderer.RenderError(_theme.Neutral);
+        _updates = new SparkleUpdateService(_updateIcon);
         _updates.AvailabilityChanged += () =>
         {
             try { _dashboard.BeginInvoke(new Action(UpdateMenuChecks)); } catch { }
@@ -758,6 +762,7 @@ public sealed class TrayAppContext : ApplicationContext
         _tray.Visible = false;
         _tray.Dispose();
         _currentIcon?.Dispose();
+        _updateIcon?.Dispose();
         _dashboard.Dispose();
         _showSignal.Dispose();
         ExitThread();
@@ -770,6 +775,7 @@ public sealed class TrayAppContext : ApplicationContext
             _timer.Dispose();
             _tray.Dispose();
             _currentIcon?.Dispose();
+            _updateIcon?.Dispose();
             _dashboard.Dispose();
             _showSignal.Dispose();
         }
