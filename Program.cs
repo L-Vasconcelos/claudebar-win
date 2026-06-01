@@ -49,6 +49,12 @@ internal static class Program
             return;
         }
 
+        if (args.Contains("--hook-test"))
+        {
+            RunHookTest();
+            return;
+        }
+
         ApplicationConfiguration.Initialize();
 
         using var mutex = new Mutex(initiallyOwned: true, "ClaudeBarWin_SingleInstance", out bool createdNew);
@@ -85,6 +91,33 @@ internal static class Program
         Console.WriteLine(line);
         try { File.WriteAllText(Path.Combine(Path.GetTempPath(), "claudebar-dbtest.txt"), line); } catch { }
         try { File.Delete(tmp); } catch { }
+    }
+
+    private static void RunHookTest()
+    {
+        // Requiere una instancia de ClaudeBar corriendo con sesiones en vivo activadas.
+        var seq = new (string ev, string status, string tool)[]
+        {
+            ("SessionStart", "starting", ""),
+            ("PreToolUse", "running_tool", "Bash"),
+            ("PermissionRequest", "waiting_for_approval", "Write"),
+            ("PostToolUse", "processing", "Write"),
+            ("Stop", "waiting_for_input", ""),
+        };
+        foreach (var (ev, status, tool) in seq)
+        {
+            var json = $"{{\"session_id\":\"hook-test\",\"cwd\":\"C:\\\\Users\\\\zorro\\\\Proyectos\\\\demo\",\"pid\":{Environment.ProcessId},\"event\":\"{ev}\",\"status\":\"{status}\",\"tool\":\"{tool}\",\"ts\":0}}";
+            try
+            {
+                using var c = new System.IO.Pipes.NamedPipeClientStream(".", "claudebar", System.IO.Pipes.PipeDirection.Out);
+                c.Connect(500);
+                using var w = new StreamWriter(c) { AutoFlush = true };
+                w.WriteLine(json);
+                Console.WriteLine($"sent {ev}/{status}");
+            }
+            catch (Exception ex) { Console.WriteLine($"FAIL {ev}: {ex.Message} (¿esta ClaudeBar corriendo con sesiones en vivo ON?)"); }
+            System.Threading.Thread.Sleep(1500);
+        }
     }
 
     private static async Task<AppSnapshot> BuildSnapshotAsync(AppConfig cfg)
