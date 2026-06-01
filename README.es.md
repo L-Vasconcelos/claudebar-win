@@ -79,9 +79,10 @@ Icono de bandeja, por estado / ritmo:
 ## Instalación
 
 **Opción 1 — Descargar (recomendado)**
-Baja `ClaudeBarWin.exe` de la [última release](https://github.com/Yovancas/claudebar-win/releases/latest)
-y ejecútalo. Es un build autocontenido — **no requiere .NET**. El icono aparece en la bandeja
-(Windows 11: arrástralo fuera del desbordamiento `^` para fijarlo).
+Descarga y ejecuta `ClaudeBarWin-Setup-x.y.z.exe` de la [última release](https://github.com/Yovancas/claudebar-win/releases/latest).
+Se instala por usuario (sin admin), autocontenido — **no requiere .NET**. El icono aparece en la bandeja
+(Windows 11: arrástralo fuera del desbordamiento `^` para fijarlo). **Las actualizaciones se instalan solas** —
+la app comprueba al arrancar, o las lanzas desde el menú de click derecho → *Buscar actualizaciones*.
 
 > Windows SmartScreen puede avisar porque el .exe no está firmado → **Más información → Ejecutar de todas formas**.
 

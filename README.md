@@ -82,9 +82,10 @@ Tray icon, by status / pace:
 ## Install
 
 **Option 1 — Download (recommended)**
-Grab `ClaudeBarWin.exe` from the [latest release](https://github.com/Yovancas/claudebar-win/releases/latest)
-and run it. It's a self-contained build — **no .NET required**. The icon lands in the system tray
-(Windows 11: drag it out of the `^` overflow to pin it).
+Download and run `ClaudeBarWin-Setup-x.y.z.exe` from the [latest release](https://github.com/Yovancas/claudebar-win/releases/latest).
+It installs per-user (no admin), self-contained — **no .NET required**. The icon lands in the system tray
+(Windows 11: drag it out of the `^` overflow to pin it). **Updates install themselves** — the app checks on
+launch, or you can trigger it from the right-click menu → *Check for updates*.
 
 > Windows SmartScreen may warn because the .exe is unsigned → **More info → Run anyway**.
 
