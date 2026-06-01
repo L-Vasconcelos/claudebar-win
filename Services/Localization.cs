@@ -111,6 +111,27 @@ public sealed class Strings
     /// <summary>{0} = path.</summary>
     public string UpdateDownloadedFmt { get; init; } = "Downloaded to:\n{0}\n\nClose ClaudeBar and replace the running .exe with this file.";
     public string UpdateFailed { get; init; } = "Couldn't check/download the update.";
+
+    // Live sessions / Mascot
+    public string MenuLiveSessions { get; init; } = "Live sessions";
+    public string MenuShowMascot { get; init; } = "Show mascot";
+    public string MenuSuppressWhenFocused { get; init; } = "Mute when terminal focused";
+    public string MenuInstallHooks { get; init; } = "Enable (install hooks)…";
+    public string MenuUninstallHooks { get; init; } = "Disable (remove hooks)";
+    public string NoActiveSessions { get; init; } = "No active sessions";
+    public string SessionPhaseIdle { get; init; } = "idle";
+    public string SessionPhaseProcessing { get; init; } = "working";
+    public string SessionPhaseWaitingApproval { get; init; } = "waiting for OK";
+    public string SessionPhaseWaitingInput { get; init; } = "your turn";
+    public string SessionPhaseCompacting { get; init; } = "compacting";
+    /// <summary>{0} = nombre del proyecto.</summary>
+    public string NotifWaitingApprovalFmt { get; init; } = "Claude is waiting for your OK in {0}";
+    /// <summary>{0} = nombre del proyecto.</summary>
+    public string NotifWaitingInputFmt { get; init; } = "Claude finished in {0}";
+    public string LiveSessionsTitle { get; init; } = "Claude sessions";
+    /// <summary>{0} = ruta del backup de settings.json.</summary>
+    public string HooksInstalledFmt { get; init; } = "Live sessions on. Backup: {0}";
+    public string HooksRemoved { get; init; } = "Live sessions off. Hooks removed.";
     public string Changelog { get; init; } = "What's new";
 }
 
@@ -252,6 +273,22 @@ public static class Localization
         UpdatePromptFmt = "Versión actual: v{0}\nÚltima disponible: {1}\n\n¿Descargar ahora?",
         UpdateDownloadedFmt = "Descargado en:\n{0}\n\nCierra ClaudeBar y reemplaza el .exe en uso por este archivo.",
         UpdateFailed = "No se pudo comprobar/descargar la actualización.",
+        MenuLiveSessions = "Sesiones en vivo",
+        MenuShowMascot = "Mostrar mascota",
+        MenuSuppressWhenFocused = "Silenciar si la terminal tiene foco",
+        MenuInstallHooks = "Activar (instalar hooks)…",
+        MenuUninstallHooks = "Desactivar (quitar hooks)",
+        NoActiveSessions = "Sin sesiones activas",
+        SessionPhaseIdle = "en reposo",
+        SessionPhaseProcessing = "trabajando",
+        SessionPhaseWaitingApproval = "espera tu OK",
+        SessionPhaseWaitingInput = "tu turno",
+        SessionPhaseCompacting = "compactando",
+        NotifWaitingApprovalFmt = "Claude espera tu OK en {0}",
+        NotifWaitingInputFmt = "Claude terminó en {0}",
+        LiveSessionsTitle = "Sesiones de Claude",
+        HooksInstalledFmt = "Sesiones en vivo activadas. Backup: {0}",
+        HooksRemoved = "Sesiones en vivo desactivadas. Hooks quitados.",
         Changelog = "Novedades"
     };
 
@@ -340,6 +377,22 @@ public static class Localization
         UpdatePromptFmt = "Huidige versie: v{0}\nNieuwste: {1}\n\nNu downloaden?",
         UpdateDownloadedFmt = "Gedownload naar:\n{0}\n\nSluit ClaudeBar en vervang de actieve .exe door dit bestand.",
         UpdateFailed = "Kan de update niet controleren/downloaden.",
+        MenuLiveSessions = "Live sessies",
+        MenuShowMascot = "Mascotte tonen",
+        MenuSuppressWhenFocused = "Dempen als terminal focus heeft",
+        MenuInstallHooks = "Inschakelen (hooks installeren)…",
+        MenuUninstallHooks = "Uitschakelen (hooks verwijderen)",
+        NoActiveSessions = "Geen actieve sessies",
+        SessionPhaseIdle = "inactief",
+        SessionPhaseProcessing = "bezig",
+        SessionPhaseWaitingApproval = "wacht op jouw OK",
+        SessionPhaseWaitingInput = "jouw beurt",
+        SessionPhaseCompacting = "comprimeren",
+        NotifWaitingApprovalFmt = "Claude wacht op jouw OK in {0}",
+        NotifWaitingInputFmt = "Claude is klaar in {0}",
+        LiveSessionsTitle = "Claude-sessies",
+        HooksInstalledFmt = "Live sessies aan. Back-up: {0}",
+        HooksRemoved = "Live sessies uit. Hooks verwijderd.",
         Changelog = "Wat is er nieuw"
     };
 
@@ -428,6 +481,22 @@ public static class Localization
         UpdatePromptFmt = "Version actuelle : v{0}\nDernière : {1}\n\nTélécharger maintenant ?",
         UpdateDownloadedFmt = "Téléchargé dans :\n{0}\n\nFerme ClaudeBar et remplace le .exe en cours par ce fichier.",
         UpdateFailed = "Impossible de vérifier/télécharger la mise à jour.",
+        MenuLiveSessions = "Sessions en direct",
+        MenuShowMascot = "Afficher la mascotte",
+        MenuSuppressWhenFocused = "Muet si le terminal a le focus",
+        MenuInstallHooks = "Activer (installer les hooks)…",
+        MenuUninstallHooks = "Désactiver (retirer les hooks)",
+        NoActiveSessions = "Aucune session active",
+        SessionPhaseIdle = "au repos",
+        SessionPhaseProcessing = "en cours",
+        SessionPhaseWaitingApproval = "attend votre OK",
+        SessionPhaseWaitingInput = "à vous",
+        SessionPhaseCompacting = "compactage",
+        NotifWaitingApprovalFmt = "Claude attend votre OK dans {0}",
+        NotifWaitingInputFmt = "Claude a terminé dans {0}",
+        LiveSessionsTitle = "Sessions Claude",
+        HooksInstalledFmt = "Sessions en direct activées. Sauvegarde : {0}",
+        HooksRemoved = "Sessions en direct désactivées. Hooks retirés.",
         Changelog = "Nouveautés"
     };
 
@@ -516,6 +585,22 @@ public static class Localization
         UpdatePromptFmt = "Aktuelle Version: v{0}\nNeueste: {1}\n\nJetzt herunterladen?",
         UpdateDownloadedFmt = "Heruntergeladen nach:\n{0}\n\nSchließe ClaudeBar und ersetze die laufende .exe durch diese Datei.",
         UpdateFailed = "Update konnte nicht geprüft/geladen werden.",
+        MenuLiveSessions = "Live-Sitzungen",
+        MenuShowMascot = "Maskottchen anzeigen",
+        MenuSuppressWhenFocused = "Stumm, wenn Terminal im Fokus",
+        MenuInstallHooks = "Aktivieren (Hooks installieren)…",
+        MenuUninstallHooks = "Deaktivieren (Hooks entfernen)",
+        NoActiveSessions = "Keine aktiven Sitzungen",
+        SessionPhaseIdle = "im Leerlauf",
+        SessionPhaseProcessing = "arbeitet",
+        SessionPhaseWaitingApproval = "wartet auf dein OK",
+        SessionPhaseWaitingInput = "du bist dran",
+        SessionPhaseCompacting = "komprimiert",
+        NotifWaitingApprovalFmt = "Claude wartet auf dein OK in {0}",
+        NotifWaitingInputFmt = "Claude ist fertig in {0}",
+        LiveSessionsTitle = "Claude-Sitzungen",
+        HooksInstalledFmt = "Live-Sitzungen an. Backup: {0}",
+        HooksRemoved = "Live-Sitzungen aus. Hooks entfernt.",
         Changelog = "Neuerungen"
     };
 
@@ -604,6 +689,22 @@ public static class Localization
         UpdatePromptFmt = "現在のバージョン: v{0}\n最新: {1}\n\n今すぐダウンロードしますか？",
         UpdateDownloadedFmt = "ダウンロード先:\n{0}\n\nClaudeBar を閉じて、実行中の .exe をこのファイルに置き換えてください。",
         UpdateFailed = "更新の確認/ダウンロードに失敗しました。",
+        MenuLiveSessions = "ライブセッション",
+        MenuShowMascot = "マスコットを表示",
+        MenuSuppressWhenFocused = "ターミナルがフォーカス中はミュート",
+        MenuInstallHooks = "有効化（フックをインストール）…",
+        MenuUninstallHooks = "無効化（フックを削除）",
+        NoActiveSessions = "アクティブなセッションなし",
+        SessionPhaseIdle = "待機中",
+        SessionPhaseProcessing = "処理中",
+        SessionPhaseWaitingApproval = "承認待ち",
+        SessionPhaseWaitingInput = "あなたの番",
+        SessionPhaseCompacting = "圧縮中",
+        NotifWaitingApprovalFmt = "Claude が {0} で承認を待っています",
+        NotifWaitingInputFmt = "Claude が {0} で完了しました",
+        LiveSessionsTitle = "Claude セッション",
+        HooksInstalledFmt = "ライブセッション オン。バックアップ: {0}",
+        HooksRemoved = "ライブセッション オフ。フックを削除しました。",
         Changelog = "変更点"
     };
 
@@ -692,6 +793,22 @@ public static class Localization
         UpdatePromptFmt = "현재 버전: v{0}\n최신: {1}\n\n지금 다운로드할까요?",
         UpdateDownloadedFmt = "다운로드 위치:\n{0}\n\nClaudeBar를 닫고 실행 중인 .exe를 이 파일로 교체하세요.",
         UpdateFailed = "업데이트 확인/다운로드에 실패했습니다.",
+        MenuLiveSessions = "실시간 세션",
+        MenuShowMascot = "마스코트 표시",
+        MenuSuppressWhenFocused = "터미널이 포커스일 때 음소거",
+        MenuInstallHooks = "활성화 (훅 설치)…",
+        MenuUninstallHooks = "비활성화 (훅 제거)",
+        NoActiveSessions = "활성 세션 없음",
+        SessionPhaseIdle = "대기 중",
+        SessionPhaseProcessing = "작업 중",
+        SessionPhaseWaitingApproval = "승인 대기",
+        SessionPhaseWaitingInput = "당신 차례",
+        SessionPhaseCompacting = "압축 중",
+        NotifWaitingApprovalFmt = "Claude가 {0}에서 승인을 기다립니다",
+        NotifWaitingInputFmt = "Claude가 {0}에서 완료했습니다",
+        LiveSessionsTitle = "Claude 세션",
+        HooksInstalledFmt = "실시간 세션 켜짐. 백업: {0}",
+        HooksRemoved = "실시간 세션 꺼짐. 훅 제거됨.",
         Changelog = "변경 사항"
     };
 
@@ -780,6 +897,22 @@ public static class Localization
         UpdatePromptFmt = "目前版本：v{0}\n最新：{1}\n\n要立即下載嗎？",
         UpdateDownloadedFmt = "已下載到:\n{0}\n\n關閉 ClaudeBar 並用此檔案取代執行中的 .exe。",
         UpdateFailed = "無法檢查／下載更新。",
+        MenuLiveSessions = "即時工作階段",
+        MenuShowMascot = "顯示吉祥物",
+        MenuSuppressWhenFocused = "終端機聚焦時靜音",
+        MenuInstallHooks = "啟用（安裝 hooks）…",
+        MenuUninstallHooks = "停用（移除 hooks）",
+        NoActiveSessions = "沒有作用中的工作階段",
+        SessionPhaseIdle = "閒置",
+        SessionPhaseProcessing = "處理中",
+        SessionPhaseWaitingApproval = "等待你的同意",
+        SessionPhaseWaitingInput = "輪到你了",
+        SessionPhaseCompacting = "壓縮中",
+        NotifWaitingApprovalFmt = "Claude 正在 {0} 等待你的同意",
+        NotifWaitingInputFmt = "Claude 已在 {0} 完成",
+        LiveSessionsTitle = "Claude 工作階段",
+        HooksInstalledFmt = "即時工作階段已開啟。備份：{0}",
+        HooksRemoved = "即時工作階段已關閉。已移除 hooks。",
         Changelog = "更新內容"
     };
 }
