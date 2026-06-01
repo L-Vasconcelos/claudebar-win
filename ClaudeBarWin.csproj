@@ -22,4 +22,15 @@
     <PackageReference Include="NetSparkleUpdater.UI.WinForms.NetCore" Version="3.1.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="ClaudeBarWin.Tests" />
+  </ItemGroup>
+
+  <!-- The test project lives in a subfolder; exclude it from the root project's default glob. -->
+  <ItemGroup>
+    <Compile Remove="ClaudeBarWin.Tests\**\*.cs" />
+    <EmbeddedResource Remove="ClaudeBarWin.Tests\**" />
+    <None Remove="ClaudeBarWin.Tests\**" />
+  </ItemGroup>
+
 </Project>
