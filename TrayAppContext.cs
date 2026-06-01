@@ -34,7 +34,7 @@ public sealed class TrayAppContext : ApplicationContext
     private readonly List<(ToolStripMenuItem item, string mode)> _iconItems = new();
     private ToolStripMenuItem _miPaceAlerts = null!;
     private ToolStripMenuItem _miUpdate = null!;
-    private UpdateInfo? _update;
+    private SparkleUpdateService _updates = null!;
     private ToolStripMenuItem _miNotifications = null!;
     private ToolStripMenuItem _miSpend = null!;
     private ToolStripMenuItem _miStartup = null!;
@@ -114,9 +114,15 @@ public sealed class TrayAppContext : ApplicationContext
         _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignalName);
         new Thread(ShowSignalLoop) { IsBackground = true, Name = "ShowSignalListener" }.Start();
 
+        _updates = new SparkleUpdateService(_currentIcon);
+        _updates.AvailabilityChanged += () =>
+        {
+            try { _dashboard.BeginInvoke(new Action(UpdateMenuChecks)); } catch { }
+        };
+
         _ = RefreshAsync();
         _timer.Start();
-        _ = CheckUpdatesAsync(silent: true);   // silent check on startup; flags the menu if newer
+        _updates.StartLoop();   // comprobación silenciosa al arrancar + cada 6 h
     }
 
     public static string DescribeMenu()
@@ -344,7 +350,7 @@ public sealed class TrayAppContext : ApplicationContext
 
         // Updates · Start with Windows · Advanced
         _miUpdate = new ToolStripMenuItem(_s.CheckUpdates);
-        _miUpdate.Click += async (_, _) => await CheckUpdatesAsync(silent: false);
+        _miUpdate.Click += async (_, _) => await _updates.CheckInteractive();
         menu.Items.Add(_miUpdate);
 
         _miStartup = new ToolStripMenuItem(_s.StartWithWindows);
@@ -392,8 +398,8 @@ public sealed class TrayAppContext : ApplicationContext
         foreach (var (item, mode) in _iconItems) item.Checked = mode == iconMode;
         _miPaceAlerts.Checked = c.PaceAlerts;
 
-        _miUpdate.Text = _update is { IsNewer: true }
-            ? string.Format(_s.UpdateAvailableFmt, _update.LatestTag)
+        _miUpdate.Text = _updates?.AvailableTag is { } tag
+            ? string.Format(_s.UpdateAvailableFmt, tag)
             : _s.CheckUpdates;
 
         foreach (var (item, pos) in _posItems)
@@ -717,51 +723,19 @@ public sealed class TrayAppContext : ApplicationContext
         catch { }
     }
 
-    private async Task CheckUpdatesAsync(bool silent)
+    private static string AppVersion
     {
-        var info = await UpdateChecker.CheckAsync();
-        _update = info;
-        if (_miUpdate is not null)
-            _miUpdate.Text = info is { IsNewer: true } ? string.Format(_s.UpdateAvailableFmt, info.LatestTag) : _s.CheckUpdates;
-
-        if (silent) return;
-
-        if (info is null)
+        get
         {
-            MessageBox.Show(_s.UpdateFailed, "ClaudeBar", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
+            var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            return v is null ? "0.0.0" : $"{v.Major}.{v.Minor}.{v.Build}";
         }
-        if (!info.IsNewer)
-        {
-            MessageBox.Show(string.Format(_s.UpToDateFmt, info.CurrentVersion), "ClaudeBar", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-
-        string changelog = info.Changelog.Length > 900 ? info.Changelog[..900] + "…" : info.Changelog;
-        string msg = string.Format(_s.UpdatePromptFmt, info.CurrentVersion, info.LatestTag);
-        if (changelog.Length > 0) msg += $"\n\n{_s.Changelog}:\n{changelog}";
-
-        var r = MessageBox.Show(msg, $"ClaudeBar {info.LatestTag}", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-        if (r != DialogResult.Yes) return;
-
-        if (info.AssetUrl is null)
-        {
-            try { Process.Start(new ProcessStartInfo(info.HtmlUrl) { UseShellExecute = true }); } catch { }
-            return;
-        }
-        var path = await UpdateChecker.DownloadAsync(info.AssetUrl, info.LatestTag);
-        if (path is null)
-        {
-            MessageBox.Show(_s.UpdateFailed, "ClaudeBar", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-        MessageBox.Show(string.Format(_s.UpdateDownloadedFmt, path), "ClaudeBar", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        try { Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }); } catch { }
     }
+    private const string RepoUrl = "https://github.com/Yovancas/claudebar-win";
 
     private void ShowAbout()
     {
-        string msg = $"ClaudeBar for Windows\nv{UpdateChecker.CurrentVersion}\n\n{UpdateChecker.RepoUrl}";
+        string msg = $"ClaudeBar for Windows\nv{AppVersion}\n\n{RepoUrl}";
         MessageBox.Show(msg, $"{_s.About} — ClaudeBar", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
