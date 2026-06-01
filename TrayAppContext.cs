@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using ClaudeBarWin.Config;
+using ClaudeBarWin.Models;
 using ClaudeBarWin.Services;
 using ClaudeBarWin.UI;
 
@@ -24,6 +25,11 @@ public sealed class TrayAppContext : ApplicationContext
     private readonly DashboardForm _dashboard;
     private readonly EventWaitHandle _showSignal;
 
+    private readonly SessionStore _sessions;
+    private readonly SessionAggregator _sessionAgg;
+    private readonly ForegroundDetector _foreground;
+    private HookPipeServer? _pipe;
+
     private readonly List<(ToolStripMenuItem item, int seconds)> _freqItems = new();
     private readonly List<(ToolStripMenuItem item, int pct)> _milestoneItems = new();
     private readonly List<(ToolStripMenuItem item, double warn, double crit)> _thresholdItems = new();
@@ -43,6 +49,10 @@ public sealed class TrayAppContext : ApplicationContext
     private ToolStripMenuItem _miHealth = null!;
     private ToolStripMenuItem _miChart = null!;
     private ToolStripMenuItem _miImportTheme = null!;
+    private ToolStripMenuItem _miLiveSessions = null!;
+    private ToolStripMenuItem _miShowMascot = null!;
+    private ToolStripMenuItem _miSuppressFocused = null!;
+    private ToolStripMenuItem _miInstallHooks = null!;
 
     private AppConfig _config;
     private Strings _s;
@@ -94,6 +104,15 @@ public sealed class TrayAppContext : ApplicationContext
             c.Save();
             _config = c;
         };
+
+        _sessions = new SessionStore();
+        _sessionAgg = new SessionAggregator();
+        _foreground = new ForegroundDetector();
+        _dashboard.SetLiveSessionsProvider(() => _sessionAgg.BuildView(_sessions.Snapshot()));
+
+        _sessions.Changed += OnSessionsChanged;
+
+        if (_config.LiveSessionsEnabled) StartPipe();
 
         _currentIcon = TrayIconRenderer.RenderError(_theme.Neutral);
         _tray = new NotifyIcon
@@ -272,6 +291,23 @@ public sealed class TrayAppContext : ApplicationContext
         sections.DropDownItems.Add(_miChart);
         menu.Items.Add(sections);
 
+        // Live sessions ▶ (hooks opt-in + mascot + focus suppression)
+        var live = Sub(_s.MenuLiveSessions);
+        _miInstallHooks = new ToolStripMenuItem(_s.MenuInstallHooks);
+        _miInstallHooks.Click += (_, _) => ToggleHooks();
+        _miLiveSessions = new ToolStripMenuItem(_s.MenuLiveSessions);
+        _miLiveSessions.Click += (_, _) => MutateConfig(c => c.LiveSessionsEnabled = !c.LiveSessionsEnabled);
+        _miShowMascot = new ToolStripMenuItem(_s.MenuShowMascot);
+        _miShowMascot.Click += (_, _) => MutateConfig(c => c.ShowMascot = !c.ShowMascot);
+        _miSuppressFocused = new ToolStripMenuItem(_s.MenuSuppressWhenFocused);
+        _miSuppressFocused.Click += (_, _) => MutateConfig(c => c.SuppressWhenFocused = !c.SuppressWhenFocused);
+        live.DropDownItems.Add(_miInstallHooks);
+        live.DropDownItems.Add(new ToolStripSeparator());
+        live.DropDownItems.Add(_miLiveSessions);
+        live.DropDownItems.Add(_miShowMascot);
+        live.DropDownItems.Add(_miSuppressFocused);
+        menu.Items.Add(live);
+
         // Notifications ▶ (incl. pace alerts)
         var notif = Sub(_s.Notifications);
         _miNotifications = new ToolStripMenuItem(_s.Enabled);
@@ -393,6 +429,14 @@ public sealed class TrayAppContext : ApplicationContext
         _miSpend.Checked = c.ShowSpendEstimate;
         _miHealth.Checked = c.ShowHealth;
         _miChart.Checked = c.ShowChart;
+
+        _miLiveSessions.Checked = c.LiveSessionsEnabled;
+        _miShowMascot.Checked = c.ShowMascot;
+        _miSuppressFocused.Checked = c.SuppressWhenFocused;
+        _miShowMascot.Enabled = c.LiveSessionsEnabled;
+        _miSuppressFocused.Enabled = c.LiveSessionsEnabled;
+        _miInstallHooks.Text = HookInstaller.IsInstalled() ? _s.MenuUninstallHooks : _s.MenuInstallHooks;
+
         _miStartup.Checked = StartupManager.IsEnabled();
         string iconMode = string.IsNullOrEmpty(c.IconDisplayMode) ? "percent" : c.IconDisplayMode;
         foreach (var (item, mode) in _iconItems) item.Checked = mode == iconMode;
@@ -414,6 +458,85 @@ public sealed class TrayAppContext : ApplicationContext
 
         string lang = string.IsNullOrEmpty(c.Language) ? "system" : c.Language;
         foreach (var (item, code) in _langItems) item.Checked = code == lang;
+    }
+
+    // ---------- Live sessions (hook -> Named Pipe) ----------
+
+    private void StartPipe()
+    {
+        if (_pipe is not null) return;
+        _pipe = new HookPipeServer();
+        _pipe.EventReceived += e => _sessions.Apply(e, DateTime.UtcNow);
+        _pipe.Start();
+    }
+
+    private void StopPipe()
+    {
+        _pipe?.Dispose();
+        _pipe = null;
+    }
+
+    private void OnSessionsChanged()
+    {
+        // Prune perezoso (cada cambio comprobamos TTL de 10 min).
+        _sessions.Prune(DateTime.UtcNow, TimeSpan.FromMinutes(10));
+
+        // Avisos: diff + supresión por foco.
+        var snap = _sessions.Snapshot();
+        foreach (var s in _sessionAgg.DiffNotifications(snap, DateTime.UtcNow))
+        {
+            if (_config.SuppressWhenFocused && _foreground.IsSessionForeground(s.Pid)) continue;
+            NotifySession(s);
+        }
+
+        // Refrescar mascota/lista + icono en el hilo de UI.
+        try { _dashboard.BeginInvoke(new Action(() =>
+        {
+            _dashboard.OnLiveSessionsChanged();
+            RefreshTrayIcon();
+        })); } catch { }
+    }
+
+    private void NotifySession(Models.SessionState s)
+    {
+        if (!_config.NotificationsEnabled) return;
+        var fmt = s.Phase == Models.SessionPhase.WaitingForApproval
+            ? _s.NotifWaitingApprovalFmt : _s.NotifWaitingInputFmt;
+        var icon = s.Phase == Models.SessionPhase.WaitingForApproval
+            ? ToolTipIcon.Warning : ToolTipIcon.Info;
+        try { _tray.ShowBalloonTip(5000, _s.LiveSessionsTitle, string.Format(fmt, s.ProjectName), icon); } catch { }
+    }
+
+    private bool LiveAttentionPending()
+        => _config.LiveSessionsEnabled
+           && _sessionAgg.BuildView(_sessions.Snapshot()).GlobalPhase.NeedsAttention();
+
+    private void RefreshTrayIcon()
+    {
+        if (_lastSnapshot is null || _lastUsage is null) return;
+        UpdateUi(_lastSnapshot); // recalcula icono; UpdateUi ya pinta con _lastSnapshot
+    }
+
+    private void ToggleHooks()
+    {
+        if (HookInstaller.IsInstalled())
+        {
+            HookInstaller.Uninstall(DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"));
+            MutateConfig(c => c.LiveSessionsEnabled = false);
+            StopPipe();
+            _tray.ShowBalloonTip(4000, _s.LiveSessionsTitle, _s.HooksRemoved, ToolTipIcon.Info);
+            return;
+        }
+
+        var ok = MessageBox.Show(
+            "ClaudeBar va a modificar ~/.claude/settings.json para recibir eventos de tus sesiones de Claude Code. Se hará una copia de seguridad antes. ¿Continuar?",
+            _s.MenuLiveSessions, MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
+        if (ok != DialogResult.OK) return;
+
+        var backup = HookInstaller.Install(HookScript.Contents(), DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"));
+        MutateConfig(c => c.LiveSessionsEnabled = true);
+        StartPipe();
+        _tray.ShowBalloonTip(5000, _s.LiveSessionsTitle, string.Format(_s.HooksInstalledFmt, backup), ToolTipIcon.Info);
     }
 
     private void ImportItermColors()
@@ -461,6 +584,9 @@ public sealed class TrayAppContext : ApplicationContext
 
         if (CurrentLangCode() != _menuLangCode && _dashboard.IsHandleCreated)
             _dashboard.BeginInvoke((Action)RebuildMenu);
+
+        if (_config.LiveSessionsEnabled && _pipe is null) StartPipe();
+        else if (!_config.LiveSessionsEnabled && _pipe is not null) StopPipe();
 
         _ = RefreshAsync();
     }
@@ -542,7 +668,7 @@ public sealed class TrayAppContext : ApplicationContext
         if (snap.Usage is { } u)
         {
             var (icoVal, icoColor) = IconContent(u, snap);
-            newIcon = TrayIconRenderer.Render(icoVal, icoColor);
+            newIcon = TrayIconRenderer.Render(icoVal, icoColor, pending: LiveAttentionPending());
 
             string five = UsageFormat.Countdown(u.FiveHour?.ResetsAt, _s.Resetting);
             string week = UsageFormat.Countdown(u.SevenDay?.ResetsAt, _s.Resetting);
@@ -556,7 +682,7 @@ public sealed class TrayAppContext : ApplicationContext
         }
         else
         {
-            newIcon = TrayIconRenderer.RenderError(_theme.Neutral);
+            newIcon = TrayIconRenderer.RenderError(_theme.Neutral, pending: LiveAttentionPending());
             _tray.Text = "ClaudeBar — " + UsageFormat.StateMessage(snap.LatestState, _s);
         }
 
@@ -760,6 +886,7 @@ public sealed class TrayAppContext : ApplicationContext
         _currentIcon?.Dispose();
         _dashboard.Dispose();
         _showSignal.Dispose();
+        _pipe?.Dispose();
         ExitThread();
     }
 
@@ -772,6 +899,7 @@ public sealed class TrayAppContext : ApplicationContext
             _currentIcon?.Dispose();
             _dashboard.Dispose();
             _showSignal.Dispose();
+            _pipe?.Dispose();
         }
         base.Dispose(disposing);
     }
