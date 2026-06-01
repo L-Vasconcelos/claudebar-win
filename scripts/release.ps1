@@ -49,6 +49,7 @@ $setup = Join-Path $dist "ClaudeBarWin-Setup-$Version.exe"
     --base-url "https://github.com/Yovancas/claudebar-win/releases/download/v$Version/" `
     --key-path $keys `
     --appcast-output-directory $dist `
+    --change-log-path (Join-Path $repo "installer\notes") `
     --file-version $Version
 if ($LASTEXITCODE) { throw "generate-appcast falló" }
 Write-Host "OK -> $setup  +  $dist\appcast.xml"
