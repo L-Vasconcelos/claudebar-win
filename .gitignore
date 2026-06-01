@@ -3,3 +3,6 @@ obj/
 *.user
 .vs/
 publish/
+dist/
+# NetSparkle signing keys — NUNCA commitear la privada
+.sparkle-keys/

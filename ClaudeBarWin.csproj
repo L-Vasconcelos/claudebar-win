@@ -18,6 +18,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="NetSparkleUpdater.SparkleUpdater" Version="3.1.0" />
+    <PackageReference Include="NetSparkleUpdater.UI.WinForms.NetCore" Version="3.1.0" />
   </ItemGroup>
 
 </Project>
