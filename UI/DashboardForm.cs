@@ -32,6 +32,12 @@ public sealed class DashboardForm : Form
     private Point _dragOffset;
     private Rectangle _closeRect;
 
+    // View mode (v0.3): "data" muestra cabecera + secciones; "settings" muestra el panel de ajustes.
+    private string _viewMode = "data"; // "data" | "settings"
+    private Rectangle _gearRect, _backRect;
+    private readonly Dictionary<string, Rectangle> _sectionRects = new();   // "quota"/"sessions"/"spend"/"chart"
+    private readonly Dictionary<string, Rectangle> _settingsRects = new();  // clave de acción ("toggle:X"/"theme:dark"/…)
+
     // Chart
     private Func<ChartRange, Task<List<HistoryBucket>>>? _historyProvider;
     private Func<ChartRange, Task<List<PctPoint>>>? _pctProvider;
@@ -55,6 +61,12 @@ public sealed class DashboardForm : Form
     public event Action<string>? ChartModeChanged;
     public event Action<string>? ChartWindowChanged;
     public event Action<string>? SessionClicked;
+
+    /// <summary>Emitido cuando el panel de ajustes cambia un valor: el host lo aplica vía MutateConfig.</summary>
+    public event Action<Action<AppConfig>>? SettingsChanged;
+
+    /// <summary>Cambia a la vista de ajustes (⚙). Reajusta el alto del popup y repinta.</summary>
+    public void ShowSettings() { _viewMode = "settings"; Relayout(); Invalidate(); }
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -232,6 +244,7 @@ public sealed class DashboardForm : Form
     {
         base.OnDeactivate(e);
         if (_menuOpen) return; // config menu is open over the panel
+        if (_viewMode == "settings") return; // no autocerrar mientras se ajusta
         if (_sticky) return;
         if ((DateTime.UtcNow - _shownAtUtc).TotalMilliseconds < 600) return;
         Hide();
@@ -255,6 +268,39 @@ public sealed class DashboardForm : Form
         base.OnMouseDown(e);
         if (e.Button != MouseButtons.Left) return;
         if (_closeRect.Contains(e.Location)) { Hide(); return; }
+
+        // ⚙ → abrir ajustes (solo en la vista de datos).
+        if (_viewMode == "data" && _gearRect.Contains(e.Location))
+        {
+            _viewMode = "settings"; Relayout(); Invalidate(); return;
+        }
+
+        // Vista de ajustes: ‹ vuelve a datos; cada fila clicada emite su mutación. Sin drag aquí.
+        if (_viewMode == "settings")
+        {
+            if (_backRect.Contains(e.Location)) { _viewMode = "data"; Relayout(); Invalidate(); return; }
+            foreach (var (key, r) in _settingsRects)
+            {
+                if (r.Contains(e.Location))
+                {
+                    if (DashboardSettingsView.ActionFor(key) is { } a) SettingsChanged?.Invoke(a);
+                    Invalidate();
+                    return;
+                }
+            }
+            return; // dentro de ajustes, fuera de rects: no arrastrar
+        }
+
+        // Cabeceras de sección plegables (vista de datos): alternar Collapsed* vía SettingsChanged.
+        foreach (var (key, r) in _sectionRects)
+        {
+            if (r.Contains(e.Location))
+            {
+                SettingsChanged?.Invoke(ToggleSection(key));
+                Relayout(); Invalidate();
+                return;
+            }
+        }
 
         // Mode toggle ($ / %)
         foreach (var (mode, rect) in _modeRects)
@@ -314,12 +360,19 @@ public sealed class DashboardForm : Form
             Location = new Point(Cursor.Position.X - _dragOffset.X, Cursor.Position.Y - _dragOffset.Y);
             return;
         }
-        // Hand over interactive elements (close ✕, tabs, mode/window toggles); normal arrow elsewhere.
-        bool overClickable = _closeRect.Contains(e.Location)
-            || _tabRects.Values.Any(r => r.Contains(e.Location))
-            || _modeRects.Values.Any(r => r.Contains(e.Location))
-            || _pctWinRects.Values.Any(r => r.Contains(e.Location))
-            || _liveRowRects.Values.Any(r => r.Contains(e.Location));
+        // Hand over interactive elements (close ✕, ⚙/‹, section headers, tabs, mode/window toggles,
+        // settings rows); normal arrow elsewhere.
+        bool overClickable = _viewMode == "settings"
+            ? _closeRect.Contains(e.Location)
+                || _backRect.Contains(e.Location)
+                || _settingsRects.Values.Any(r => r.Contains(e.Location))
+            : _closeRect.Contains(e.Location)
+                || _gearRect.Contains(e.Location)
+                || _sectionRects.Values.Any(r => r.Contains(e.Location))
+                || _tabRects.Values.Any(r => r.Contains(e.Location))
+                || _modeRects.Values.Any(r => r.Contains(e.Location))
+                || _pctWinRects.Values.Any(r => r.Contains(e.Location))
+                || _liveRowRects.Values.Any(r => r.Contains(e.Location));
         Cursor = overClickable ? Cursors.Hand : Cursors.Default;
     }
 
@@ -355,6 +408,7 @@ public sealed class DashboardForm : Form
         using var labelFont = new Font("Segoe UI", 9.5f);
         using var smallFont = new Font("Segoe UI", 8f);
         using var tabFont = new Font("Segoe UI", 8f, FontStyle.Bold);
+        using var mono = new Font("Consolas", 11f, FontStyle.Regular, GraphicsUnit.Point);
         using var fg = new SolidBrush(_theme.Foreground);
         using var dim = new SolidBrush(_theme.Dim);
 
@@ -362,6 +416,7 @@ public sealed class DashboardForm : Form
         int y = Padding.Top;
         int w = Width - Padding.Horizontal;
 
+        // Chrome común a ambas vistas: título + plan + botón cerrar.
         if (draw)
         {
             g.DrawString("ClaudeBar", titleFont, fg, x, y);
@@ -369,82 +424,37 @@ public sealed class DashboardForm : Form
             _closeRect = new Rectangle(Width - 26, 10, 18, 18);
             using var closeFont = new Font("Segoe UI", 11f, FontStyle.Bold);
             g.DrawString("✕", closeFont, dim, _closeRect.X, _closeRect.Y - 2);
-
-            // Service health — top-right, on the plan line.
-            if (_cfg.ShowHealth && _snap?.Health is { } h)
-            {
-                (string hl, Color hc) = h.Level switch
-                {
-                    HealthLevel.Operational => (_s.HealthOk, _theme.Ok),
-                    HealthLevel.Degraded => (_s.HealthDegraded, _theme.Warn),
-                    HealthLevel.Outage => (_s.HealthOutage, _theme.Critical),
-                    _ => (h.Description, _theme.Dim)
-                };
-                var hsz = g.MeasureString(hl, planFont);
-                float hx = x + w - hsz.Width;
-                using var hb = new SolidBrush(hc);
-                g.FillEllipse(hb, hx - 13, y + 24 + 4, 8, 8);
-                g.DrawString(hl, planFont, dim, hx, y + 24);
-            }
         }
         y += 50;
 
-        var usage = _snap?.Usage;
-        if (usage is null)
+        // ----- Vista de ajustes -----
+        if (_viewMode == "settings")
         {
             if (draw)
             {
-                string msg = _snap is null ? _s.Loading : UsageFormat.StateMessage(_snap.LatestState, _s);
-                g.DrawString(msg, labelFont, dim, x, y);
+                using var bb = new SolidBrush(_theme.Dim);
+                g.DrawString("‹ " + _s.Settings, labelFont, bb, x, y);
             }
+            _backRect = new Rectangle(x, y, 80, 20);
             y += 24;
-            return y + 14;
+            y = DashboardSettingsView.Draw(g, draw, x, y, w, _cfg, _s, _theme, labelFont, smallFont, _settingsRects);
+            return y + 18;
         }
 
-        y = DrawBar(g, draw, $"{_s.SessionWord} (5h)", usage.FiveHour, _snap?.PaceFive?.Status, x, y, w, labelFont, smallFont, fg, dim);
-        y += 16;
-        y = DrawBar(g, draw, $"{_s.WeekWord} (7d)", usage.SevenDay, _snap?.PaceSeven?.Status, x, y, w, labelFont, smallFont, fg, dim);
-        y += 14;
+        // ----- Vista de datos: cabecera de un vistazo + secciones plegables -----
+        _settingsRects.Clear();
+        _backRect = Rectangle.Empty;
 
-        y = DrawPace(g, draw, x, y, w, smallFont);
+        y = DashboardHeader.Draw(g, draw, x, y, w,
+            _snap, _liveView, _cfg, _s, _theme, _mascotFrame,
+            labelFont, smallFont, mono, ref _gearRect);
 
-        y = DrawModelLine(g, draw, "Opus 7d", usage.SevenDayOpus, x, y, w, smallFont, fg, dim);
-        y = DrawModelLine(g, draw, "Sonnet 7d", usage.SevenDaySonnet, x, y, w, smallFont, fg, dim);
-
-        if (_cfg.ShowSpendEstimate && _snap?.Spend is { } spend && spend.CostByModel.Count > 0)
-        {
-            y += 8;
-            if (draw) g.DrawString(string.Format(_s.SpendHeaderFormat, _snap.SpendDays), smallFont, dim, x, y);
-            y += 18;
-            foreach (var kv in spend.CostByModel.OrderByDescending(k => k.Value))
-            {
-                if (draw)
-                {
-                    g.DrawString(kv.Key, labelFont, fg, x, y);
-                    string val = $"${kv.Value:0.00}";
-                    var sz = g.MeasureString(val, labelFont);
-                    g.DrawString(val, labelFont, dim, x + w - sz.Width, y);
-                }
-                y += 20;
-            }
-        }
-
-        if (_cfg.LiveSessionsEnabled)
-        {
-            y += 8;
-            y = DrawLiveSessions(g, draw, x, y, w, smallFont, fg, dim);
-        }
-        else { _liveRowRects.Clear(); }
-
-        if (_cfg.ShowChart)
-        {
-            y += 6;
-            y = DrawChart(g, draw, x, y, w, smallFont, tabFont, fg, dim);
-        }
-        else
-        {
-            _tabRects.Clear();
-        }
+        y = DashboardDataView.Draw(g, draw, x, y, w,
+            _snap, _liveView, _cfg, _s, _theme, _mascotFrame,
+            labelFont, smallFont, tabFont, mono,
+            _chartMode, _chartRange, _chartPctWindow,
+            _chartData, _pctData, _chartLoading,
+            _sectionRects, _tabRects, _modeRects, _pctWinRects, _liveRowRects);
 
         // footer
         y += 4;
@@ -453,45 +463,24 @@ public sealed class DashboardForm : Form
             string footer;
             if (_snap is not null && _snap.LatestState != UsageFetchState.Ok)
                 footer = $"⚠ {UsageFormat.StateMessage(_snap.LatestState, _s)} · {_s.PreviousDataFooter}";
-            else
+            else if (_snap is not null)
             {
                 string hint = _sticky ? _s.HintPinnedClose : _s.HintClickToHide;
-                footer = $"{_s.UpdatedAt} {_snap!.UsageAtUtc.ToLocalTime():HH:mm:ss} · {hint}";
+                footer = $"{_s.UpdatedAt} {_snap.UsageAtUtc.ToLocalTime():HH:mm:ss} · {hint}";
             }
+            else footer = _s.Loading;
             g.DrawString(footer, smallFont, dim, x, y);
         }
         return y + 18;
     }
 
-    // ---------- section drawing: bodies movidos a UI/dashboard/DashboardDataView.cs (Task 5) ----------
-    // Estos métodos quedan como finos puentes hacia el renderer sin estado, para no duplicar la lógica
-    // de dibujo. Task 7 reconectará LayoutContent directamente a DashboardDataView/DashboardHeader.
-
-    private int DrawPace(Graphics g, bool draw, int x, int y, int w, Font smallFont)
-        => DashboardDataView.DrawPace(g, draw, _snap, _theme, x, y, w, smallFont);
-
-    private int DrawBar(Graphics g, bool draw, string label, UsageWindow? win, PaceStatus? pace, int x, int y, int w,
-        Font labelFont, Font smallFont, Brush fg, Brush dim)
-        => DashboardDataView.DrawBar(g, draw, label, win, pace, x, y, w, _cfg, _s, _theme, labelFont, smallFont, fg, dim);
-
-    private int DrawModelLine(Graphics g, bool draw, string label, UsageWindow? win, int x, int y, int w,
-        Font smallFont, Brush fg, Brush dim)
-        => DashboardDataView.DrawModelLine(g, draw, label, win, x, y, w, smallFont, fg, dim);
-
-    private int DrawChart(Graphics g, bool draw, int x, int y, int w, Font smallFont, Font tabFont, Brush fg, Brush dim)
-        => DashboardDataView.DrawChart(g, draw, x, y, w, _s, _theme, _cfg, smallFont, tabFont,
-            _chartMode, _chartRange, _chartPctWindow, _chartData, _pctData, _chartLoading,
-            _tabRects, _modeRects, _pctWinRects, dim);
-
-    private int DrawLiveSessions(Graphics g, bool draw, int x, int y, int w, Font smallFont, Brush fg, Brush dim)
+    /// <summary>Traduce la clave de una sección plegable clicada a la mutación de config (Collapsed*).</summary>
+    private static Action<AppConfig> ToggleSection(string sectionKey) => sectionKey switch
     {
-        // Cabecera de sección (en la vista de datos actual; en v0.3 la pondrá Section).
-        if (draw)
-            g.DrawString(_s.LiveSessionsTitle, smallFont, dim, x, y);
-        y += 18;
-
-        using var mono = new Font("Consolas", 11f, FontStyle.Regular, GraphicsUnit.Point);
-        return DashboardDataView.DrawLiveSessionsBody(g, draw, _liveView, _cfg, _s, _theme, _mascotFrame,
-            x, y, w, smallFont, mono, fg, dim, _liveRowRects);
-    }
+        "quota" => c => c.CollapsedQuota = !c.CollapsedQuota,
+        "sessions" => c => c.CollapsedSessions = !c.CollapsedSessions,
+        "spend" => c => c.CollapsedSpend = !c.CollapsedSpend,
+        "chart" => c => c.CollapsedChart = !c.CollapsedChart,
+        _ => _ => { },
+    };
 }
