@@ -19,4 +19,9 @@
     <ProjectReference Include="..\ClaudeBarWin.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- ImplicitUsings no inyecta Xunit con net9.0-windows; lo hacemos global para todos los tests. -->
+    <Using Include="Xunit" />
+  </ItemGroup>
+
 </Project>

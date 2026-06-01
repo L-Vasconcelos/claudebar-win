@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace ClaudeBarWin.Tests;
 
 public class SmokeTest
