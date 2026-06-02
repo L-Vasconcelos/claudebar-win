@@ -2,6 +2,7 @@ using System.Drawing.Drawing2D;
 using ClaudeBarWin.Config;
 using ClaudeBarWin.Models;
 using ClaudeBarWin.Services;
+using ClaudeBarWin.Services.Motion;
 
 namespace ClaudeBarWin.UI;
 
@@ -52,7 +53,8 @@ public static class DashboardDataView
         Dictionary<ChartRange, Rectangle> tabRects,
         Dictionary<string, Rectangle> modeRects,
         Dictionary<string, Rectangle> pctWinRects,
-        Dictionary<string, Rectangle> liveRowRects)
+        Dictionary<string, Rectangle> liveRowRects,
+        MotionState? motion = null, bool reduceMotion = false)
     {
         sectionRects.Clear();
 
@@ -61,7 +63,7 @@ public static class DashboardDataView
 
         // 1) Cuota (barras 5h/7d + pace + modelos)
         y = Section(g, draw, "quota", s.SectionQuota, !cfg.CollapsedQuota, x, y, w, theme, labelFont, sectionRects,
-            yy => DrawQuotaBody(g, draw, snap, cfg, s, theme, x, yy, w, labelFont, smallFont, fg, dim));
+            yy => DrawQuotaBody(g, draw, snap, cfg, s, theme, x, yy, w, labelFont, smallFont, fg, dim, motion, reduceMotion));
 
         // 2) Sesiones en vivo (solo lista de instancias; la mascota la pinta la cabecera, no se duplica aquí)
         if (cfg.LiveSessionsEnabled)
@@ -116,7 +118,8 @@ public static class DashboardDataView
 
     /// <summary>Cuota: barra 5h + barra 7d + línea de pace + modelos 7d (Opus/Sonnet).</summary>
     private static int DrawQuotaBody(Graphics g, bool draw, AppSnapshot? snap, AppConfig cfg, Strings s, Theme theme,
-        int x, int y, int w, Font labelFont, Font smallFont, Brush fg, Brush dim)
+        int x, int y, int w, Font labelFont, Font smallFont, Brush fg, Brush dim,
+        MotionState? motion = null, bool reduceMotion = false)
     {
         var usage = snap?.Usage;
         if (usage is null)
@@ -129,9 +132,12 @@ public static class DashboardDataView
             return y + 24;
         }
 
-        y = QuotaBar.Draw(g, draw, $"{s.SessionWord} (5h)", usage.FiveHour, snap?.PaceFive, x, y, w, cfg, s, theme, labelFont, smallFont, fg, dim);
+        // Override eased del ancho/número (color por objetivo): muestrea el MotionState por clave de barra.
+        double? d5 = SampledUtil(motion, "bar:5h", usage.FiveHour, reduceMotion);
+        double? d7 = SampledUtil(motion, "bar:7d", usage.SevenDay, reduceMotion);
+        y = QuotaBar.Draw(g, draw, $"{s.SessionWord} (5h)", usage.FiveHour, snap?.PaceFive, x, y, w, cfg, s, theme, labelFont, smallFont, fg, dim, d5);
         y += 16;
-        y = QuotaBar.Draw(g, draw, $"{s.WeekWord} (7d)", usage.SevenDay, snap?.PaceSeven, x, y, w, cfg, s, theme, labelFont, smallFont, fg, dim);
+        y = QuotaBar.Draw(g, draw, $"{s.WeekWord} (7d)", usage.SevenDay, snap?.PaceSeven, x, y, w, cfg, s, theme, labelFont, smallFont, fg, dim, d7);
         y += 14;
 
         y = DrawPace(g, draw, snap, theme, x, y, w, smallFont);
@@ -148,6 +154,17 @@ public static class DashboardDataView
         }
         y += 16;
         return y;
+    }
+
+    /// <summary>
+    /// Override eased de la utilización de una barra para <see cref="QuotaBar.Draw"/>. Devuelve
+    /// <c>null</c> si no hay <paramref name="motion"/> (render-test/cabecera sin estado) ⇒ la barra
+    /// usa el valor crudo (idéntico a hoy). Si la ventana es <c>null</c>, también <c>null</c>.
+    /// </summary>
+    private static double? SampledUtil(MotionState? motion, string key, UsageWindow? win, bool reduceMotion)
+    {
+        if (motion is null || win is null) return null;
+        return motion.Display(key, win.UtilizationPct, reduceMotion);
     }
 
     /// <summary>Gasto estimado por modelo (cabecera con días + filas modelo/$$).</summary>

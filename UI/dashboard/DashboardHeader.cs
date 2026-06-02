@@ -2,6 +2,7 @@ using System.Drawing.Drawing2D;
 using ClaudeBarWin.Config;
 using ClaudeBarWin.Models;
 using ClaudeBarWin.Services;
+using ClaudeBarWin.Services.Motion;
 
 namespace ClaudeBarWin.UI;
 
@@ -22,7 +23,8 @@ public static class DashboardHeader
     public static int Draw(Graphics g, bool draw, int x, int y, int w,
                            AppSnapshot? snap, LiveSessionsView live, AppConfig cfg, Strings s, Theme theme,
                            int mascotFrame, Font labelFont, Font smallFont, Font mono,
-                           ref Rectangle gearRect)
+                           ref Rectangle gearRect,
+                           MotionState? motion = null, bool reduceMotion = false)
     {
         // 1) botón ⚙ arriba a la derecha (siempre): botón con fondo redondeado + glifo nítido,
         //    para que se lea bien y parezca clicable (antes era un "⚙" diminuto y atenuado, sin fondo).
@@ -83,7 +85,9 @@ public static class DashboardHeader
             // Delegar en la barra unificada; la cabecera construye sus pinceles fg/muted como antes.
             using var fg = new SolidBrush(theme.TextPrimary);
             using var muted = new SolidBrush(theme.TextMuted);
-            ty = QuotaBar.Draw(g, draw, critLabel, crit, critPace, textX, ty, w - (textX - x), cfg, s, theme, labelFont, smallFont, fg, muted);
+            // Override eased del %/ancho de la barra crítica (color por objetivo). null si no hay motion.
+            double? dCrit = motion is not null ? motion.Display("num:crit", crit.UtilizationPct, reduceMotion) : (double?)null;
+            ty = QuotaBar.Draw(g, draw, critLabel, crit, critPace, textX, ty, w - (textX - x), cfg, s, theme, labelFont, smallFont, fg, muted, dCrit);
         }
 
         // pace: línea "↗ 5h X% · 7d Y% ⚠ETA" reusando lo de DrawPace

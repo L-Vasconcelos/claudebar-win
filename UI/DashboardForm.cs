@@ -36,6 +36,20 @@ public sealed class DashboardForm : Form
     private double _targetOpacity = 1.0;        // opacidad de destino (config); la animada va por _fadeOpacity
     private readonly AnimatedValue _fadeOpacity = new(1.0); // fade 0→objetivo al abrir (OutQuad, FadeMs)
 
+    // Tween de números/barras (Tarea 2): AnimatedValue por clave ("bar:5h"/"bar:7d"/"num:crit"/"pace").
+    // UpdateData hace SetTarget(target); el paint muestrea Display(); el tick hace Advance(delta). El color
+    // de las barras va por el objetivo (no parpadea); solo el ancho/número deslizan. La cabecera y las
+    // secciones lo reciben como sampler opcional. Con reduce-motion (Tarea 7) el Display devuelve el target.
+    private readonly MotionState _motion = new();
+    private bool _reduceMotion;                  // gate único de reduce-motion (Tarea 7 lo enchufa a config; default OFF)
+
+    /// <summary>
+    /// Resuelve el gate de reduce-motion para un <paramref name="cfg"/>. Hoy SIEMPRE <c>false</c>
+    /// (animaciones ON, decisión de Yovan); la Tarea 7 sustituye este único punto por
+    /// <c>cfg.ReduceMotion</c> sin tocar el resto del motor.
+    /// </summary>
+    private static bool ResolveReduceMotion(AppConfig cfg) => false;
+
     private DateTime _shownAtUtc = DateTime.MinValue;
     private readonly DateTime _startedAtUtc = DateTime.UtcNow; // para no marcar stale durante la 1ª fetch
     private bool _sticky;
@@ -119,17 +133,19 @@ public sealed class DashboardForm : Form
         _lastTickMs = now;
         if (delta < 0) delta = 0;
 
-        bool wasAnimating = _fadeOpacity.IsAnimating;
-        if (wasAnimating)
+        if (_fadeOpacity.IsAnimating)
         {
             _fadeOpacity.Advance(delta);
             ApplyFadeOpacity();
         }
 
+        // Tween de números/barras: integra el delta en todos los AnimatedValue por clave.
+        _motion.Advance(delta);
+
         // El countdown del footer (UpdatedAt · hace N min) cambia cada minuto: en cadencia lenta
         // repintamos igual para refrescarlo, como hacía el 1 Hz de antes. El mascotFrame sigue
         // su 1 Hz para mantener la vida actual de la mascota (su animación rica llega en Tarea 5).
-        bool animating = _fadeOpacity.IsAnimating;
+        bool animating = _fadeOpacity.IsAnimating || _motion.IsAnimating;
         if (!animating) _mascotFrame++;
 
         // Repinta si hubo cambio de animación o es un tick de countdown.
@@ -184,7 +200,14 @@ public sealed class DashboardForm : Form
         if (!_fadeOpacity.IsAnimating) Opacity = _targetOpacity;
         _chartMode = cfg.ChartMode;
         _chartPctWindow = cfg.ChartPctWindow;
+        _reduceMotion = ResolveReduceMotion(cfg);
         BackColor = _theme.Background;
+
+        // Tween de números/barras: apunta cada AnimatedValue al nuevo objetivo (desde el valor actual,
+        // sin salto). El render muestrea Display(); el tick los Advance. Con reduce-motion colapsan.
+        RetargetMotion();
+        // Si algo arrancó a animar, asegúrate de que el reloj rápido esté latiendo (panel visible).
+        if (Visible && _motion.IsAnimating && !_reduceMotion) EnsureFastTick();
 
         if (IsHandleCreated)
             BeginInvoke(() =>
@@ -193,6 +216,36 @@ public sealed class DashboardForm : Form
                 Invalidate();
                 if (Visible && cfg.ShowChart) _ = ReloadChart();
             });
+    }
+
+    /// <summary>
+    /// Reapunta los <see cref="AnimatedValue"/> de las barras/números al objetivo del snapshot actual.
+    /// Las claves replican lo que pinta el render: <c>bar:5h</c>/<c>bar:7d</c> (cuerpo) y <c>num:crit</c>
+    /// (la barra crítica de la cabecera = la ventana de mayor utilización). Si no hay dato, no toca nada.
+    /// </summary>
+    private void RetargetMotion()
+    {
+        var usage = _snap?.Usage;
+        if (usage is null) return;
+        if (usage.FiveHour is { } w5) _motion.SetTarget("bar:5h", w5.UtilizationPct, _reduceMotion);
+        if (usage.SevenDay is { } w7) _motion.SetTarget("bar:7d", w7.UtilizationPct, _reduceMotion);
+        // Barra crítica de la cabecera: la de mayor utilización entre 5h/7d (mismo criterio que DashboardHeader).
+        UsageWindow? crit = usage.FiveHour is null ? usage.SevenDay
+            : usage.SevenDay is null ? usage.FiveHour
+            : usage.FiveHour.UtilizationPct >= usage.SevenDay.UtilizationPct ? usage.FiveHour : usage.SevenDay;
+        if (crit is not null) _motion.SetTarget("num:crit", crit.UtilizationPct, _reduceMotion);
+    }
+
+    /// <summary>Arranca/acelera el tick a la cadencia rápida para que el tween sea fluido.</summary>
+    private void EnsureFastTick()
+    {
+        if (_tick.Interval != Motion.FastTickMs) _tick.Interval = Motion.FastTickMs;
+        if (!_tick.Enabled)
+        {
+            // Reanuda el reloj sin contar como delta el tiempo en que estuvo parado.
+            _lastTickMs = _clock.Elapsed.TotalMilliseconds;
+            _tick.Start();
+        }
     }
 
     public void ShowConfigured(AppConfig cfg)
@@ -205,6 +258,7 @@ public sealed class DashboardForm : Form
         _targetOpacity = Math.Clamp(cfg.DashboardOpacity, 0.3, 1.0);
         _chartMode = cfg.ChartMode;
         _chartPctWindow = cfg.ChartPctWindow;
+        _reduceMotion = ResolveReduceMotion(cfg);
         BackColor = _theme.Background;
         Relayout();
         _appliedPlacement = PlacementKey(cfg);
@@ -239,6 +293,7 @@ public sealed class DashboardForm : Form
         BackColor = _theme.Background;
         _chartMode = cfg.ChartMode;
         _chartPctWindow = cfg.ChartPctWindow;
+        _reduceMotion = ResolveReduceMotion(cfg);
         _chartData = buckets;
         _pctData = pct;
         _chartRange = range;
@@ -541,14 +596,16 @@ public sealed class DashboardForm : Form
 
         y = DashboardHeader.Draw(g, draw, x, y, w,
             _snap, _liveView, _cfg, _s, _theme, _mascotFrame,
-            labelFont, smallFont, mono, ref _gearRect);
+            labelFont, smallFont, mono, ref _gearRect,
+            _motion, _reduceMotion);
 
         y = DashboardDataView.Draw(g, draw, x, y, w,
             _snap, _liveView, _cfg, _s, _theme,
             labelFont, smallFont, tabFont,
             _chartMode, _chartRange, _chartPctWindow,
             _chartData, _pctData, _chartLoading,
-            _sectionRects, _tabRects, _modeRects, _pctWinRects, _liveRowRects);
+            _sectionRects, _tabRects, _modeRects, _pctWinRects, _liveRowRects,
+            _motion, _reduceMotion);
 
         // footer: "Actualizado · hace N min · pista", con marcador stale si el dato envejece
         y += 4;

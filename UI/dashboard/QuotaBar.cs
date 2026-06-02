@@ -17,12 +17,20 @@ public static class QuotaBar
     /// <summary>
     /// Dibuja etiqueta + % + barra + línea de reset y devuelve el nuevo y.
     /// El color sigue el criterio de F1: PaceStatus→Ok/Warn/Critical, con fallback a <see cref="ColorMath.RiskColor"/>.
+    ///
+    /// <para>F3 (tween): <paramref name="displayUtil"/> es el override <b>eased</b> de la utilización para
+    /// el <b>ancho de relleno y el número</b>; el <b>color se calcula con la utilización objetivo</b>
+    /// (<c>win.UtilizationPct</c>) para que no parpadee de color durante el tween. Si es <c>null</c>
+    /// (render-test, reduce-motion, cabecera sin motion) ⇒ comportamiento idéntico a hoy (usa <c>util</c>).</para>
     /// </summary>
     public static int Draw(Graphics g, bool draw, string label, UsageWindow? win, PaceResult? pace, int x, int y, int w,
-        AppConfig cfg, Strings s, Theme theme, Font labelFont, Font smallFont, Brush fg, Brush dim)
+        AppConfig cfg, Strings s, Theme theme, Font labelFont, Font smallFont, Brush fg, Brush dim,
+        double? displayUtil = null)
     {
         double util = win?.UtilizationPct ?? 0;
-        double clamped = Math.Min(util / 100.0, 1.0);
+        // Número y ancho usan el valor eased (si lo hay); el color usa SIEMPRE el objetivo (sin arcoíris).
+        double shown = displayUtil ?? util;
+        double clamped = Math.Min(shown / 100.0, 1.0);
         // Colour the section by PACE status (better/worse rate); fall back to riesgo gradual.
         Color c = pace is { } ps
             ? (ps.Status == PaceStatus.Critical ? theme.Critical : ps.Status == PaceStatus.Over ? theme.Warn : theme.Ok)
@@ -39,7 +47,8 @@ public static class QuotaBar
             g.DrawString(label, labelFont, fg, x, y);
             // Glifo de forma de 1 carácter + % a la derecha, ambos en el color de estado.
             string glyph = Tray.ShapeGlyph(Tray.ShapeFor(status));
-            string right = $"{glyph} {util:0.#}%";
+            // El número usa el valor eased (shown); el glifo/estado va por el objetivo (no parpadea).
+            string right = $"{glyph} {shown:0.#}%";
             var sz = g.MeasureString(right, Typography.Mono);
             using var valBrush = new SolidBrush(c);
             g.DrawString(right, Typography.Mono, valBrush, x + w - sz.Width, y);
