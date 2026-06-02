@@ -408,14 +408,16 @@ public sealed class DashboardForm : Form
     /// <summary>Walks the sections top-to-bottom. Returns the required window height.</summary>
     private int LayoutContent(Graphics g, bool draw)
     {
-        using var titleFont = new Font("Segoe UI", 13f, FontStyle.Bold);
-        using var planFont = new Font("Segoe UI", 8.5f);
-        using var labelFont = new Font("Segoe UI", 9.5f);
-        using var smallFont = new Font("Segoe UI", 8f);
+        // Fuentes del sistema de diseño (estáticas y compartidas: NO se hace Dispose de ellas).
+        var titleFont = Typography.Title;
+        var planFont = Typography.Caption;
+        var labelFont = Typography.Body;
+        var smallFont = Typography.Caption;
+        var mono = Typography.Mono;
+        // Los tabs de la gráfica quieren peso bold para legibilidad de las píldoras: fuente local desechable.
         using var tabFont = new Font("Segoe UI", 8f, FontStyle.Bold);
-        using var mono = new Font("Consolas", 11f, FontStyle.Regular, GraphicsUnit.Point);
-        using var fg = new SolidBrush(_theme.Foreground);
-        using var dim = new SolidBrush(_theme.Dim);
+        using var fg = new SolidBrush(_theme.TextPrimary);
+        using var dim = new SolidBrush(_theme.TextSecondary);
 
         int x = Padding.Left;
         int y = Padding.Top;
@@ -437,7 +439,7 @@ public sealed class DashboardForm : Form
         {
             if (draw)
             {
-                using var bb = new SolidBrush(_theme.Dim);
+                using var bb = new SolidBrush(_theme.TextSecondary);
                 g.DrawString("‹ " + _s.Settings, labelFont, bb, x, y);
             }
             _backRect = new Rectangle(x, y, 80, 20);

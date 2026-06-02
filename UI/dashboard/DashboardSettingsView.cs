@@ -59,7 +59,7 @@ public static class DashboardSettingsView
         var milestones = cfg.NotifyMilestones ?? Array.Empty<int>();
         if (draw)
         {
-            using var b = new SolidBrush(theme.Dim);
+            using var b = new SolidBrush(theme.TextSecondary);
             g.DrawString(s.NotifyWhenReaching, smallFont, b, x, y);
         }
         DashboardDataView.DrawSegments(g, draw, smallFont, theme,
@@ -70,9 +70,9 @@ public static class DashboardSettingsView
             foreach (var m in MilestoneOptions)
                 if (milestones.Contains(m) && rects.TryGetValue($"milestone:{m}", out var mr))
                 {
-                    using var bg = new SolidBrush(theme.Ok);
+                    using var bg = new SolidBrush(theme.Accent);
                     DashboardDataView.FillRounded(g, bg, mr, 4);
-                    using var tb = new SolidBrush(DashboardDataView.Pick(theme.Background));
+                    using var tb = new SolidBrush(DashboardDataView.Pick(theme.Accent));
                     using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                     g.DrawString($"{m}%", smallFont, tb, mr, sf);
                 }
@@ -221,7 +221,7 @@ public static class DashboardSettingsView
     {
         if (draw)
         {
-            using var b = new SolidBrush(theme.Dim);
+            using var b = new SolidBrush(theme.TextSecondary);
             g.DrawString(title, f, b, x, y);
         }
         return y + 20;
@@ -235,7 +235,7 @@ public static class DashboardSettingsView
         rects[key] = r;
         if (draw)
         {
-            using var b = new SolidBrush(theme.Foreground);
+            using var b = new SolidBrush(theme.TextPrimary);
             g.DrawString((on ? "☑ " : "☐ ") + label, f, b, x, y);
         }
         return y + 20;
@@ -249,7 +249,7 @@ public static class DashboardSettingsView
         rects[key] = r;
         if (draw)
         {
-            using var b = new SolidBrush(theme.Foreground);
+            using var b = new SolidBrush(theme.TextPrimary);
             g.DrawString("› " + label, f, b, x, y);
         }
         return y + 20;
@@ -268,7 +268,7 @@ public static class DashboardSettingsView
         if (draw)
         {
             using var path = RoundedRectPath(new Rectangle(x, y, w - 1, h - 1), 7);
-            using (var fill = new SolidBrush(Color.FromArgb(38, accent)))
+            using (var fill = new SolidBrush(theme.BgElevated))
                 g.FillPath(fill, path);
             using (var pen = new Pen(accent, 1.5f))
                 g.DrawPath(pen, path);
@@ -302,8 +302,8 @@ public static class DashboardSettingsView
         rects[key] = r;
         if (draw)
         {
-            using var fgb = new SolidBrush(theme.Foreground);
-            using var dimb = new SolidBrush(theme.Dim);
+            using var fgb = new SolidBrush(theme.TextPrimary);
+            using var dimb = new SolidBrush(theme.TextSecondary);
             g.DrawString(label, f, dimb, x, y);
             string right = current + "  ›";
             var sz = g.MeasureString(right, f);
@@ -322,7 +322,7 @@ public static class DashboardSettingsView
     {
         if (draw && !string.IsNullOrEmpty(label))
         {
-            using var b = new SolidBrush(theme.Foreground);
+            using var b = new SolidBrush(theme.TextPrimary);
             g.DrawString(label, f, b, x, y);
         }
         // segmentos alineados a la derecha; clave compuesta "key:val", activo en theme.Ok.
