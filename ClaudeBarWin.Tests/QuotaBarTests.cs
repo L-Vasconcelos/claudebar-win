@@ -40,4 +40,17 @@ public class QuotaBarTests
         Assert.Equal(QuotaBarGeometry.MarkerX(0, 100, 70), QuotaBarGeometry.TickX(0, 100, 70));
         Assert.Equal(QuotaBarGeometry.MarkerX(10, 200, 90), QuotaBarGeometry.TickX(10, 200, 90));
     }
+
+    [Fact]
+    public void Threshold_ticks_fall_within_bar_and_are_ordered()
+    {
+        // Warn (70%) y Critical (90%) por defecto: ambos ticks dentro del ancho y ordenados warn < crit.
+        const int x = 20, w = 200;
+        int warn = QuotaBarGeometry.TickX(x, w, 70);
+        int crit = QuotaBarGeometry.TickX(x, w, 90);
+
+        Assert.InRange(warn, x, x + w);
+        Assert.InRange(crit, x, x + w);
+        Assert.True(warn < crit, "el tick de warn debe quedar a la izquierda del de critical");
+    }
 }

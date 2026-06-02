@@ -48,6 +48,33 @@ public static class QuotaBar
                 using var fillBrush = new SolidBrush(c);
                 Shapes.FillRounded(g, fillBrush, new Rectangle(x, y, fw, BarH), BarRadius);
             }
+
+            // Ticks de umbral: muescas finas (1px) en Warn/Critical, tras el relleno para no quedar
+            // tapadas por las esquinas redondeadas. Neutro (theme.Separator), nunca Accent.
+            using (var tickPen = new Pen(theme.Separator, 1f))
+            {
+                int wx = QuotaBarGeometry.TickX(x, w, cfg.WarnThresholdPct);
+                int cx = QuotaBarGeometry.TickX(x, w, cfg.CriticalThresholdPct);
+                g.DrawLine(tickPen, wx, y, wx, y + BarH - 1);
+                g.DrawLine(tickPen, cx, y, cx, y + BarH - 1);
+            }
+
+            // Pace marker: "dónde deberías ir" según el ritmo ideal. Sobresale 2px arriba/abajo y
+            // lleva un ▾ encima. Color theme.TextMuted (neutro). Solo cuando hay pace.
+            if (pace is { } pm)
+            {
+                int mx = QuotaBarGeometry.MarkerX(x, w, pm.IdealPct);
+                using var markerPen = new Pen(theme.TextMuted, 2f);
+                g.DrawLine(markerPen, mx, y - 2, mx, y + BarH + 1);
+                using var markerBrush = new SolidBrush(theme.TextMuted);
+                var tri = new[]
+                {
+                    new Point(mx - 3, y - 5),
+                    new Point(mx + 3, y - 5),
+                    new Point(mx, y - 2),
+                };
+                g.FillPolygon(markerBrush, tri);
+            }
         }
         y += BarH + 3;
 
