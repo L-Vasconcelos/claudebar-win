@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using ClaudeBarWin.Config;
 using ClaudeBarWin.Models;
 using ClaudeBarWin.Services;
+using ClaudeBarWin.Services.Motion;
 
 namespace ClaudeBarWin.UI;
 
@@ -22,6 +24,17 @@ public sealed class DashboardForm : Form
     private Strings _s = new();
     private Theme _theme = Theme.Dark;
     private readonly System.Windows.Forms.Timer _tick;
+
+    // ---- Motion (F3): reloj bajo demanda + fade de apertura ----
+    // Stopwatch monótono (inmune a cambios de hora) propiedad del form: la única fuente de
+    // tiempo del motor. Cada tick pasa el delta a los AnimatedValue. El MotionScheduler decide
+    // la cadencia del _tick (33 ms si algo anima + panel visible; 1000 ms countdown; parar si oculto).
+    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly MotionScheduler _scheduler = new();
+    private double _lastTickMs;                 // marca del último Advance, para el delta
+    private double _openedAtMs;                 // elapsed del clock al abrir el panel (stagger, Tarea 4)
+    private double _targetOpacity = 1.0;        // opacidad de destino (config); la animada va por _fadeOpacity
+    private readonly AnimatedValue _fadeOpacity = new(1.0); // fade 0→objetivo al abrir (OutQuad, FadeMs)
 
     private DateTime _shownAtUtc = DateTime.MinValue;
     private readonly DateTime _startedAtUtc = DateTime.UtcNow; // para no marcar stale durante la 1ª fetch
@@ -87,8 +100,52 @@ public sealed class DashboardForm : Form
         TopMost = true;
         Padding = new Padding(18);
 
-        _tick = new System.Windows.Forms.Timer { Interval = 1000 };
-        _tick.Tick += (_, _) => { if (Visible) { _mascotFrame++; Invalidate(); } };
+        _tick = new System.Windows.Forms.Timer { Interval = Motion.SlowTickMs };
+        _tick.Tick += (_, _) => OnMotionTick();
+    }
+
+    /// <summary>
+    /// Latido del motor. Bajo demanda: integra el tiempo transcurrido en los AnimatedValue
+    /// activos, ajusta el intervalo del timer vía <see cref="MotionScheduler"/> (33 ms si algo
+    /// anima, 1000 ms si solo countdown, parar si oculto) y solo repinta si algo cambió. Con el
+    /// panel oculto no hace trabajo (invariante CPU 24/7).
+    /// </summary>
+    private void OnMotionTick()
+    {
+        if (!Visible) { _tick.Stop(); return; }
+
+        double now = _clock.Elapsed.TotalMilliseconds;
+        double delta = now - _lastTickMs;
+        _lastTickMs = now;
+        if (delta < 0) delta = 0;
+
+        bool wasAnimating = _fadeOpacity.IsAnimating;
+        if (wasAnimating)
+        {
+            _fadeOpacity.Advance(delta);
+            ApplyFadeOpacity();
+        }
+
+        // El countdown del footer (UpdatedAt · hace N min) cambia cada minuto: en cadencia lenta
+        // repintamos igual para refrescarlo, como hacía el 1 Hz de antes. El mascotFrame sigue
+        // su 1 Hz para mantener la vida actual de la mascota (su animación rica llega en Tarea 5).
+        bool animating = _fadeOpacity.IsAnimating;
+        if (!animating) _mascotFrame++;
+
+        // Repinta si hubo cambio de animación o es un tick de countdown.
+        Invalidate();
+
+        // Reajusta la cadencia para el siguiente latido (bajo demanda).
+        int interval = _scheduler.DesiredIntervalMs(visible: true, animating: animating);
+        if (interval <= 0) { _tick.Stop(); return; }
+        if (_tick.Interval != interval) _tick.Interval = interval;
+    }
+
+    /// <summary>Traslada el valor animado del fade a la propiedad <see cref="Form.Opacity"/>.</summary>
+    private void ApplyFadeOpacity()
+    {
+        double v = Math.Clamp(_fadeOpacity.Value, 0.0, 1.0);
+        if (Math.Abs(Opacity - v) > 0.001) Opacity = v;
     }
 
     public void SetHistoryProvider(Func<ChartRange, Task<List<HistoryBucket>>> provider) => _historyProvider = provider;
@@ -121,7 +178,10 @@ public sealed class DashboardForm : Form
         _theme = ThemeResolver.Resolve(cfg);
         _sticky = cfg.DashboardSticky;
         TopMost = cfg.DashboardAlwaysOnTop;
-        Opacity = Math.Clamp(cfg.DashboardOpacity, 0.3, 1.0);
+        // No pisar el fade de apertura: si hay un fade en vuelo, solo guardamos el objetivo;
+        // la opacidad se fija directa únicamente cuando no hay animación de fade.
+        _targetOpacity = Math.Clamp(cfg.DashboardOpacity, 0.3, 1.0);
+        if (!_fadeOpacity.IsAnimating) Opacity = _targetOpacity;
         _chartMode = cfg.ChartMode;
         _chartPctWindow = cfg.ChartPctWindow;
         BackColor = _theme.Background;
@@ -142,17 +202,27 @@ public sealed class DashboardForm : Form
         _theme = ThemeResolver.Resolve(cfg);
         _sticky = cfg.DashboardSticky;
         TopMost = cfg.DashboardAlwaysOnTop;
-        Opacity = Math.Clamp(cfg.DashboardOpacity, 0.3, 1.0);
+        _targetOpacity = Math.Clamp(cfg.DashboardOpacity, 0.3, 1.0);
         _chartMode = cfg.ChartMode;
         _chartPctWindow = cfg.ChartPctWindow;
         BackColor = _theme.Background;
         Relayout();
         _appliedPlacement = PlacementKey(cfg);
         _shownAtUtc = DateTime.UtcNow;
+
+        // Fade de apertura: arranca por debajo del objetivo y sube a él con OutQuad en FadeMs.
+        // _openedAtMs marca el instante de apertura (lo usa el stagger de la Tarea 4).
+        _openedAtMs = _clock.Elapsed.TotalMilliseconds;
+        _lastTickMs = _openedAtMs;
+        _fadeOpacity.Set(0.0, 0);                                        // asienta en 0 (start del fade)
+        _fadeOpacity.Set(_targetOpacity, Motion.FadeMs, Easing.OutQuad); // anima 0→objetivo
+        Opacity = 0.0;
+
         Show();
         BringToFront();
         Activate();
         SetForegroundWindow(Handle);
+        _tick.Interval = Motion.FastTickMs; // arranca rápido para que el fade sea fluido
         _tick.Start();
         if (cfg.ShowChart) _ = ReloadChart();
     }
@@ -242,7 +312,23 @@ public sealed class DashboardForm : Form
     protected override void OnVisibleChanged(EventArgs e)
     {
         base.OnVisibleChanged(e);
+        // Invariante CPU 24/7: con el panel oculto, parar el reloj de animación (0 trabajo extra).
+        // Al mostrarse, ShowConfigured ya arranca el tick a la cadencia rápida para el fade.
         if (!Visible) _tick.Stop();
+    }
+
+    /// <summary>
+    /// Esc cierra el panel (F3): el dismiss por foco ya existía (OnDeactivate→Hide); Esc lo añade
+    /// como atajo. Click fuera / ✕ siguen funcionando.
+    /// </summary>
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == Keys.Escape)
+        {
+            Hide();
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
     }
 
     protected override void OnDeactivate(EventArgs e)
