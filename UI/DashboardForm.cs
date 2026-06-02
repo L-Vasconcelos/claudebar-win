@@ -43,6 +43,13 @@ public sealed class DashboardForm : Form
     private readonly MotionState _motion = new();
     private bool _reduceMotion;                  // gate único de reduce-motion (Tarea 7 lo enchufa a config; default OFF)
 
+    // Hover (Tarea 3): clave del rect interactivo bajo el cursor (o null). OnMouseMove la recalcula
+    // sobre los diccionarios de rects ya existentes vía HoverHitTest; si cambia, repinta. La intensidad
+    // del realce hace fade-in con OutQuad en FadeMs (un AnimatedValue 0→1). El realce es un fondo
+    // redondeado BgElevated DETRÁS del rect, dibujado solo en la pasada de pintado: nunca toca el layout.
+    private string? _hoveredKey;
+    private readonly AnimatedValue _hoverIntensity = new(0.0);
+
     /// <summary>
     /// Resuelve el gate de reduce-motion para un <paramref name="cfg"/>. Hoy SIEMPRE <c>false</c>
     /// (animaciones ON, decisión de Yovan); la Tarea 7 sustituye este único punto por
@@ -142,10 +149,13 @@ public sealed class DashboardForm : Form
         // Tween de números/barras: integra el delta en todos los AnimatedValue por clave.
         _motion.Advance(delta);
 
+        // Hover (Tarea 3): el fade-in/out del realce avanza con el mismo reloj.
+        if (_hoverIntensity.IsAnimating) _hoverIntensity.Advance(delta);
+
         // El countdown del footer (UpdatedAt · hace N min) cambia cada minuto: en cadencia lenta
         // repintamos igual para refrescarlo, como hacía el 1 Hz de antes. El mascotFrame sigue
         // su 1 Hz para mantener la vida actual de la mascota (su animación rica llega en Tarea 5).
-        bool animating = _fadeOpacity.IsAnimating || _motion.IsAnimating;
+        bool animating = _fadeOpacity.IsAnimating || _motion.IsAnimating || _hoverIntensity.IsAnimating;
         if (!animating) _mascotFrame++;
 
         // Repinta si hubo cambio de animación o es un tick de countdown.
@@ -369,7 +379,14 @@ public sealed class DashboardForm : Form
         base.OnVisibleChanged(e);
         // Invariante CPU 24/7: con el panel oculto, parar el reloj de animación (0 trabajo extra).
         // Al mostrarse, ShowConfigured ya arranca el tick a la cadencia rápida para el fade.
-        if (!Visible) _tick.Stop();
+        if (!Visible)
+        {
+            _tick.Stop();
+            // Descarta el hover para que un re-open no muestre un realce obsoleto (sin tick que lo limpie).
+            _hoveredKey = null;
+            _hoverIntensity.Set(0.0, 0);
+            _hoverIntensity.Snap();
+        }
     }
 
     /// <summary>
@@ -507,20 +524,43 @@ public sealed class DashboardForm : Form
             Location = new Point(Cursor.Position.X - _dragOffset.X, Cursor.Position.Y - _dragOffset.Y);
             return;
         }
-        // Hand over interactive elements (close ✕, ⚙/‹, section headers, tabs, mode/window toggles,
-        // settings rows); normal arrow elsewhere.
-        bool overClickable = _viewMode == "settings"
-            ? _closeRect.Contains(e.Location)
-                || _backRect.Contains(e.Location)
-                || _settingsRects.Values.Any(r => r.Contains(e.Location))
-            : _closeRect.Contains(e.Location)
-                || _gearRect.Contains(e.Location)
-                || _sectionRects.Values.Any(r => r.Contains(e.Location))
-                || _tabRects.Values.Any(r => r.Contains(e.Location))
-                || _modeRects.Values.Any(r => r.Contains(e.Location))
-                || _pctWinRects.Values.Any(r => r.Contains(e.Location))
-                || _liveRowRects.Values.Any(r => r.Contains(e.Location));
-        Cursor = overClickable ? Cursors.Hand : Cursors.Default;
+        // Hover (Tarea 3): clave del rect interactivo bajo el cursor (precedencia estable, ver
+        // HoveredRects). Cursor Hand cuando hay clave. Si la clave cambia, arranca/rearma el fade-in
+        // del realce y repinta (bajo demanda, panel visible).
+        string? key = HoverHitTest.Resolve(e.Location, HoveredRects());
+        Cursor = key is not null ? Cursors.Hand : Cursors.Default;
+        if (key != _hoveredKey)
+        {
+            _hoveredKey = key;
+            // Realce: 0→1 al entrar en un rect, 1→0 al salir (a hueco). OutQuad en FadeMs. Con
+            // reduce-motion (Tarea 7) el gate de Set colapsa al instante.
+            _hoverIntensity.Set(key is not null ? 1.0 : 0.0, _reduceMotion ? 0 : Motion.FadeMs, Easing.OutQuad);
+            if (Visible && !_reduceMotion) EnsureFastTick();
+            Invalidate();
+        }
+    }
+
+    /// <summary>
+    /// Pares (clave → rect) candidatos al hover, en <b>orden de precedencia</b> (primero gana en
+    /// solapes). En la vista de datos: chrome pequeño (✕/⚙) y controles finos (tabs, modos, ventanas,
+    /// filas vivas) antes que las cabeceras de sección, que son los contenedores grandes. En ajustes:
+    /// ✕/‹ y las filas. Se consume desde <see cref="OnMouseMove"/> y el realce del paint.
+    /// </summary>
+    private IEnumerable<KeyValuePair<string, Rectangle>> HoveredRects()
+    {
+        yield return new("chrome:close", _closeRect);
+        if (_viewMode == "settings")
+        {
+            yield return new("chrome:back", _backRect);
+            foreach (var (k, r) in _settingsRects) yield return new("set:" + k, r);
+            yield break;
+        }
+        yield return new("chrome:gear", _gearRect);
+        foreach (var (k, r) in _tabRects) yield return new("tab:" + (int)k, r);
+        foreach (var (k, r) in _modeRects) yield return new("mode:" + k, r);
+        foreach (var (k, r) in _pctWinRects) yield return new("pctwin:" + k, r);
+        foreach (var (k, r) in _liveRowRects) yield return new("live:" + k, r);
+        foreach (var (k, r) in _sectionRects) yield return new("sec:" + k, r);
     }
 
     protected override void OnMouseUp(MouseEventArgs e)
@@ -538,13 +578,52 @@ public sealed class DashboardForm : Form
         Moved?.Invoke(Location);
     }
 
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        // El cursor abandonó el panel: descarta el hover (fade-out del realce a 0).
+        if (_hoveredKey is null) return;
+        _hoveredKey = null;
+        _hoverIntensity.Set(0.0, _reduceMotion ? 0 : Motion.FadeMs, Easing.OutQuad);
+        if (Visible && !_reduceMotion) EnsureFastTick();
+        Invalidate();
+    }
+
     // ---------- paint / layout ----------
 
     protected override void OnPaint(PaintEventArgs e)
     {
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        // Realce de hover DETRÁS del contenido: usa los rects de la pasada anterior (los mismos sobre
+        // los que OnMouseMove resolvió la clave). Nunca toca el layout — es decoración bajo el texto.
+        DrawHoverHighlight(e.Graphics);
         LayoutContent(e.Graphics, draw: true);
+    }
+
+    /// <summary>
+    /// Pinta un fondo redondeado <c>theme.BgElevated</c> detrás del rect bajo el cursor, con la
+    /// intensidad eased del fade-in (alfa). Sin clave o intensidad ≈0 ⇒ no pinta. No altera el layout.
+    /// </summary>
+    private void DrawHoverHighlight(Graphics g)
+    {
+        if (_hoveredKey is null && !_hoverIntensity.IsAnimating) return;
+        double intensity = _reduceMotion ? (_hoveredKey is not null ? 1.0 : 0.0) : _hoverIntensity.Value;
+        if (intensity <= 0.01) return;
+
+        // Localiza el rect de la clave activa entre los diccionarios vigentes.
+        Rectangle? target = null;
+        foreach (var kv in HoveredRects())
+            if (kv.Key == _hoveredKey) { target = kv.Value; break; }
+        if (target is not { } r || r.Width <= 0 || r.Height <= 0) return;
+
+        // Alfa proporcional a la intensidad sobre BgElevated; un poco de aire alrededor del rect.
+        int alpha = (int)Math.Round(Math.Clamp(intensity, 0.0, 1.0) * _theme.BgElevated.A);
+        if (alpha <= 0) return;
+        var bg = Color.FromArgb(alpha, _theme.BgElevated);
+        var padded = Rectangle.Inflate(r, Spacing.Xs, Spacing.Xs / 2);
+        using var b = new SolidBrush(bg);
+        Shapes.FillRounded(g, b, padded, Spacing.Sm);
     }
 
     /// <summary>Walks the sections top-to-bottom. Returns the required window height.</summary>
