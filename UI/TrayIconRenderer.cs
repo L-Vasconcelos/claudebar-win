@@ -1,6 +1,7 @@
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Runtime.InteropServices;
+using ClaudeBarWin.Services;
 
 namespace ClaudeBarWin.UI;
 
@@ -24,6 +25,10 @@ public static class TrayIconRenderer
         percent = Math.Clamp(percent, 0, 999);
         return RenderBadge(percent >= 100 ? "99+" : percent.ToString(), bg, pending);
     }
+
+    /// <summary>Colorea el badge de forma continua por riesgo (Ok→Warn→Critical) según el tema y los umbrales.</summary>
+    public static Icon Render(int percent, Theme theme, double warn, double crit, bool pending = false)
+        => Render(percent, ColorMath.RiskColor(percent, theme, warn, crit), pending);
 
     /// <summary>Neutral badge for "no data / auth expired / offline".</summary>
     public static Icon RenderError(Color bg, bool pending = false) => RenderBadge("!", bg, pending);

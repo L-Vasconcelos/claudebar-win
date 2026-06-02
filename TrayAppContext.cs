@@ -431,8 +431,8 @@ public sealed class TrayAppContext : ApplicationContext
         Icon newIcon;
         if (snap.Usage is { } u)
         {
-            var (icoVal, icoColor) = IconContent(u, snap);
-            newIcon = TrayIconRenderer.Render(icoVal, icoColor, pending: LiveAttentionPending());
+            var (icoVal, _) = IconContent(u, snap);
+            newIcon = TrayIconRenderer.Render(icoVal, _theme, _config.WarnThresholdPct, _config.CriticalThresholdPct, pending: LiveAttentionPending());
 
             string five = UsageFormat.Countdown(u.FiveHour?.ResetsAt, _s.Resetting);
             string week = UsageFormat.Countdown(u.SevenDay?.ResetsAt, _s.Resetting);
