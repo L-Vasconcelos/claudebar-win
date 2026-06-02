@@ -1,6 +1,9 @@
 using System.Text;
 using ClaudeBarWin.Config;
+using ClaudeBarWin.Models;
 using ClaudeBarWin.Services;
+using ClaudeBarWin.Services.Mascot;
+using ClaudeBarWin.Services.Motion;
 using ClaudeBarWin.UI;
 
 namespace ClaudeBarWin;
@@ -428,6 +431,10 @@ internal static class Program
             bmpL.Save(Path.Combine(dir, "mascot-large.png"));
         }
 
+        // ---- Microinteracciones congeladas (Tarea 8): fade+stagger+tween a 0/90/200 ms, hover sobre
+        //      una fila, mascota en varias fases/humores, celebración y una pasada reduce-motion. ----
+        RenderMotionFrames(dir, snap, plan, buckets, pct);
+
         // Tira de badges del icono de bandeja para QA visual: matriz barra clara/oscura × 3 formas
         // (Ok/Warn/Critical) × estado fresco/stale, a 48px (nativo) y 16px (tamaño real a 100% DPI).
         // Valida legibilidad y contraste del texto adaptativo + el estado por forma a 16px.
@@ -489,6 +496,78 @@ internal static class Program
         }
 
         Console.WriteLine("rendered data.png + settings.png + mascot-large.png + tray-badges.png");
+        Console.WriteLine("       + motion-0/90/200.png + hover.png + mascot-*.png + celebration.png + reduce-motion.png");
         Console.WriteLine(dir);
+    }
+
+    /// <summary>
+    /// Genera los fotogramas FIJOS de las microinteracciones de F3 (Tarea 8) inyectando un
+    /// <see cref="DashboardForm.RenderMotionOverride"/> determinista (sin reloj de UI): fade+stagger+tween
+    /// a tSinceOpen = 0/90/200 ms, hover sobre una sección, la mascota en varias fases/humores, un
+    /// destello de celebración y una pasada con reduce-motion (== estado final).
+    /// </summary>
+    private static void RenderMotionFrames(string dir, AppSnapshot snap, PlanInfo plan,
+        List<HistoryBucket> buckets, List<PctPoint> pct)
+    {
+        // Config base con la mascota visible para ver también su vida en los fotogramas.
+        AppConfig Base() => new()
+        {
+            Theme = "dark", ChartMode = "spend", ChartPctWindow = "7d", Language = "en",
+            ShowSpendEstimate = true, ShowHealth = true, ShowChart = true,
+            LiveSessionsEnabled = true, ShowMascot = true, MascotSize = "large"
+        };
+
+        void Shot(string file, AppConfig cfg, DashboardForm.RenderMotionOverride? mo, LiveSessionsView? live)
+        {
+            using var form = new DashboardForm();
+            form.PrepareForRender(snap, cfg, plan, buckets, pct, ChartRange.Hours5, mo, live);
+            using var bmp = new Bitmap(form.Width, form.Height);
+            form.DrawToBitmap(bmp, new Rectangle(0, 0, form.Width, form.Height));
+            bmp.Save(Path.Combine(dir, file));
+        }
+
+        // Mascota procesando (fase animada): spinner + verbo vivos en los tres instantes.
+        var processing = new LiveSessionsView { GlobalPhase = SessionPhase.Processing, ActiveCount = 1 };
+
+        // 1) Apertura a 0 / 90 / 200 ms: fade de opacidad + entrada escalonada + tween de barras/números.
+        foreach (var (t, file) in new[] { (0.0, "motion-0.png"), (90.0, "motion-90.png"), (200.0, "motion-200.png") })
+            Shot(file, Base(), new DashboardForm.RenderMotionOverride(TSinceOpenMs: t, MascotElapsedMs: t), processing);
+
+        // 2) Hover sobre la sección de cuota (realce eased a intensidad plena), ya asentado (t alto).
+        Shot("hover.png", Base(),
+            new DashboardForm.RenderMotionOverride(TSinceOpenMs: 2000, HoveredKey: "sec:quota", MascotElapsedMs: 2000),
+            processing);
+
+        // 3) Mascota en varias fases/humores: animador a un elapsed que muestra spinner/verbo + humor forzado.
+        var moods = new (SessionPhase phase, Mood mood, string file)[]
+        {
+            (SessionPhase.Processing,         Mood.Focused, "mascot-processing.png"),
+            (SessionPhase.WaitingForApproval, Mood.Alert,   "mascot-waiting.png"),
+            (SessionPhase.Idle,               Mood.Neutral, "mascot-idle.png"),
+        };
+        foreach (var (phase, mood, file) in moods)
+        {
+            var live = new LiveSessionsView { GlobalPhase = phase, ActiveCount = phase == SessionPhase.Idle ? 0 : 1 };
+            // Bote de atención visible en la fase que pide atención (offset > 0).
+            int bounce = phase.NeedsAttention() ? Motion.BounceAmplitudePx : 0;
+            Shot(file, Base(),
+                new DashboardForm.RenderMotionOverride(
+                    TSinceOpenMs: 3000, MascotElapsedMs: 320, MascotMood: mood, MascotBounceOffsetY: bounce),
+                live);
+        }
+
+        // 4) Celebración de reset (destello "✓ cuota renovada" + humor Happy).
+        Shot("celebration.png", Base(),
+            new DashboardForm.RenderMotionOverride(
+                TSinceOpenMs: 3000, MascotElapsedMs: 200, MascotMood: Mood.Happy, Celebrating: true),
+            processing);
+
+        // 5) Reduce-motion ON: el gate único colapsa TODO a su estado final. Con override + ReduceMotion,
+        //    fade=1, stagger=0, tween=target, sin spinner/jitter ni hover ⇒ idéntico al estado de hoy.
+        var reduced = Base();
+        reduced.ReduceMotion = true;
+        Shot("reduce-motion.png", reduced,
+            new DashboardForm.RenderMotionOverride(TSinceOpenMs: 90, HoveredKey: "sec:quota", MascotElapsedMs: 320, Celebrating: true),
+            processing);
     }
 }

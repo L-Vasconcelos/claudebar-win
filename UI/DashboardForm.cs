@@ -65,7 +65,13 @@ public sealed class DashboardForm : Form
     private bool _resetPending;                  // hay un reset detectado sin "consumir" en el humor todavía
 
     /// <summary>Tiempo (ms) en la fase actual de la mascota (elapsed crudo del reloj de fase).</summary>
-    private double MascotElapsedMs() => _clock.Elapsed.TotalMilliseconds - _mascotPhaseStartMs;
+    private double MascotElapsedMs() =>
+        _renderOverride is { } o ? o.MascotElapsedMs
+        : _clock.Elapsed.TotalMilliseconds - _mascotPhaseStartMs;
+
+    /// <summary>Humor vigente de la mascota: el override del render-test manda si está presente.</summary>
+    private Mood MascotMoodCurrent() =>
+        _renderOverride is { MascotMood: { } m } ? m : _mascotMood.Current;
 
     /// <summary>
     /// Muestrea el estado del animador para la fase global vigente. La puerta única de reduce-motion
@@ -131,6 +137,7 @@ public sealed class DashboardForm : Form
     /// <summary>Offset (px ≥ 0) del bote de atención de la mascota en el instante actual (0 si reduce-motion).</summary>
     private int MascotBounceOffsetY()
     {
+        if (_renderOverride is { } o) return _reduceMotion ? 0 : o.MascotBounceOffsetY;
         if (_reduceMotion || double.IsNegativeInfinity(_bounceStartMs)) return 0;
         double t = _clock.Elapsed.TotalMilliseconds - _bounceStartMs;
         return Bounce.OffsetY(t, Motion.BounceAmplitudePx, Motion.BouncePeriodMs, Motion.BounceRepeats);
@@ -143,7 +150,8 @@ public sealed class DashboardForm : Form
 
     /// <summary>¿Está visible el destello de celebración de reset ahora mismo?</summary>
     private bool CelebrationActive() =>
-        !_reduceMotion && _clock.Elapsed.TotalMilliseconds < _celebrationUntilMs;
+        _renderOverride is { } o ? (!_reduceMotion && o.Celebrating)
+        : (!_reduceMotion && _clock.Elapsed.TotalMilliseconds < _celebrationUntilMs);
 
     /// <summary>Texto del destello de celebración ("✓ cuota renovada" lo monta la cabecera) o null.</summary>
     private string? CelebrationText() => CelebrationActive() ? _s.QuotaRenewed : null;
@@ -154,6 +162,25 @@ public sealed class DashboardForm : Form
     // redondeado BgElevated DETRÁS del rect, dibujado solo en la pasada de pintado: nunca toca el layout.
     private string? _hoveredKey;
     private readonly AnimatedValue _hoverIntensity = new(0.0);
+
+    // ---- Override de tiempo de motion para el render-test (Tarea 8) ----
+    // El render es offline (sin reloj de UI ni ticks): para capturar las microinteracciones en un
+    // FOTOGRAMA FIJO, PrepareForRender puede inyectar un override determinista (tSinceOpen, hover,
+    // tiempo/humor de la mascota, destello de celebración). Cuando está presente, los muestreadores
+    // de motion leen de aquí en vez del Stopwatch vivo. En la app real es siempre null (cuelga del reloj).
+    private RenderMotionOverride? _renderOverride;
+
+    /// <summary>
+    /// Estado de motion congelado que el render-test inyecta para capturar las microinteracciones a
+    /// medio camino sin reloj real. Todo es puro/determinista: no toca el <see cref="Stopwatch"/>.
+    /// </summary>
+    public readonly record struct RenderMotionOverride(
+        double TSinceOpenMs,
+        string? HoveredKey = null,
+        double MascotElapsedMs = 0,
+        Mood? MascotMood = null,
+        bool Celebrating = false,
+        int MascotBounceOffsetY = 0);
 
     /// <summary>
     /// Resuelve el gate ÚNICO de reduce-motion para un <paramref name="cfg"/>: lee
@@ -173,6 +200,7 @@ public sealed class DashboardForm : Form
     /// </summary>
     private double TSinceOpenMs() =>
         _reduceMotion ? double.PositiveInfinity
+        : _renderOverride is { } o ? o.TSinceOpenMs
         : _clock.Elapsed.TotalMilliseconds - _openedAtMs;
 
     private DateTime _shownAtUtc = DateTime.MinValue;
@@ -453,9 +481,18 @@ public sealed class DashboardForm : Form
         if (cfg.ShowChart) _ = ReloadChart();
     }
 
-    /// <summary>For offline rendering (render-test): set everything synchronously and size to fit.</summary>
+    /// <summary>
+    /// For offline rendering (render-test): set everything synchronously and size to fit.
+    /// <para>
+    /// El parámetro opcional <paramref name="motion"/> congela las microinteracciones en un FOTOGRAMA
+    /// FIJO (tSinceOpen, hover, tiempo/humor de la mascota, destello de celebración) sin reloj de UI:
+    /// el render-test las captura a medio camino. <paramref name="live"/> fija la fase global (mascota).
+    /// Con ambos null el comportamiento es el de hoy (estado final, sin motion).
+    /// </para>
+    /// </summary>
     public void PrepareForRender(AppSnapshot snap, AppConfig cfg, PlanInfo plan,
-        List<HistoryBucket> buckets, List<PctPoint> pct, ChartRange range)
+        List<HistoryBucket> buckets, List<PctPoint> pct, ChartRange range,
+        RenderMotionOverride? motion = null, LiveSessionsView? live = null)
     {
         _snap = snap;
         _cfg = cfg;
@@ -470,9 +507,48 @@ public sealed class DashboardForm : Form
         _pctData = pct;
         _chartRange = range;
         _chartLoading = false;
+        if (live is not null) _liveView = live;
+        _renderOverride = motion;
+
+        // Tween a medio camino para el render-test: siembra cada barra/número en su VALOR DE ARRANQUE
+        // (0%) y reapunta al objetivo, luego avanza el reloj de motion tSinceOpen ms. Así Display()
+        // devuelve un valor intermedio (no el target sembrado de primera aparición). Con reduce-motion
+        // o sin override, queda en el target final (estado de hoy).
+        if (motion is { } mo && !_reduceMotion)
+        {
+            SeedMotionForRender();
+            _motion.Advance(mo.TSinceOpenMs);
+            // Fade de apertura: Opacity = OutQuad(tSinceOpen/FadeMs) · DashboardOpacity.
+            double prog = Motion.FadeMs <= 0 ? 1.0 : Math.Clamp(mo.TSinceOpenMs / Motion.FadeMs, 0.0, 1.0);
+            double target = Math.Clamp(cfg.DashboardOpacity, 0.3, 1.0);
+            Opacity = Easing.OutQuad(prog) * target;
+        }
+
         _ = Handle;
         using var g = CreateGraphics();
         Height = LayoutContent(g, draw: false);
+    }
+
+    /// <summary>
+    /// Siembra los <see cref="AnimatedValue"/> de barras/números en su valor de arranque (0%) y los
+    /// reapunta al objetivo del snapshot, para que el render-test capture el tween a medio vuelo. Solo
+    /// lo usa <see cref="PrepareForRender"/> con override; la app real arranca el tween en vivo.
+    /// </summary>
+    private void SeedMotionForRender()
+    {
+        var usage = _snap?.Usage;
+        if (usage is null) return;
+        void Seed(string key, double target)
+        {
+            _motion.Display(key, 0.0, false); // siembra la clave en 0 (valor de arranque)
+            _motion.SetTarget(key, target, false); // reapunta al objetivo (tween desde 0)
+        }
+        if (usage.FiveHour is { } w5) Seed("bar:5h", w5.UtilizationPct);
+        if (usage.SevenDay is { } w7) Seed("bar:7d", w7.UtilizationPct);
+        UsageWindow? crit = usage.FiveHour is null ? usage.SevenDay
+            : usage.SevenDay is null ? usage.FiveHour
+            : usage.FiveHour.UtilizationPct >= usage.SevenDay.UtilizationPct ? usage.FiveHour : usage.SevenDay;
+        if (crit is not null) Seed("num:crit", crit.UtilizationPct);
     }
 
     private async Task ReloadChart()
@@ -769,14 +845,18 @@ public sealed class DashboardForm : Form
     /// </summary>
     private void DrawHoverHighlight(Graphics g)
     {
-        if (_hoveredKey is null && !_hoverIntensity.IsAnimating) return;
-        double intensity = _reduceMotion ? (_hoveredKey is not null ? 1.0 : 0.0) : _hoverIntensity.Value;
+        // En el render-test el realce se fuerza desde el override (intensidad plena, sin tick que lo anime).
+        string? hovered = _renderOverride is { HoveredKey: { } hk } ? hk : _hoveredKey;
+        if (hovered is null && !_hoverIntensity.IsAnimating) return;
+        double intensity = _renderOverride is not null
+            ? (hovered is not null ? 1.0 : 0.0)
+            : _reduceMotion ? (hovered is not null ? 1.0 : 0.0) : _hoverIntensity.Value;
         if (intensity <= 0.01) return;
 
         // Localiza el rect de la clave activa entre los diccionarios vigentes.
         Rectangle? target = null;
         foreach (var kv in HoveredRects())
-            if (kv.Key == _hoveredKey) { target = kv.Value; break; }
+            if (kv.Key == hovered) { target = kv.Value; break; }
         if (target is not { } r || r.Width <= 0 || r.Height <= 0) return;
 
         // Alfa proporcional a la intensidad sobre BgElevated; un poco de aire alrededor del rect.
@@ -846,7 +926,7 @@ public sealed class DashboardForm : Form
             : 0;
         if (hOff != 0) g.TranslateTransform(0, hOff);
         y = DashboardHeader.Draw(g, draw, x, y, w,
-            _snap, _liveView, _cfg, _s, _theme, SampleMascot(), _mascotMood.Current,
+            _snap, _liveView, _cfg, _s, _theme, SampleMascot(), MascotMoodCurrent(),
             labelFont, smallFont, mono, ref _gearRect,
             _motion, _reduceMotion, MascotBounceOffsetY(), CelebrationText());
         if (hOff != 0) g.TranslateTransform(0, -hOff);
@@ -869,45 +949,61 @@ public sealed class DashboardForm : Form
         try
         {
 
-        // footer: "Actualizado · hace N min · pista", con marcador stale si el dato envejece
+        // footer: "Actualizado · hace N min · pista", con marcador stale si el dato envejece.
+        // F2 truncaba el footer y el sello al ancho fijo del panel (340 px). Ahora ambos se ENVUELVEN
+        // a varias líneas con TextWrap (puro), midiendo el nº de líneas en LAS DOS pasadas (medir/pintar)
+        // para que el alto reservado crezca con el contenido y el y siga siendo idéntico. El marcador
+        // stale conserva su color Warn en su propia línea corta (siempre cabe).
         y += 4;
+        int lineH = (int)Math.Ceiling(smallFont.GetHeight(g));
+        double Mw(string s) => g.MeasureString(s, smallFont).Width;
+
         // ¿el dato está desfasado? No marcar durante los primeros RefreshSeconds tras arrancar (1ª fetch).
         bool grace = (DateTime.UtcNow - _startedAtUtc) < TimeSpan.FromSeconds(Math.Max(15, _cfg.RefreshSeconds));
         bool stale = _snap is not null
             && _snap.LatestState == UsageFetchState.Ok
             && !grace
             && UsageFormat.IsStale(_snap.UsageAtUtc, _cfg.RefreshSeconds);
-        if (draw)
+
+        if (stale)
         {
-            float fx = x;
-            if (stale)
+            string mark = $"⚠ {_s.StaleLabel} ·";
+            if (draw)
             {
                 using var warn = new SolidBrush(_theme.Warn);
-                string mark = $"⚠ {_s.StaleLabel} · ";
-                g.DrawString(mark, smallFont, warn, fx, y);
-                fx += g.MeasureString(mark, smallFont).Width;
+                g.DrawString(mark, smallFont, warn, x, y);
             }
-
-            string footer;
-            if (_snap is not null && _snap.LatestState != UsageFetchState.Ok)
-                footer = $"⚠ {UsageFormat.StateMessage(_snap.LatestState, _s)} · {_s.PreviousDataFooter}";
-            else if (_snap is not null)
-            {
-                string hint = _sticky ? _s.HintPinnedClose : _s.HintClickToHide;
-                footer = $"{_s.UpdatedAt} · {UsageFormat.Relative(_snap.UsageAtUtc, _s)} · {hint}";
-            }
-            else footer = _s.Loading;
-            g.DrawString(footer, smallFont, dim, fx, y);
+            y += lineH;
         }
-        y += (int)Math.Ceiling(smallFont.GetHeight(g)) + Spacing.Xs;
 
-        // Sello de privacidad honesto (siempre visible, neutro).
-        if (draw)
+        string footer;
+        if (_snap is not null && _snap.LatestState != UsageFetchState.Ok)
+            footer = $"⚠ {UsageFormat.StateMessage(_snap.LatestState, _s)} · {_s.PreviousDataFooter}";
+        else if (_snap is not null)
         {
-            using var muted = new SolidBrush(_theme.TextMuted);
-            g.DrawString(_s.LocalSeal, smallFont, muted, x, y);
+            string hint = _sticky ? _s.HintPinnedClose : _s.HintClickToHide;
+            footer = $"{_s.UpdatedAt} · {UsageFormat.Relative(_snap.UsageAtUtc, _s)} · {hint}";
         }
-        return y + 18;
+        else footer = _s.Loading;
+
+        foreach (var line in TextWrap.WordWrap(footer, w, Mw))
+        {
+            if (draw) g.DrawString(line, smallFont, dim, x, y);
+            y += lineH;
+        }
+        y += Spacing.Xs;
+
+        // Sello de privacidad honesto (siempre visible, neutro): se envuelve igual.
+        foreach (var line in TextWrap.WordWrap(_s.LocalSeal, w, Mw))
+        {
+            if (draw)
+            {
+                using var muted = new SolidBrush(_theme.TextMuted);
+                g.DrawString(line, smallFont, muted, x, y);
+            }
+            y += lineH;
+        }
+        return y + Spacing.Sm;
         }
         finally
         {
