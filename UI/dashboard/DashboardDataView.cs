@@ -56,8 +56,8 @@ public static class DashboardDataView
     {
         sectionRects.Clear();
 
-        using var fg = new SolidBrush(theme.Foreground);
-        using var dim = new SolidBrush(theme.Dim);
+        using var fg = new SolidBrush(theme.TextPrimary);
+        using var dim = new SolidBrush(theme.TextSecondary);
 
         // 1) Cuota (barras 5h/7d + pace + modelos)
         y = Section(g, draw, "quota", s.SectionQuota, !cfg.CollapsedQuota, x, y, w, theme, labelFont, sectionRects,
@@ -104,7 +104,7 @@ public static class DashboardDataView
         rects[key] = r;
         if (draw)
         {
-            using var b = new SolidBrush(theme.Foreground);
+            using var b = new SolidBrush(theme.TextPrimary);
             g.DrawString((expanded ? "▾ " : "▸ ") + title, f, b, x, y);
         }
         y += 22;
@@ -156,8 +156,8 @@ public static class DashboardDataView
             {
                 g.DrawString(kv.Key, labelFont, fg, x, y);
                 string val = $"${kv.Value:0.00}";
-                var sz = g.MeasureString(val, labelFont);
-                g.DrawString(val, labelFont, dim, x + w - sz.Width, y);
+                var sz = g.MeasureString(val, Typography.Mono);
+                g.DrawString(val, Typography.Mono, dim, x + w - sz.Width, y);
             }
             y += 20;
         }
@@ -197,19 +197,18 @@ public static class DashboardDataView
     {
         double util = win?.UtilizationPct ?? 0;
         double clamped = Math.Min(util / 100.0, 1.0);
-        // Colour the section by PACE status (better/worse rate); fall back to level threshold.
+        // Colour the section by PACE status (better/worse rate); fall back to riesgo gradual.
         Color c = pace is { } ps
             ? (ps == PaceStatus.Critical ? theme.Critical : ps == PaceStatus.Over ? theme.Warn : theme.Ok)
-            : (util >= cfg.CriticalThresholdPct ? theme.Critical
-                : util >= cfg.WarnThresholdPct ? theme.Warn : theme.Ok);
+            : ColorMath.RiskColor(util, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
 
         if (draw)
         {
             g.DrawString(label, labelFont, fg, x, y);
             string right = $"{util:0.#}%";
-            var sz = g.MeasureString(right, labelFont);
+            var sz = g.MeasureString(right, Typography.Mono);
             using var valBrush = new SolidBrush(c);
-            g.DrawString(right, labelFont, valBrush, x + w - sz.Width, y);
+            g.DrawString(right, Typography.Mono, valBrush, x + w - sz.Width, y);
         }
         y += 22;
 
@@ -241,8 +240,8 @@ public static class DashboardDataView
         {
             g.DrawString(label, smallFont, dim, x, y);
             string val = $"{win.UtilizationPct:0.#}%";
-            var sz = g.MeasureString(val, smallFont);
-            g.DrawString(val, smallFont, fg, x + w - sz.Width, y);
+            var sz = g.MeasureString(val, Typography.Mono);
+            g.DrawString(val, Typography.Mono, fg, x + w - sz.Width, y);
         }
         return y + 16;
     }
@@ -318,9 +317,9 @@ public static class DashboardDataView
             if (draw)
             {
                 bool active = range == chartRange;
-                using var bg = new SolidBrush(active ? theme.Ok : theme.Track);
+                using var bg = new SolidBrush(active ? theme.Accent : theme.BgElevated);
                 FillRounded(g, bg, rect, 5);
-                using var tb = new SolidBrush(active ? Pick(theme.Background) : theme.Foreground);
+                using var tb = new SolidBrush(active ? Pick(theme.Accent) : theme.TextPrimary);
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString(label, tabFont, tb, rect, sf);
             }
@@ -355,9 +354,9 @@ public static class DashboardDataView
             if (draw)
             {
                 bool active = key == activeKey;
-                using var bg = new SolidBrush(active ? theme.Ok : theme.Track);
+                using var bg = new SolidBrush(active ? theme.Accent : theme.BgElevated);
                 FillRounded(g, bg, rect, 4);
-                using var tb = new SolidBrush(active ? Pick(theme.Background) : theme.Foreground);
+                using var tb = new SolidBrush(active ? Pick(theme.Accent) : theme.TextPrimary);
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString(label, font, tb, rect, sf);
             }
@@ -471,9 +470,7 @@ public static class DashboardDataView
         float X(int i) => n == 1 ? x + w / 2f : x + (float)i * w / (n - 1);
         float Y(double v) => bottom - (float)(Math.Clamp(v, 0, 100) / 100.0) * (ChartH - 14);
 
-        Color status = peak >= cfg.CriticalThresholdPct ? theme.Critical
-                     : peak >= cfg.WarnThresholdPct ? theme.Warn
-                     : theme.Ok;
+        Color status = ColorMath.RiskColor(peak, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
 
         // current value (top-left)
         var curText = $"{current:0.#}%";

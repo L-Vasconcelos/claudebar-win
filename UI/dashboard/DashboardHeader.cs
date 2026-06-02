@@ -31,9 +31,9 @@ public static class DashboardHeader
         gearRect = gear;
         if (draw)
         {
-            using (var bgBrush = new SolidBrush(theme.Track))
+            using (var bgBrush = new SolidBrush(theme.BgElevated))
                 FillRounded(g, bgBrush, gear, 7);
-            using var glyphBrush = new SolidBrush(theme.Foreground);
+            using var glyphBrush = new SolidBrush(theme.TextPrimary);
             g.DrawString(GearGlyph, GearIconFont, glyphBrush, gear, CenterFormat);
         }
 
@@ -59,13 +59,13 @@ public static class DashboardHeader
                 HealthLevel.Operational => (s.HealthOk, theme.Ok),
                 HealthLevel.Degraded => (s.HealthDegraded, theme.Warn),
                 HealthLevel.Outage => (s.HealthOutage, theme.Critical),
-                _ => (h.Description, theme.Dim)
+                _ => (h.Description, theme.TextSecondary)
             };
             if (draw)
             {
                 using var dot = new SolidBrush(hc);
                 g.FillEllipse(dot, textX, ty + 4, 8, 8);
-                using var b = new SolidBrush(theme.Dim);
+                using var b = new SolidBrush(theme.TextSecondary);
                 g.DrawString(hl, smallFont, b, textX + 12, ty);
             }
         }
@@ -88,7 +88,7 @@ public static class DashboardHeader
 
         int bottom = Math.Max(ty, top + mascotH);
         // separador
-        if (draw) { using var p = new Pen(theme.Track); g.DrawLine(p, x, bottom + 4, x + w, bottom + 4); }
+        if (draw) { using var p = new Pen(theme.Separator); g.DrawLine(p, x, bottom + 4, x + w, bottom + 4); }
         return bottom + 10;
     }
 
@@ -106,20 +106,19 @@ public static class DashboardHeader
     {
         double util = win?.UtilizationPct ?? 0;
         double clamped = Math.Min(util / 100.0, 1.0);
-        // Colour the section by PACE status (better/worse rate); fall back to level threshold.
+        // Colour the section by PACE status (better/worse rate); fall back to riesgo gradual.
         Color c = pace is { } ps
             ? (ps == PaceStatus.Critical ? theme.Critical : ps == PaceStatus.Over ? theme.Warn : theme.Ok)
-            : (util >= cfg.CriticalThresholdPct ? theme.Critical
-                : util >= cfg.WarnThresholdPct ? theme.Warn : theme.Ok);
+            : ColorMath.RiskColor(util, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
 
         if (draw)
         {
-            using var fg = new SolidBrush(theme.Foreground);
+            using var fg = new SolidBrush(theme.TextPrimary);
             g.DrawString(label, labelFont, fg, x, y);
             string right = $"{util:0.#}%";
-            var sz = g.MeasureString(right, labelFont);
+            var sz = g.MeasureString(right, Typography.Mono);
             using var valBrush = new SolidBrush(c);
-            g.DrawString(right, labelFont, valBrush, x + w - sz.Width, y);
+            g.DrawString(right, Typography.Mono, valBrush, x + w - sz.Width, y);
         }
         y += 22;
 
@@ -140,8 +139,8 @@ public static class DashboardHeader
         string cd = UsageFormat.Countdown(win?.ResetsAt, s.Resetting);
         if (draw && cd.Length > 0)
         {
-            using var dim = new SolidBrush(theme.Dim);
-            g.DrawString($"{s.ResetsIn} {cd}", smallFont, dim, x, y);
+            using var muted = new SolidBrush(theme.TextMuted);
+            g.DrawString($"{s.ResetsIn} {cd}", smallFont, muted, x, y);
         }
         return y + 14;
     }
