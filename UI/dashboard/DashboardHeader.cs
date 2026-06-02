@@ -32,7 +32,7 @@ public static class DashboardHeader
         if (draw)
         {
             using (var bgBrush = new SolidBrush(theme.BgElevated))
-                FillRounded(g, bgBrush, gear, 7);
+                Shapes.FillRounded(g, bgBrush, gear, 7);
             using var glyphBrush = new SolidBrush(theme.TextPrimary);
             g.DrawString(GearGlyph, GearIconFont, glyphBrush, gear, CenterFormat);
         }
@@ -126,12 +126,12 @@ public static class DashboardHeader
         if (draw)
         {
             using var trackBrush = new SolidBrush(theme.Track);
-            FillRounded(g, trackBrush, new Rectangle(x, y, w, barH), 5);
+            Shapes.FillRounded(g, trackBrush, new Rectangle(x, y, w, barH), 5);
             int fw = (int)Math.Round(w * clamped);
             if (fw > 1)
             {
                 using var fillBrush = new SolidBrush(c);
-                FillRounded(g, fillBrush, new Rectangle(x, y, fw, barH), 5);
+                Shapes.FillRounded(g, fillBrush, new Rectangle(x, y, fw, barH), 5);
             }
         }
         y += barH + 3;
@@ -173,19 +173,4 @@ public static class DashboardHeader
         return y + 18;
     }
 
-    // Copia de FillRounded de DashboardForm.cs (helper de dibujo de barras redondeadas).
-    private static void FillRounded(Graphics g, Brush b, Rectangle r, int radius)
-    {
-        if (r.Width <= 0 || r.Height <= 0) return;
-        radius = Math.Min(radius, Math.Min(r.Width, r.Height) / 2);
-        if (radius <= 1) { g.FillRectangle(b, r); return; }
-        int d = radius * 2;
-        using var path = new GraphicsPath();
-        path.AddArc(r.X, r.Y, d, d, 180, 90);
-        path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
-        path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
-        path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
-        path.CloseFigure();
-        g.FillPath(b, path);
-    }
 }

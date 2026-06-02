@@ -216,12 +216,12 @@ public static class DashboardDataView
         if (draw)
         {
             using var trackBrush = new SolidBrush(theme.Track);
-            FillRounded(g, trackBrush, new Rectangle(x, y, w, barH), 5);
+            Shapes.FillRounded(g, trackBrush, new Rectangle(x, y, w, barH), 5);
             int fw = (int)Math.Round(w * clamped);
             if (fw > 1)
             {
                 using var fillBrush = new SolidBrush(c);
-                FillRounded(g, fillBrush, new Rectangle(x, y, fw, barH), 5);
+                Shapes.FillRounded(g, fillBrush, new Rectangle(x, y, fw, barH), 5);
             }
         }
         y += barH + 3;
@@ -318,8 +318,8 @@ public static class DashboardDataView
             {
                 bool active = range == chartRange;
                 using var bg = new SolidBrush(active ? theme.Accent : theme.BgElevated);
-                FillRounded(g, bg, rect, 5);
-                using var tb = new SolidBrush(active ? Pick(theme.Accent) : theme.TextPrimary);
+                Shapes.FillRounded(g, bg, rect, 5);
+                using var tb = new SolidBrush(active ? ColorMath.Contrast(theme.Accent) : theme.TextPrimary);
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString(label, tabFont, tb, rect, sf);
             }
@@ -355,8 +355,8 @@ public static class DashboardDataView
             {
                 bool active = key == activeKey;
                 using var bg = new SolidBrush(active ? theme.Accent : theme.BgElevated);
-                FillRounded(g, bg, rect, 4);
-                using var tb = new SolidBrush(active ? Pick(theme.Accent) : theme.TextPrimary);
+                Shapes.FillRounded(g, bg, rect, 4);
+                using var tb = new SolidBrush(active ? ColorMath.Contrast(theme.Accent) : theme.TextPrimary);
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString(label, font, tb, rect, sf);
             }
@@ -536,21 +536,4 @@ public static class DashboardDataView
         g.DrawString(text, font, mb, pxp, pyp);
     }
 
-    internal static Color Pick(Color bg)
-        => (bg.R * 0.299 + bg.G * 0.587 + bg.B * 0.114) < 140 ? Color.White : Color.Black;
-
-    internal static void FillRounded(Graphics g, Brush b, Rectangle r, int radius)
-    {
-        if (r.Width <= 0 || r.Height <= 0) return;
-        radius = Math.Min(radius, Math.Min(r.Width, r.Height) / 2);
-        if (radius <= 1) { g.FillRectangle(b, r); return; }
-        int d = radius * 2;
-        using var path = new GraphicsPath();
-        path.AddArc(r.X, r.Y, d, d, 180, 90);
-        path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
-        path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
-        path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
-        path.CloseFigure();
-        g.FillPath(b, path);
-    }
 }

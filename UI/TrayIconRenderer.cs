@@ -45,7 +45,7 @@ public static class TrayIconRenderer
             g.Clear(Color.Transparent);
 
             using (var brush = new SolidBrush(bg))
-                FillRounded(g, brush, new Rectangle(0, 0, size - 1, size - 1), 11);
+                Shapes.FillRounded(g, brush, new Rectangle(0, 0, size - 1, size - 1), 11);
 
             // Larger glyph that fills more of the badge → readable even when shrunk into the tray.
             // 3-char ("99+") gets a smaller size and NoWrap so it stays on a single line (no "99 / +").
@@ -86,16 +86,4 @@ public static class TrayIconRenderer
         }
     }
 
-    private static void FillRounded(Graphics g, Brush b, Rectangle r, int radius)
-    {
-        radius = Math.Min(radius, Math.Min(r.Width, r.Height) / 2);
-        int d = radius * 2;
-        using var path = new GraphicsPath();
-        path.AddArc(r.X, r.Y, d, d, 180, 90);
-        path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
-        path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
-        path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
-        path.CloseFigure();
-        g.FillPath(b, path);
-    }
 }

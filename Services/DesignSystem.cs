@@ -35,6 +35,13 @@ public static class ColorMath
         if (pct <= warn) return Lerp(t.Ok, t.Warn, pct / warn);
         return Lerp(t.Warn, t.Critical, (pct - warn) / (crit - warn));
     }
+
+    /// <summary>
+    /// Color de texto legible sobre <paramref name="bg"/>: blanco si el fondo es oscuro,
+    /// negro si es claro (luminancia perceptual 0.299/0.587/0.114, umbral 140).
+    /// </summary>
+    public static Color Contrast(Color bg)
+        => (bg.R * 0.299 + bg.G * 0.587 + bg.B * 0.114) < 140 ? Color.White : Color.Black;
 }
 
 /// <summary>

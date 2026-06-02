@@ -71,8 +71,8 @@ public static class DashboardSettingsView
                 if (milestones.Contains(m) && rects.TryGetValue($"milestone:{m}", out var mr))
                 {
                     using var bg = new SolidBrush(theme.Accent);
-                    DashboardDataView.FillRounded(g, bg, mr, 4);
-                    using var tb = new SolidBrush(DashboardDataView.Pick(theme.Accent));
+                    Shapes.FillRounded(g, bg, mr, 4);
+                    using var tb = new SolidBrush(ColorMath.Contrast(theme.Accent));
                     using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                     g.DrawString($"{m}%", smallFont, tb, mr, sf);
                 }
@@ -267,7 +267,7 @@ public static class DashboardSettingsView
         rects[key] = r;
         if (draw)
         {
-            using var path = RoundedRectPath(new Rectangle(x, y, w - 1, h - 1), 7);
+            using var path = Shapes.RoundedRectPath(new Rectangle(x, y, w - 1, h - 1), 7);
             using (var fill = new SolidBrush(theme.BgElevated))
                 g.FillPath(fill, path);
             using (var pen = new Pen(accent, 1.5f))
@@ -277,18 +277,6 @@ public static class DashboardSettingsView
             g.DrawString(label, f, tb, r, sf);
         }
         return y + h + 8;
-    }
-
-    private static GraphicsPath RoundedRectPath(Rectangle r, int radius)
-    {
-        int d = Math.Max(2, radius * 2);
-        var p = new GraphicsPath();
-        p.AddArc(r.X, r.Y, d, d, 180, 90);
-        p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
-        p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
-        p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
-        p.CloseFigure();
-        return p;
     }
 
     /// <summary>
