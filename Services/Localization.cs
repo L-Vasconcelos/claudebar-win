@@ -150,6 +150,16 @@ public sealed class Strings
     public string HooksInstalledFmt { get; init; } = "Live sessions on. Backup: {0}";
     public string HooksRemoved { get; init; } = "Live sessions off. Hooks removed.";
     public string Changelog { get; init; } = "What's new";
+
+    // Mascot verbs (F3): pool de 3-5 verbos JUGUETONES por fase, junto a la mascota con elipsis
+    // animada ("thinking…"). Clean-room (inventados, no copiados de Notchi/Buddi = GPL). El
+    // MascotAnimator rota por el pool con jitter; el índice se acota al tamaño del pool.
+    public string[] MascotVerbsProcessing { get; init; } = { "thinking", "cooking", "tinkering", "noodling", "scheming" };
+    public string[] MascotVerbsWaitingApproval { get; init; } = { "your call", "needs a nod", "psst, you" };
+    public string[] MascotVerbsWaitingInput { get; init; } = { "your turn", "all ears", "waiting up", "go ahead" };
+    public string[] MascotVerbsCompacting { get; init; } = { "tidying up", "folding memory", "squishing", "decluttering" };
+    public string[] MascotVerbsIdle { get; init; } = { "napping", "loafing", "daydreaming", "stretching" };
+    public string[] MascotVerbsEnded { get; init; } = { "all done", "wrapped up", "out cold" };
 }
 
 public static class Localization
@@ -339,7 +349,13 @@ public static class Localization
         LiveSessionsTitle = "Sesiones de Claude",
         HooksInstalledFmt = "Sesiones en vivo activadas. Backup: {0}",
         HooksRemoved = "Sesiones en vivo desactivadas. Hooks quitados.",
-        Changelog = "Novedades"
+        Changelog = "Novedades",
+        MascotVerbsProcessing = new[] { "pensando", "cocinando", "tramando", "dándole al coco", "maquinando" },
+        MascotVerbsWaitingApproval = new[] { "tú decides", "un visto bueno", "psst, oye" },
+        MascotVerbsWaitingInput = new[] { "te toca", "soy todo oídos", "aquí esperando", "cuando quieras" },
+        MascotVerbsCompacting = new[] { "ordenando", "plegando memoria", "comprimiendo", "haciendo hueco" },
+        MascotVerbsIdle = new[] { "echando la siesta", "haciendo el vago", "soñando despierto", "estirándome" },
+        MascotVerbsEnded = new[] { "listo", "asunto cerrado", "fuera de combate" }
     };
 
     private static readonly Strings Dutch = new()
@@ -447,7 +463,13 @@ public static class Localization
         LiveSessionsTitle = "Claude-sessies",
         HooksInstalledFmt = "Live sessies aan. Back-up: {0}",
         HooksRemoved = "Live sessies uit. Hooks verwijderd.",
-        Changelog = "Wat is er nieuw"
+        Changelog = "Wat is er nieuw",
+        MascotVerbsProcessing = new[] { "aan het denken", "aan het koken", "aan het knutselen", "aan het broeden", "aan het smeden" },
+        MascotVerbsWaitingApproval = new[] { "jouw keuze", "een knikje graag", "psst, jij daar" },
+        MascotVerbsWaitingInput = new[] { "jouw beurt", "een en al oor", "wacht op je", "ga je gang" },
+        MascotVerbsCompacting = new[] { "opruimen", "geheugen vouwen", "comprimeren", "ruimte maken" },
+        MascotVerbsIdle = new[] { "dutje doen", "lekker luieren", "dagdromen", "uitrekken" },
+        MascotVerbsEnded = new[] { "klaar", "afgerond", "knock-out" }
     };
 
     private static readonly Strings French = new()
@@ -555,7 +577,13 @@ public static class Localization
         LiveSessionsTitle = "Sessions Claude",
         HooksInstalledFmt = "Sessions en direct activées. Sauvegarde : {0}",
         HooksRemoved = "Sessions en direct désactivées. Hooks retirés.",
-        Changelog = "Nouveautés"
+        Changelog = "Nouveautés",
+        MascotVerbsProcessing = new[] { "je réfléchis", "je mijote", "je bricole", "je cogite", "je manigance" },
+        MascotVerbsWaitingApproval = new[] { "à toi de voir", "un petit oui ?", "psst, toi" },
+        MascotVerbsWaitingInput = new[] { "à toi", "tout ouïe", "je t'attends", "vas-y" },
+        MascotVerbsCompacting = new[] { "je range", "je plie la mémoire", "je compresse", "je fais de la place" },
+        MascotVerbsIdle = new[] { "je fais la sieste", "je flâne", "je rêvasse", "je m'étire" },
+        MascotVerbsEnded = new[] { "terminé", "emballé", "K.-O." }
     };
 
     private static readonly Strings German = new()
@@ -663,7 +691,13 @@ public static class Localization
         LiveSessionsTitle = "Claude-Sitzungen",
         HooksInstalledFmt = "Live-Sitzungen an. Backup: {0}",
         HooksRemoved = "Live-Sitzungen aus. Hooks entfernt.",
-        Changelog = "Neuerungen"
+        Changelog = "Neuerungen",
+        MascotVerbsProcessing = new[] { "am Grübeln", "am Brüten", "am Basteln", "am Tüfteln", "am Schmieden" },
+        MascotVerbsWaitingApproval = new[] { "deine Wahl", "ein Nicken bitte", "pst, du da" },
+        MascotVerbsWaitingInput = new[] { "du bist dran", "ganz Ohr", "warte auf dich", "leg los" },
+        MascotVerbsCompacting = new[] { "räume auf", "falte Speicher", "komprimiere", "schaffe Platz" },
+        MascotVerbsIdle = new[] { "halte ein Nickerchen", "faulenze", "träume vor mich hin", "strecke mich" },
+        MascotVerbsEnded = new[] { "fertig", "abgehakt", "k. o." }
     };
 
     private static readonly Strings Japanese = new()
@@ -771,7 +805,13 @@ public static class Localization
         LiveSessionsTitle = "Claude セッション",
         HooksInstalledFmt = "ライブセッション オン。バックアップ: {0}",
         HooksRemoved = "ライブセッション オフ。フックを削除しました。",
-        Changelog = "変更点"
+        Changelog = "変更点",
+        MascotVerbsProcessing = new[] { "考え中", "調理中", "いじり中", "ひらめき中", "たくらみ中" },
+        MascotVerbsWaitingApproval = new[] { "あなた次第", "うなずき待ち", "ねえ、きみ" },
+        MascotVerbsWaitingInput = new[] { "あなたの番", "聞いてるよ", "待ってるよ", "どうぞ" },
+        MascotVerbsCompacting = new[] { "片づけ中", "記憶をたたみ中", "圧縮中", "すき間づくり中" },
+        MascotVerbsIdle = new[] { "お昼寝中", "のんびり中", "空想中", "伸び中" },
+        MascotVerbsEnded = new[] { "完了", "ひと段落", "ノックアウト" }
     };
 
     private static readonly Strings Korean = new()
@@ -879,7 +919,13 @@ public static class Localization
         LiveSessionsTitle = "Claude 세션",
         HooksInstalledFmt = "실시간 세션 켜짐. 백업: {0}",
         HooksRemoved = "실시간 세션 꺼짐. 훅 제거됨.",
-        Changelog = "변경 사항"
+        Changelog = "변경 사항",
+        MascotVerbsProcessing = new[] { "생각 중", "요리 중", "만지작 중", "골똘히", "꿍꿍이 중" },
+        MascotVerbsWaitingApproval = new[] { "당신 결정", "끄덕임 부탁", "저기요" },
+        MascotVerbsWaitingInput = new[] { "당신 차례", "다 듣고 있어요", "기다리는 중", "어서요" },
+        MascotVerbsCompacting = new[] { "정리 중", "기억 접는 중", "압축 중", "자리 만드는 중" },
+        MascotVerbsIdle = new[] { "낮잠 중", "빈둥대는 중", "공상 중", "기지개 중" },
+        MascotVerbsEnded = new[] { "완료", "마무리됨", "녹다운" }
     };
 
     private static readonly Strings TradChinese = new()
@@ -987,6 +1033,12 @@ public static class Localization
         LiveSessionsTitle = "Claude 工作階段",
         HooksInstalledFmt = "即時工作階段已開啟。備份：{0}",
         HooksRemoved = "即時工作階段已關閉。已移除 hooks。",
-        Changelog = "更新內容"
+        Changelog = "更新內容",
+        MascotVerbsProcessing = new[] { "思考中", "烹煮中", "擺弄中", "靈光乍現", "謀劃中" },
+        MascotVerbsWaitingApproval = new[] { "你說了算", "點個頭吧", "欸，是你" },
+        MascotVerbsWaitingInput = new[] { "輪到你了", "洗耳恭聽", "等你呢", "請吧" },
+        MascotVerbsCompacting = new[] { "整理中", "摺疊記憶", "壓縮中", "騰出空間" },
+        MascotVerbsIdle = new[] { "打盹中", "閒晃中", "做白日夢", "伸懶腰" },
+        MascotVerbsEnded = new[] { "完成", "收工", "倒下了" }
     };
 }

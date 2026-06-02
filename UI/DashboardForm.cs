@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using ClaudeBarWin.Config;
 using ClaudeBarWin.Models;
 using ClaudeBarWin.Services;
+using ClaudeBarWin.Services.Mascot;
 using ClaudeBarWin.Services.Motion;
 
 namespace ClaudeBarWin.UI;
@@ -42,6 +43,50 @@ public sealed class DashboardForm : Form
     // secciones lo reciben como sampler opcional. Con reduce-motion (Tarea 7) el Display devuelve el target.
     private readonly MotionState _motion = new();
     private bool _reduceMotion;                  // gate único de reduce-motion (Tarea 7 lo enchufa a config; default OFF)
+
+    // Vida de la mascota (Tarea 5): el MascotAnimator (puro) elige frame/blink/spinner/verbo a partir
+    // del tiempo en la fase actual + una semilla estable; el MascotMood (puro, histéresis+decay)
+    // reacciona a eventos (atención/reset/procesado largo). El reloj de fase se reinicia al cambiar
+    // GlobalPhase. Con reduce-motion el animador devuelve frame base (sin spinner/jitter) por elapsed 0.
+    private readonly MascotMood _mascotMood = new();
+    private SessionPhase _mascotPhase = SessionPhase.Idle;
+    private double _mascotPhaseStartMs;          // elapsed del clock al entrar en la fase actual
+    private double _lastMoodUpdateMs;            // marca del último Update del humor (para el delta)
+    private const int MascotSeed = 0x5EED;       // semilla determinista del jitter (estable por proceso)
+
+    /// <summary>Tiempo (ms) en la fase actual de la mascota. Con reduce-motion = 0 (frame base estático).</summary>
+    private double MascotElapsedMs() =>
+        _reduceMotion ? 0.0 : _clock.Elapsed.TotalMilliseconds - _mascotPhaseStartMs;
+
+    /// <summary>Muestrea el estado del animador para la fase global vigente.</summary>
+    private MascotState SampleMascot() =>
+        MascotAnimator.Sample(_liveView.GlobalPhase, MascotElapsedMs(), MascotSeed);
+
+    /// <summary>
+    /// Reinicia el reloj de fase si <see cref="LiveSessionsView.GlobalPhase"/> cambió y empuja el
+    /// humor con el evento derivado de la fase. Idempotente por tick.
+    /// </summary>
+    private void SyncMascotPhase()
+    {
+        double now = _clock.Elapsed.TotalMilliseconds;
+        var phase = _liveView.GlobalPhase;
+        if (phase != _mascotPhase)
+        {
+            _mascotPhase = phase;
+            _mascotPhaseStartMs = now;
+        }
+        double moodDelta = now - _lastMoodUpdateMs;
+        _lastMoodUpdateMs = now;
+        if (moodDelta < 0) moodDelta = 0;
+        _mascotMood.Update(phase, MoodEventFor(phase), moodDelta);
+    }
+
+    private static MoodEvent MoodEventFor(SessionPhase phase) => phase switch
+    {
+        SessionPhase.WaitingForApproval or SessionPhase.WaitingForInput => MoodEvent.AttentionRequired,
+        SessionPhase.Processing or SessionPhase.Compacting => MoodEvent.LongProcessing,
+        _ => MoodEvent.None,
+    };
 
     // Hover (Tarea 3): clave del rect interactivo bajo el cursor (o null). OnMouseMove la recalcula
     // sobre los diccionarios de rects ya existentes vía HoverHitTest; si cambia, repinta. La intensidad
@@ -90,7 +135,6 @@ public sealed class DashboardForm : Form
     // Live sessions (mascot + instance list)
     private Func<LiveSessionsView>? _liveProvider;
     private LiveSessionsView _liveView = new();
-    private int _mascotFrame;
     private ChartRange _chartRange = ChartRange.Hours5;
     private string _chartMode = "spend";       // "spend" | "percent"
     private string _chartPctWindow = "7d";     // "5h" | "7d"
@@ -162,11 +206,16 @@ public sealed class DashboardForm : Form
         // Hover (Tarea 3): el fade-in/out del realce avanza con el mismo reloj.
         if (_hoverIntensity.IsAnimating) _hoverIntensity.Advance(delta);
 
+        // Vida de la mascota (Tarea 5): reloj de fase + humor (histéresis/decay). El animador es
+        // puro y se muestrea en el paint; aquí solo sincronizamos fase/humor con el reloj.
+        SyncMascotPhase();
+        bool mascotAlive = !_reduceMotion && _cfg.LiveSessionsEnabled && _cfg.ShowMascot
+                           && MascotAnimator.IsAnimatedPhase(_liveView.GlobalPhase);
+
         // El countdown del footer (UpdatedAt · hace N min) cambia cada minuto: en cadencia lenta
-        // repintamos igual para refrescarlo, como hacía el 1 Hz de antes. El mascotFrame sigue
-        // su 1 Hz para mantener la vida actual de la mascota (su animación rica llega en Tarea 5).
-        bool animating = _fadeOpacity.IsAnimating || _motion.IsAnimating || _hoverIntensity.IsAnimating;
-        if (!animating) _mascotFrame++;
+        // repintamos igual para refrescarlo, como hacía el 1 Hz de antes.
+        bool animating = _fadeOpacity.IsAnimating || _motion.IsAnimating
+                         || _hoverIntensity.IsAnimating || mascotAlive;
 
         // Repinta si hubo cambio de animación o es un tick de countdown.
         Invalidate();
@@ -192,8 +241,14 @@ public sealed class DashboardForm : Form
     public void OnLiveSessionsChanged()
     {
         if (_liveProvider is not null) _liveView = _liveProvider();
+        // Vida de la mascota (Tarea 5): resincroniza el reloj de fase + humor con la nueva fase global.
+        SyncMascotPhase();
         Relayout();
         Invalidate();
+        // Si la mascota ha cobrado vida (fase animada) y el panel está visible, arranca el fast-tick.
+        if (Visible && !_reduceMotion && _cfg.LiveSessionsEnabled && _cfg.ShowMascot
+            && MascotAnimator.IsAnimatedPhase(_liveView.GlobalPhase))
+            EnsureFastTick();
     }
 
     /// <summary>Show the same config menu on right-click, without the auto-hide closing it.</summary>
@@ -694,7 +749,7 @@ public sealed class DashboardForm : Form
             : 0;
         if (hOff != 0) g.TranslateTransform(0, hOff);
         y = DashboardHeader.Draw(g, draw, x, y, w,
-            _snap, _liveView, _cfg, _s, _theme, _mascotFrame,
+            _snap, _liveView, _cfg, _s, _theme, SampleMascot(), _mascotMood.Current,
             labelFont, smallFont, mono, ref _gearRect,
             _motion, _reduceMotion);
         if (hOff != 0) g.TranslateTransform(0, -hOff);

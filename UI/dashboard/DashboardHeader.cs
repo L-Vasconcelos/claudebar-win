@@ -2,6 +2,7 @@ using System.Drawing.Drawing2D;
 using ClaudeBarWin.Config;
 using ClaudeBarWin.Models;
 using ClaudeBarWin.Services;
+using ClaudeBarWin.Services.Mascot;
 using ClaudeBarWin.Services.Motion;
 
 namespace ClaudeBarWin.UI;
@@ -22,7 +23,7 @@ public static class DashboardHeader
     /// <summary>Dibuja la cabecera y devuelve el nuevo y. Registra el rect del ⚙ en gearRect.</summary>
     public static int Draw(Graphics g, bool draw, int x, int y, int w,
                            AppSnapshot? snap, LiveSessionsView live, AppConfig cfg, Strings s, Theme theme,
-                           int mascotFrame, Font labelFont, Font smallFont, Font mono,
+                           MascotState mascot, Mood mascotMood, Font labelFont, Font smallFont, Font mono,
                            ref Rectangle gearRect,
                            MotionState? motion = null, bool reduceMotion = false)
     {
@@ -39,7 +40,9 @@ public static class DashboardHeader
             g.DrawString(GearGlyph, GearIconFont, glyphBrush, gear, CenterFormat);
         }
 
-        // 2) mascota a la izquierda (si ShowMascot y LiveSessionsEnabled)
+        // 2) mascota a la izquierda (si ShowMascot y LiveSessionsEnabled): sprite (frame del animador)
+        //    + verbo localizado JUGUETÓN con elipsis bajo la mascota. El verbo reserva su alto en AMBAS
+        //    pasadas (medir/pintar) para no romper el invariante de layout.
         int top = y + 18;
         var mascotSize = MascotSprite.ParseSize(cfg.MascotSize);
         int textX = x;
@@ -47,9 +50,23 @@ public static class DashboardHeader
         if (cfg.LiveSessionsEnabled && cfg.ShowMascot)
         {
             var sz = MascotRenderer.Draw(g, draw, x, top, live.GlobalPhase,
-                mascotSize, mascotFrame, theme, mono);
+                mascotSize, mascot, theme, mono, mascotMood);
+
+            // Verbo + elipsis (p.ej. "thinking…"). Alto reservado siempre (medir == pintar).
+            string verb = MascotAnimator.Verb(s, live.GlobalPhase, mascot.VerbIndex);
+            int verbH = 0;
+            if (!string.IsNullOrEmpty(verb))
+            {
+                verbH = (int)Math.Ceiling(smallFont.GetHeight(g));
+                if (draw)
+                {
+                    using var vb = new SolidBrush(theme.TextMuted);
+                    g.DrawString(verb + "…", smallFont, vb, x, top + sz.Height + 2);
+                }
+            }
+
             textX = x + sz.Width + 12;
-            mascotH = sz.Height;
+            mascotH = sz.Height + (verbH > 0 ? verbH + 2 : 0);
         }
 
         // 3) a la derecha: estado servicio + cuota crítica + pace
