@@ -57,6 +57,16 @@ public sealed class DashboardForm : Form
     /// </summary>
     private static bool ResolveReduceMotion(AppConfig cfg) => false;
 
+    /// <summary>
+    /// Tiempo (ms) transcurrido desde la apertura del panel, para la entrada escalonada (Tarea 4).
+    /// En vivo = reloj − <c>_openedAtMs</c>. Con reduce-motion devuelve +∞ ⇒ todas las secciones
+    /// asentadas (offset 0) por el gate de <see cref="Stagger"/>. (Tarea 8 añadirá un override de
+    /// tiempo para el render-test; aquí basta con el reloj.)
+    /// </summary>
+    private double TSinceOpenMs() =>
+        _reduceMotion ? double.PositiveInfinity
+        : _clock.Elapsed.TotalMilliseconds - _openedAtMs;
+
     private DateTime _shownAtUtc = DateTime.MinValue;
     private readonly DateTime _startedAtUtc = DateTime.UtcNow; // para no marcar stale durante la 1ª fetch
     private bool _sticky;
@@ -673,18 +683,39 @@ public sealed class DashboardForm : Form
         _settingsRects.Clear();
         _backRect = Rectangle.Empty;
 
+        // Entrada escalonada (Tarea 4): cabecera=0, secciones de datos=1..n, footer=n+1. Cada bloque se
+        // dibuja envuelto en una traslación vertical (OffsetY px → 0) desfasada por su índice; el y de
+        // layout NO cambia. El transform solo se aplica en la pasada de pintado (medir devuelve el mismo y).
+        double tSinceOpen = TSinceOpenMs();
+
+        // Cabecera (índice 0)
+        int hOff = draw && !_reduceMotion
+            ? Stagger.OffsetY(Stagger.Alpha(tSinceOpen, 0, Motion.StaggerMs, Motion.StaggerDurMs), Motion.StaggerMaxOffsetPx)
+            : 0;
+        if (hOff != 0) g.TranslateTransform(0, hOff);
         y = DashboardHeader.Draw(g, draw, x, y, w,
             _snap, _liveView, _cfg, _s, _theme, _mascotFrame,
             labelFont, smallFont, mono, ref _gearRect,
             _motion, _reduceMotion);
+        if (hOff != 0) g.TranslateTransform(0, -hOff);
 
+        // Secciones de datos (índices 1..n)
         y = DashboardDataView.Draw(g, draw, x, y, w,
             _snap, _liveView, _cfg, _s, _theme,
             labelFont, smallFont, tabFont,
             _chartMode, _chartRange, _chartPctWindow,
             _chartData, _pctData, _chartLoading,
             _sectionRects, _tabRects, _modeRects, _pctWinRects, _liveRowRects,
-            _motion, _reduceMotion);
+            _motion, _reduceMotion, tSinceOpen, firstSectionIndex: 1);
+
+        // Footer (índice n+1): se desplaza después de la última sección de datos.
+        int footerIndex = DashboardDataView.VisibleSectionCount(_cfg, _snap) + 1;
+        int fOff = draw && !_reduceMotion
+            ? Stagger.OffsetY(Stagger.Alpha(tSinceOpen, footerIndex, Motion.StaggerMs, Motion.StaggerDurMs), Motion.StaggerMaxOffsetPx)
+            : 0;
+        if (fOff != 0) g.TranslateTransform(0, fOff);
+        try
+        {
 
         // footer: "Actualizado · hace N min · pista", con marcador stale si el dato envejece
         y += 4;
@@ -725,6 +756,11 @@ public sealed class DashboardForm : Form
             g.DrawString(_s.LocalSeal, smallFont, muted, x, y);
         }
         return y + 18;
+        }
+        finally
+        {
+            if (fOff != 0) g.TranslateTransform(0, -fOff);  // deshace el desplazamiento del footer
+        }
     }
 
     /// <summary>Traduce la clave de una sección plegable clicada a la mutación de config (Collapsed*).</summary>

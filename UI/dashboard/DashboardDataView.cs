@@ -40,6 +40,20 @@ public static class DashboardDataView
     internal const int ChartFooter = 32;
 
     /// <summary>
+    /// Número de secciones de datos realmente visibles (cuota siempre; sesiones/gasto/gráfica según
+    /// config y datos). Lo usa la cabecera/footer para calcular el índice de stagger del footer
+    /// (cabecera=0, datos=1..n ⇒ footer=n+1) sin duplicar las condiciones de visibilidad.
+    /// </summary>
+    public static int VisibleSectionCount(AppConfig cfg, AppSnapshot? snap)
+    {
+        int n = 1; // cuota siempre presente
+        if (cfg.LiveSessionsEnabled) n++;
+        if (cfg.ShowSpendEstimate && snap?.Spend is { } spend && spend.CostByModel.Count > 0) n++;
+        if (cfg.ShowChart) n++;
+        return n;
+    }
+
+    /// <summary>
     /// Dibuja las cuatro secciones plegables en orden de prioridad y devuelve el nuevo y.
     /// Limpia y rellena <c>sectionRects</c>; los rects internos de cada sección (tabs/modos/ventana
     /// %/filas live) se limpian/rellenan según corresponda manteniendo el comportamiento previo.
@@ -54,22 +68,32 @@ public static class DashboardDataView
         Dictionary<string, Rectangle> modeRects,
         Dictionary<string, Rectangle> pctWinRects,
         Dictionary<string, Rectangle> liveRowRects,
-        MotionState? motion = null, bool reduceMotion = false)
+        MotionState? motion = null, bool reduceMotion = false,
+        double tSinceOpenMs = double.PositiveInfinity, int firstSectionIndex = 1)
     {
         sectionRects.Clear();
 
         using var fg = new SolidBrush(theme.TextPrimary);
         using var dim = new SolidBrush(theme.TextSecondary);
 
+        // Entrada escalonada (Tarea 4): cada sección de datos se traslada OffsetY px → 0 con desfase
+        // por índice (cabecera=0, datos=1..n, footer=n+1). El índice corre solo por las secciones
+        // realmente dibujadas, arrancando en firstSectionIndex (1, tras la cabecera). El y de layout NO
+        // cambia: el transform se aplica/deshace alrededor del draw de cada sección. tSinceOpen=+∞ ⇒
+        // todas asentadas (render-test/estado final), igual con reduceMotion.
+        int idx = firstSectionIndex;
+
         // 1) Cuota (barras 5h/7d + pace + modelos)
         y = Section(g, draw, "quota", s.SectionQuota, !cfg.CollapsedQuota, x, y, w, theme, labelFont, sectionRects,
-            yy => DrawQuotaBody(g, draw, snap, cfg, s, theme, x, yy, w, labelFont, smallFont, fg, dim, motion, reduceMotion));
+            yy => DrawQuotaBody(g, draw, snap, cfg, s, theme, x, yy, w, labelFont, smallFont, fg, dim, motion, reduceMotion),
+            idx++, tSinceOpenMs, reduceMotion);
 
         // 2) Sesiones en vivo (solo lista de instancias; la mascota la pinta la cabecera, no se duplica aquí)
         if (cfg.LiveSessionsEnabled)
         {
             y = Section(g, draw, "sessions", s.SectionSessions, !cfg.CollapsedSessions, x, y, w, theme, labelFont, sectionRects,
-                yy => DrawLiveSessionsBody(g, draw, live, s, x, yy, w, smallFont, fg, dim, liveRowRects));
+                yy => DrawLiveSessionsBody(g, draw, live, s, x, yy, w, smallFont, fg, dim, liveRowRects),
+                idx++, tSinceOpenMs, reduceMotion);
         }
         else { liveRowRects.Clear(); }
 
@@ -77,7 +101,8 @@ public static class DashboardDataView
         if (cfg.ShowSpendEstimate && snap?.Spend is { } spend && spend.CostByModel.Count > 0)
         {
             y = Section(g, draw, "spend", s.SectionSpend, !cfg.CollapsedSpend, x, y, w, theme, labelFont, sectionRects,
-                yy => DrawSpendSection(g, draw, snap, s, x, yy, w, labelFont, smallFont, fg, dim));
+                yy => DrawSpendSection(g, draw, snap, s, x, yy, w, labelFont, smallFont, fg, dim),
+                idx++, tSinceOpenMs, reduceMotion);
         }
 
         // 4) Gráfica de uso
@@ -86,7 +111,8 @@ public static class DashboardDataView
             y = Section(g, draw, "chart", s.SectionChart, !cfg.CollapsedChart, x, y, w, theme, labelFont, sectionRects,
                 yy => DrawChart(g, draw, x, yy, w, s, theme, cfg, smallFont, tabFont,
                     chartMode, chartRange, chartPctWindow, chartData, pctData, chartLoading,
-                    tabRects, modeRects, pctWinRects, dim));
+                    tabRects, modeRects, pctWinRects, dim),
+                idx++, tSinceOpenMs, reduceMotion);
             // Cuando la sección gráfica está plegada, no deben quedar rects fantasma.
             if (cfg.CollapsedChart) { tabRects.Clear(); modeRects.Clear(); pctWinRects.Clear(); }
         }
@@ -98,19 +124,41 @@ public static class DashboardDataView
         return y;
     }
 
-    /// <summary>Cabecera plegable: dibuja "▸/▾ Título", registra su rect y, si está expandida, llama al cuerpo.</summary>
+    /// <summary>
+    /// Cabecera plegable: dibuja "▸/▾ Título", registra su rect y, si está expandida, llama al cuerpo.
+    /// La entrada escalonada (Tarea 4) envuelve TODO el draw de la sección en una traslación vertical
+    /// (offset por índice y tiempo); el <c>y</c> que avanza es idéntico con o sin offset, y el transform
+    /// solo se aplica en la pasada de pintado (medir no se desplaza). reduce-motion ⇒ offset 0.
+    /// </summary>
     private static int Section(Graphics g, bool draw, string key, string title, bool expanded,
-        int x, int y, int w, Theme theme, Font f, Dictionary<string, Rectangle> rects, Func<int, int> body)
+        int x, int y, int w, Theme theme, Font f, Dictionary<string, Rectangle> rects, Func<int, int> body,
+        int sectionIndex, double tSinceOpenMs, bool reduceMotion)
     {
-        var r = new Rectangle(x, y, w, 18);
-        rects[key] = r;
-        if (draw)
+        int offsetY = reduceMotion
+            ? 0
+            : Stagger.OffsetY(
+                Stagger.Alpha(tSinceOpenMs, sectionIndex, Motion.StaggerMs, Motion.StaggerDurMs),
+                Motion.StaggerMaxOffsetPx);
+
+        // Solo desplazamos el DIBUJO (draw=true); la pasada de medir devuelve el mismo y sin transform.
+        bool shift = draw && offsetY != 0;
+        if (shift) g.TranslateTransform(0, offsetY);
+        try
         {
-            using var b = new SolidBrush(theme.TextPrimary);
-            g.DrawString((expanded ? "▾ " : "▸ ") + title, f, b, x, y);
+            var r = new Rectangle(x, y, w, 18);
+            rects[key] = r;
+            if (draw)
+            {
+                using var b = new SolidBrush(theme.TextPrimary);
+                g.DrawString((expanded ? "▾ " : "▸ ") + title, f, b, x, y);
+            }
+            y += 22;
+            if (expanded) y = body(y);
         }
-        y += 22;
-        if (expanded) y = body(y);
+        finally
+        {
+            if (shift) g.TranslateTransform(0, -offsetY);
+        }
         return y + 6;
     }
 
