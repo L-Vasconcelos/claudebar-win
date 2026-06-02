@@ -47,6 +47,10 @@ public sealed class Strings
     public string SpendHeaderFormat { get; init; } = "Estimated spend ({0}d, API-equiv)";
     public string Loading { get; init; } = "Loading…";
     public string UpdatedAt { get; init; } = "Updated";
+    /// <summary>{0} = elapsed text (e.g. "5 min"). "ago 5 min" / "hace 5 min".</summary>
+    public string AgoFormat { get; init; } = "{0} ago";
+    public string StaleLabel { get; init; } = "stale";
+    public string LocalSeal { get; init; } = "Your credentials and data never leave this device · no telemetry";
     public string HintClickToHide { get; init; } = "click the icon to hide";
     public string HintPinnedClose { get; init; } = "pinned · ✕ to close";
     public string PreviousDataTip { get; init; } = "⚠ previous data (offline)";
@@ -262,6 +266,9 @@ public static class Localization
         SpendHeaderFormat = "Gasto estimado ({0}d, equiv. API)",
         Loading = "Cargando…",
         UpdatedAt = "Actualizado",
+        AgoFormat = "hace {0}",
+        StaleLabel = "desfasado",
+        LocalSeal = "Tus credenciales y datos no salen del equipo · sin telemetría",
         HintClickToHide = "clic en el icono para ocultar",
         HintPinnedClose = "fijado · ✕ para cerrar",
         PreviousDataTip = "⚠ datos previos (sin conexión)",
@@ -375,6 +382,9 @@ public static class Localization
         SpendHeaderFormat = "Geschatte uitgaven ({0}d, API-equiv.)",
         Loading = "Laden…",
         UpdatedAt = "Bijgewerkt",
+        AgoFormat = "{0} geleden",
+        StaleLabel = "verouderd",
+        LocalSeal = "Je inloggegevens en data verlaten dit apparaat nooit · geen telemetrie",
         HintClickToHide = "klik op het pictogram om te verbergen",
         HintPinnedClose = "vastgezet · ✕ om te sluiten",
         PreviousDataTip = "⚠ vorige gegevens (offline)",
@@ -480,6 +490,9 @@ public static class Localization
         SpendHeaderFormat = "Coût estimé ({0}j, équiv. API)",
         Loading = "Chargement…",
         UpdatedAt = "Mis à jour",
+        AgoFormat = "il y a {0}",
+        StaleLabel = "obsolète",
+        LocalSeal = "Tes identifiants et tes données ne quittent jamais cet appareil · sans télémétrie",
         HintClickToHide = "cliquez sur l'icône pour masquer",
         HintPinnedClose = "épinglé · ✕ pour fermer",
         PreviousDataTip = "⚠ données précédentes (hors ligne)",
@@ -585,6 +598,9 @@ public static class Localization
         SpendHeaderFormat = "Geschätzte Kosten ({0}T, API-Äquiv.)",
         Loading = "Laden…",
         UpdatedAt = "Aktualisiert",
+        AgoFormat = "vor {0}",
+        StaleLabel = "veraltet",
+        LocalSeal = "Deine Anmeldedaten und Daten verlassen nie dieses Gerät · keine Telemetrie",
         HintClickToHide = "Symbol anklicken zum Ausblenden",
         HintPinnedClose = "angeheftet · ✕ zum Schließen",
         PreviousDataTip = "⚠ vorherige Daten (offline)",
@@ -690,6 +706,9 @@ public static class Localization
         SpendHeaderFormat = "推定コスト（{0}日, API換算）",
         Loading = "読み込み中…",
         UpdatedAt = "更新",
+        AgoFormat = "{0}前",
+        StaleLabel = "古い",
+        LocalSeal = "認証情報とデータはこの端末から外に出ません · テレメトリなし",
         HintClickToHide = "アイコンをクリックで非表示",
         HintPinnedClose = "固定中 · ✕ で閉じる",
         PreviousDataTip = "⚠ 以前のデータ（オフライン）",
@@ -795,6 +814,9 @@ public static class Localization
         SpendHeaderFormat = "예상 비용 ({0}일, API 환산)",
         Loading = "로딩 중…",
         UpdatedAt = "업데이트됨",
+        AgoFormat = "{0} 전",
+        StaleLabel = "오래됨",
+        LocalSeal = "자격 증명과 데이터는 이 기기를 벗어나지 않습니다 · 텔레메트리 없음",
         HintClickToHide = "아이콘을 클릭하여 숨기기",
         HintPinnedClose = "고정됨 · ✕ 닫기",
         PreviousDataTip = "⚠ 이전 데이터 (오프라인)",
@@ -900,6 +922,9 @@ public static class Localization
         SpendHeaderFormat = "估計花費（{0}天，API 約當）",
         Loading = "載入中…",
         UpdatedAt = "已更新",
+        AgoFormat = "{0}前",
+        StaleLabel = "過期",
+        LocalSeal = "你的憑證與資料絕不離開本機 · 無遙測",
         HintClickToHide = "點擊圖示以隱藏",
         HintPinnedClose = "已釘選 · ✕ 關閉",
         PreviousDataTip = "⚠ 先前資料（離線）",

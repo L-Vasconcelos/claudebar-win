@@ -24,6 +24,7 @@ public sealed class DashboardForm : Form
     private readonly System.Windows.Forms.Timer _tick;
 
     private DateTime _shownAtUtc = DateTime.MinValue;
+    private readonly DateTime _startedAtUtc = DateTime.UtcNow; // para no marcar stale durante la 1ª fetch
     private bool _sticky;
     private bool _menuOpen;
     private string _appliedPlacement = "";
@@ -463,20 +464,43 @@ public sealed class DashboardForm : Form
             _chartData, _pctData, _chartLoading,
             _sectionRects, _tabRects, _modeRects, _pctWinRects, _liveRowRects);
 
-        // footer
+        // footer: "Actualizado · hace N min · pista", con marcador stale si el dato envejece
         y += 4;
+        // ¿el dato está desfasado? No marcar durante los primeros RefreshSeconds tras arrancar (1ª fetch).
+        bool grace = (DateTime.UtcNow - _startedAtUtc) < TimeSpan.FromSeconds(Math.Max(15, _cfg.RefreshSeconds));
+        bool stale = _snap is not null
+            && _snap.LatestState == UsageFetchState.Ok
+            && !grace
+            && UsageFormat.IsStale(_snap.UsageAtUtc, _cfg.RefreshSeconds);
         if (draw)
         {
+            float fx = x;
+            if (stale)
+            {
+                using var warn = new SolidBrush(_theme.Warn);
+                string mark = $"⚠ {_s.StaleLabel} · ";
+                g.DrawString(mark, smallFont, warn, fx, y);
+                fx += g.MeasureString(mark, smallFont).Width;
+            }
+
             string footer;
             if (_snap is not null && _snap.LatestState != UsageFetchState.Ok)
                 footer = $"⚠ {UsageFormat.StateMessage(_snap.LatestState, _s)} · {_s.PreviousDataFooter}";
             else if (_snap is not null)
             {
                 string hint = _sticky ? _s.HintPinnedClose : _s.HintClickToHide;
-                footer = $"{_s.UpdatedAt} {_snap.UsageAtUtc.ToLocalTime():HH:mm:ss} · {hint}";
+                footer = $"{_s.UpdatedAt} · {UsageFormat.Relative(_snap.UsageAtUtc, _s)} · {hint}";
             }
             else footer = _s.Loading;
-            g.DrawString(footer, smallFont, dim, x, y);
+            g.DrawString(footer, smallFont, dim, fx, y);
+        }
+        y += (int)Math.Ceiling(smallFont.GetHeight(g)) + Spacing.Xs;
+
+        // Sello de privacidad honesto (siempre visible, neutro).
+        if (draw)
+        {
+            using var muted = new SolidBrush(_theme.TextMuted);
+            g.DrawString(_s.LocalSeal, smallFont, muted, x, y);
         }
         return y + 18;
     }
