@@ -55,7 +55,13 @@ Icono de bandeja, por estado / ritmo:
 - **Temas** (Sistema / Oscuro / Claro / CLI + importar `.itermcolors`) y **9 idiomas**
   (Sistema + English, Español, Nederlands, Français, Deutsch, 日本語, 한국어, 繁體中文) — ambos
   por defecto siguen tu configuración de Windows.
-- Todo configurable desde el **menú de click derecho**.
+- **Sesiones en vivo (opt-in)**: una mascota ASCII en el dashboard reacciona a tus sesiones de
+  Claude Code en tiempo real (inactiva / trabajando / esperando aprobación / esperando input /
+  compactando / terminada), mediante hooks de Claude Code por un named pipe local; el icono de
+  bandeja añade un punto ámbar cuando una sesión necesita tu atención. Se activa/desactiva en
+  **Ajustes → Sesiones en vivo** — instala/quita los hooks en `~/.claude/settings.json` (con copia
+  de seguridad y confirmación).
+- Todo configurable desde el **panel de ajustes ⚙** del dashboard.
 
 ## De dónde sale el dato
 
@@ -104,25 +110,25 @@ Arranque automático: click derecho en el icono → **Ajustes → Iniciar con Wi
 - Nada más para ejecutar el build de la release. Para compilar: **.NET SDK 9** (vale user-local
   en `%USERPROFILE%\.dotnet`, sin admin).
 
-## Configuración (todo desde el click derecho)
+## Configuración (panel de ajustes en el dashboard)
+
+Abre el dashboard y pulsa el **⚙** (arriba a la derecha) — **toda la configuración vive ahí**, agrupada:
 
 ```
-Dashboard
-Actualizar ahora
-Ventana del panel ▶   Posición (esquinas · centro · arrastrar) · ☑ Fijado · ☑ Siempre encima · Opacidad ▶
-Frecuencia ▶          30s · 1min · 5min · 15min
-Notificaciones ▶      ☑ Activadas · Avisar al ☑25% ☑50% ☑75% ☑95%
-Umbral de color ▶     70/90 · 80/95 · 60/85
-Ajustes ▶             ☑ Mostrar gasto estimado · ☑ Mostrar estado del servicio · ☑ Gráfica de uso
-                      Modo de icono ▶ % / ▲ / % ▲  ·  ☑ Avisos de ritmo  ·  ☑ Iniciar con Windows
-                      Tema ▶ Sistema/Oscuro/Claro/CLI · Importar .itermcolors…
-                      Idioma ▶ (Sistema + 8) · Editar config… · Abrir carpeta de datos
-Salir
+Secciones         ☑ Gasto estimado · ☑ Estado del servicio · ☑ Gráfica de uso
+Sesiones en vivo  ☑ Mascota · Tamaño (compacta/grande) · ☑ Silenciar si la terminal tiene foco
+                  [ Activar/Desactivar — instala/quita los hooks de Claude Code (con confirmación) ]
+Notificaciones    ☑ Activadas · ☑ Avisos de ritmo · hitos ☑25 ☑50 ☑75 ☑95
+Frecuencia        30s · 1min · 5min · 15min
+Icono             modo % / ▲ / %▲ · umbral de color 70/90 · 80/95 · 60/85
+Apariencia        Tema Sistema/Oscuro/Claro/CLI · Importar .itermcolors… · Posición · Opacidad · ☑ Fijado · ☑ Siempre encima
+Idioma            Sistema + 8
+Sistema           ☑ Iniciar con Windows
 ```
 
-Click derecho en el propio dashboard abre el mismo menú. Los submenús abren hacia la izquierda para
-quedarse en el monitor primario. "Iniciar con Windows" crea/borra un acceso directo en la carpeta de
-Inicio (sin tocar el registro). Ajustes avanzados en `%APPDATA%\ClaudeBarWin\config.json`.
+El **menú de click derecho** (icono o panel) es ahora minimal — *Dashboard · Ajustes · Sesiones en vivo ·
+Buscar actualizaciones · Salir*. "Iniciar con Windows" crea/borra un acceso directo en la carpeta de
+Inicio (sin tocar el registro). Los ajustes se guardan en `%APPDATA%\ClaudeBarWin\config.json`.
 
 ## Compilar desde el código
 
