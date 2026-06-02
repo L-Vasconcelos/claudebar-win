@@ -431,8 +431,12 @@ public sealed class TrayAppContext : ApplicationContext
         Icon newIcon;
         if (snap.Usage is { } u)
         {
-            var (icoVal, _) = IconContent(u, snap);
-            newIcon = TrayIconRenderer.Render(icoVal, _theme, _config.WarnThresholdPct, _config.CriticalThresholdPct, pending: LiveAttentionPending());
+            var (icoVal, _, status) = IconContent(u, snap);
+            // "stale": el dato envejeció (supera 3× el refresco) o la última lectura no fue Ok.
+            bool stale = UsageFormat.IsStale(snap.UsageAtUtc, _config.RefreshSeconds)
+                         || snap.LatestState != UsageFetchState.Ok;
+            newIcon = TrayIconRenderer.Render(icoVal, _theme, _config.WarnThresholdPct, _config.CriticalThresholdPct,
+                status, stale, pending: LiveAttentionPending());
 
             string five = UsageFormat.Countdown(u.FiveHour?.ResetsAt, _s.Resetting);
             string week = UsageFormat.Countdown(u.SevenDay?.ResetsAt, _s.Resetting);
@@ -512,24 +516,27 @@ public sealed class TrayAppContext : ApplicationContext
 
     // ---------- Pace ----------
 
-    private (int value, Color color) IconContent(RealUsage u, AppSnapshot snap)
+    private (int value, Color color, UsageStatus status) IconContent(RealUsage u, AppSnapshot snap)
     {
         int maxPct = (int)Math.Round(u.MaxUtilization);
         var worst = WorstPace(snap);
-        Color paceColor = worst is null
-            ? Theme.StatusColor(_theme, StatusFor(u.MaxUtilization))
+        // Estado por color/forma derivado del pace (peor ventana) o, sin pace, del % de uso.
+        UsageStatus paceStatus = worst is null
+            ? StatusFor(u.MaxUtilization)
             : worst.Status switch
             {
-                PaceStatus.Critical => _theme.Critical,
-                PaceStatus.Over => _theme.Warn,
-                _ => _theme.Ok
+                PaceStatus.Critical => UsageStatus.Critical,
+                PaceStatus.Over => UsageStatus.Warn,
+                _ => UsageStatus.Ok
             };
+        Color paceColor = Theme.StatusColor(_theme, paceStatus);
+        UsageStatus usageStatus = StatusFor(u.MaxUtilization);
 
         return _config.IconDisplayMode switch
         {
-            "pace" => (worst is not null ? (int)Math.Round(worst.PaceRatio * 100) : maxPct, paceColor),
-            "both" => (maxPct, paceColor),
-            _ => (maxPct, Theme.StatusColor(_theme, StatusFor(u.MaxUtilization)))
+            "pace" => (worst is not null ? (int)Math.Round(worst.PaceRatio * 100) : maxPct, paceColor, paceStatus),
+            "both" => (maxPct, paceColor, paceStatus),
+            _ => (maxPct, Theme.StatusColor(_theme, usageStatus), usageStatus)
         };
     }
 

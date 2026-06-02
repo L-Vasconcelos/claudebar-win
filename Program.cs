@@ -428,34 +428,62 @@ internal static class Program
             bmpL.Save(Path.Combine(dir, "mascot-large.png"));
         }
 
-        // Tira de badges del icono de bandeja para QA visual: cada estado a 48px (nativo) y a 16px
-        // (tamaño real en la barra de tareas a 100% DPI), sobre un fondo gris tipo taskbar.
+        // Tira de badges del icono de bandeja para QA visual: matriz barra clara/oscura × 3 formas
+        // (Ok/Warn/Critical) × estado fresco/stale, a 48px (nativo) y 16px (tamaño real a 100% DPI).
+        // Valida legibilidad y contraste del texto adaptativo + el estado por forma a 16px.
         {
-            var trayQa = new (string label, Icon ico)[]
+            const double warn = 70, crit = 90;
+            // (etiqueta, %, estado, stale). El % elige el color por riesgo; la forma sigue al estado.
+            var statuses = new (string label, int pct, UsageStatus st)[]
             {
-                ("12%",  TrayIconRenderer.Render(12,  Theme.StatusColor(Theme.Dark, UsageStatus.Ok))),
-                ("68%",  TrayIconRenderer.Render(68,  Theme.StatusColor(Theme.Dark, UsageStatus.Warn))),
-                ("95%",  TrayIconRenderer.Render(95,  Theme.StatusColor(Theme.Dark, UsageStatus.Critical))),
-                ("99+",  TrayIconRenderer.Render(120, Theme.StatusColor(Theme.Dark, UsageStatus.Critical))),
-                ("pend", TrayIconRenderer.Render(45,  Theme.StatusColor(Theme.Dark, UsageStatus.Warn), pending: true)),
-                ("err",  TrayIconRenderer.RenderError(Theme.Dark.Neutral)),
+                ("12%", 12, UsageStatus.Ok),
+                ("68%", 68, UsageStatus.Warn),
+                ("95%", 95, UsageStatus.Critical),
             };
+            // Una columna por (estado × fresco/stale); dos filas por barra (oscura y clara).
+            var cols = new List<(string label, int pct, UsageStatus st, bool stale)>();
+            foreach (var s in statuses) cols.Add((s.label, s.pct, s.st, false));
+            foreach (var s in statuses) cols.Add((s.label + " ·old", s.pct, s.st, true));
+            cols.Add(("pend", 45, UsageStatus.Warn, false)); // badge "pending" sigue cubierto
+            cols.Add(("99+", 120, UsageStatus.Critical, false));
+            cols.Add(("err", 0, UsageStatus.Ok, false));     // marcador de fila de error
+
+            var bars = new (string name, Color bg)[]
+            {
+                ("dark taskbar",  Color.FromArgb(0x2A, 0x2A, 0x2A)),
+                ("light taskbar", Color.FromArgb(0xE8, 0xE8, 0xE8)),
+            };
+
             const int cell = 64;
-            using var strip = new Bitmap(trayQa.Length * cell, cell + 16 + 22);
+            const int rowH = 8 + 48 + 4 + 16 + 22; // 48px nativo + 16px real + etiqueta
+            using var strip = new Bitmap(cols.Count * cell, bars.Length * rowH);
             using (var g2 = Graphics.FromImage(strip))
             {
-                g2.Clear(Color.FromArgb(0x2A, 0x2A, 0x2A));
                 g2.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
                 using var lf = new Font("Segoe UI", 8f);
-                for (int i = 0; i < trayQa.Length; i++)
+                for (int r = 0; r < bars.Length; r++)
                 {
-                    using var bm = trayQa[i].ico.ToBitmap();
-                    int cx = i * cell;
-                    g2.DrawImage(bm, cx + (cell - 48) / 2, 8, 48, 48);        // 48px nativo
-                    g2.DrawImage(bm, cx + (cell - 16) / 2, 8 + 48 + 4, 16, 16); // 16px = barra real
-                    g2.DrawString(trayQa[i].label, lf, Brushes.White, cx + 6, cell + 18);
-                    trayQa[i].ico.Dispose();
+                    int rowY = r * rowH;
+                    g2.SetClip(new Rectangle(0, rowY, strip.Width, rowH));
+                    g2.Clear(bars[r].bg);
+                    Color txt = ColorMath.Contrast(bars[r].bg);
+                    using var labelBrush = new SolidBrush(txt);
+                    for (int i = 0; i < cols.Count; i++)
+                    {
+                        var col = cols[i];
+                        Icon ico = col.label == "err"
+                            ? TrayIconRenderer.RenderError(Theme.Dark.Neutral)
+                            : TrayIconRenderer.Render(col.pct, Theme.Dark, warn, crit, col.st, col.stale,
+                                pending: col.label == "pend");
+                        using var bm = ico.ToBitmap();
+                        int cx = i * cell;
+                        g2.DrawImage(bm, cx + (cell - 48) / 2, rowY + 8, 48, 48);          // 48px nativo
+                        g2.DrawImage(bm, cx + (cell - 16) / 2, rowY + 8 + 48 + 4, 16, 16);  // 16px = barra real
+                        g2.DrawString(col.label, lf, labelBrush, cx + 4, rowY + 8 + 48 + 4 + 16 + 2);
+                        ico.Dispose();
+                    }
                 }
+                g2.ResetClip();
             }
             strip.Save(Path.Combine(dir, "tray-badges.png"));
         }

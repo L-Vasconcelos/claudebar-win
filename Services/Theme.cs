@@ -118,6 +118,27 @@ public static class ThemeResolver
         }
     }
 
+    /// <summary>
+    /// Reads Windows' <b>taskbar</b> theme preference (<c>SystemUsesLightTheme</c>) — distinta de
+    /// <see cref="OsPrefersDark"/>, que lee el tema de las <i>apps</i> (<c>AppsUseLightTheme</c>).
+    /// Determina si la barra de tareas es clara, para que el badge del tray adapte su contraste.
+    /// Con fallback: si no se puede leer el registro, asume barra oscura (false).
+    /// </summary>
+    public static bool TaskbarIsLight()
+    {
+        try
+        {
+            var v = Microsoft.Win32.Registry.GetValue(
+                @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+                "SystemUsesLightTheme", 0);
+            return v is int i && i == 1;
+        }
+        catch
+        {
+            return false; // default to dark taskbar
+        }
+    }
+
     private static Theme FromImported(ImportedThemeColors c) => new()
     {
         Id = "imported",

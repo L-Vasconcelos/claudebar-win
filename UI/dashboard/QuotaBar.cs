@@ -27,11 +27,19 @@ public static class QuotaBar
         Color c = pace is { } ps
             ? (ps.Status == PaceStatus.Critical ? theme.Critical : ps.Status == PaceStatus.Over ? theme.Warn : theme.Ok)
             : ColorMath.RiskColor(util, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
+        // Estado por forma (a11y, daltónicos): mismo mapeo color↔forma que el tray.
+        UsageStatus status = pace is { } pst
+            ? (pst.Status == PaceStatus.Critical ? UsageStatus.Critical
+               : pst.Status == PaceStatus.Over ? UsageStatus.Warn : UsageStatus.Ok)
+            : util >= cfg.CriticalThresholdPct ? UsageStatus.Critical
+              : util >= cfg.WarnThresholdPct ? UsageStatus.Warn : UsageStatus.Ok;
 
         if (draw)
         {
             g.DrawString(label, labelFont, fg, x, y);
-            string right = $"{util:0.#}%";
+            // Glifo de forma de 1 carácter + % a la derecha, ambos en el color de estado.
+            string glyph = Tray.ShapeGlyph(Tray.ShapeFor(status));
+            string right = $"{glyph} {util:0.#}%";
             var sz = g.MeasureString(right, Typography.Mono);
             using var valBrush = new SolidBrush(c);
             g.DrawString(right, Typography.Mono, valBrush, x + w - sz.Width, y);
