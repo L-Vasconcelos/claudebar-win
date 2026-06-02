@@ -152,11 +152,14 @@ public sealed class DashboardForm : Form
     private readonly AnimatedValue _hoverIntensity = new(0.0);
 
     /// <summary>
-    /// Resuelve el gate de reduce-motion para un <paramref name="cfg"/>. Hoy SIEMPRE <c>false</c>
-    /// (animaciones ON, decisión de Yovan); la Tarea 7 sustituye este único punto por
-    /// <c>cfg.ReduceMotion</c> sin tocar el resto del motor.
+    /// Resuelve el gate ÚNICO de reduce-motion para un <paramref name="cfg"/>: lee
+    /// <c>cfg.ReduceMotion</c> (default <c>false</c> = animaciones ON, decisión de Yovan). Este es el
+    /// único punto del que cuelga todo el colapso a estado final: <see cref="MotionState.SetTarget"/>
+    /// hace snap, <see cref="MotionScheduler"/> no pide fast-tick, <see cref="MascotAnimator"/> queda
+    /// en frame base y stagger/bounce/fade van a su estado final. El default NO depende del SO; existe
+    /// <see cref="MotionPrefs.OsReducedMotion"/> para una futura opción "seguir Windows".
     /// </summary>
-    private static bool ResolveReduceMotion(AppConfig cfg) => false;
+    private static bool ResolveReduceMotion(AppConfig cfg) => cfg.ReduceMotion;
 
     /// <summary>
     /// Tiempo (ms) transcurrido desde la apertura del panel, para la entrada escalonada (Tarea 4).
@@ -428,18 +431,20 @@ public sealed class DashboardForm : Form
         _shownAtUtc = DateTime.UtcNow;
 
         // Fade de apertura: arranca por debajo del objetivo y sube a él con OutQuad en FadeMs.
-        // _openedAtMs marca el instante de apertura (lo usa el stagger de la Tarea 4).
+        // _openedAtMs marca el instante de apertura (lo usa el stagger de la Tarea 4). Con reduce-motion
+        // (gate único) la duración es 0 ⇒ Show() directo a opacidad objetivo, sin fade ni slide.
         _openedAtMs = _clock.Elapsed.TotalMilliseconds;
         _lastTickMs = _openedAtMs;
-        _fadeOpacity.Set(0.0, 0);                                        // asienta en 0 (start del fade)
-        _fadeOpacity.Set(_targetOpacity, Motion.FadeMs, Easing.OutQuad); // anima 0→objetivo
-        Opacity = 0.0;
+        double fadeMs = _reduceMotion ? 0 : Motion.FadeMs;
+        _fadeOpacity.Set(0.0, 0);                                  // asienta en 0 (start del fade)
+        _fadeOpacity.Set(_targetOpacity, fadeMs, Easing.OutQuad);  // anima 0→objetivo (o salta si reduce-motion)
+        Opacity = _reduceMotion ? _targetOpacity : 0.0;
 
         Show();
         BringToFront();
         Activate();
         SetForegroundWindow(Handle);
-        _tick.Interval = Motion.FastTickMs; // arranca rápido para que el fade sea fluido
+        _tick.Interval = _reduceMotion ? Motion.SlowTickMs : Motion.FastTickMs; // reduce-motion: solo countdown
         _tick.Start();
         if (cfg.ShowChart) _ = ReloadChart();
     }

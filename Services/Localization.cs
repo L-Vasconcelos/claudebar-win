@@ -19,6 +19,8 @@ public sealed class Strings
     public string PosCustom { get; init; } = "Custom (drag the panel)";
     public string Sticky { get; init; } = "Pinned (don't auto-close)";
     public string AlwaysOnTop { get; init; } = "Always on top";
+    /// <summary>Toggle "reducir movimiento" (F3): colapsa toda animación a su estado final.</summary>
+    public string ReduceMotion { get; init; } = "Reduce motion";
     public string UpdateFrequency { get; init; } = "Update frequency";
     public string Sec30 { get; init; } = "30 seconds";
     public string Min1 { get; init; } = "1 minute";
@@ -252,6 +254,7 @@ public static class Localization
         PosCustom = "Personalizada (arrastra el panel)",
         Sticky = "Fijado (no se cierra solo)",
         AlwaysOnTop = "Siempre encima",
+        ReduceMotion = "Reducir movimiento",
         UpdateFrequency = "Frecuencia de actualización",
         Sec30 = "30 segundos",
         Min1 = "1 minuto",
@@ -375,6 +378,7 @@ public static class Localization
         PosCustom = "Aangepast (sleep het paneel)",
         Sticky = "Vastgezet (niet automatisch sluiten)",
         AlwaysOnTop = "Altijd op voorgrond",
+        ReduceMotion = "Beweging beperken",
         UpdateFrequency = "Verversingsfrequentie",
         Sec30 = "30 seconden",
         Min1 = "1 minuut",
@@ -490,6 +494,7 @@ public static class Localization
         PosCustom = "Personnalisée (glissez le panneau)",
         Sticky = "Épinglé (ne pas fermer auto)",
         AlwaysOnTop = "Toujours au premier plan",
+        ReduceMotion = "Réduire les animations",
         UpdateFrequency = "Fréquence d'actualisation",
         Sec30 = "30 secondes",
         Min1 = "1 minute",
@@ -605,6 +610,7 @@ public static class Localization
         PosCustom = "Benutzerdefiniert (Panel ziehen)",
         Sticky = "Angeheftet (nicht autom. schließen)",
         AlwaysOnTop = "Immer im Vordergrund",
+        ReduceMotion = "Bewegung reduzieren",
         UpdateFrequency = "Aktualisierungsintervall",
         Sec30 = "30 Sekunden",
         Min1 = "1 Minute",
@@ -720,6 +726,7 @@ public static class Localization
         PosCustom = "カスタム（ドラッグで移動）",
         Sticky = "固定（自動で閉じない）",
         AlwaysOnTop = "常に最前面",
+        ReduceMotion = "アニメーションを減らす",
         UpdateFrequency = "更新頻度",
         Sec30 = "30秒",
         Min1 = "1分",
@@ -835,6 +842,7 @@ public static class Localization
         PosCustom = "사용자 지정 (드래그)",
         Sticky = "고정 (자동으로 닫지 않음)",
         AlwaysOnTop = "항상 위에",
+        ReduceMotion = "동작 줄이기",
         UpdateFrequency = "새로고침 주기",
         Sec30 = "30초",
         Min1 = "1분",
@@ -950,6 +958,7 @@ public static class Localization
         PosCustom = "自訂（拖曳面板）",
         Sticky = "釘選（不自動關閉）",
         AlwaysOnTop = "永遠在最上層",
+        ReduceMotion = "減少動態效果",
         UpdateFrequency = "更新頻率",
         Sec30 = "30 秒",
         Min1 = "1 分鐘",

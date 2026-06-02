@@ -33,4 +33,28 @@ public class AppConfigTests
         Assert.False(back.LiveSessionsEnabled);
         Assert.True(back.ShowMascot);
     }
+
+    // ---- Reduce motion (F3 Tarea 7): default false = animaciones ON (decisión de Yovan) ----
+
+    [Fact]
+    public void ReduceMotion_defaults_to_false_animations_on()
+    {
+        var c = new AppConfig();
+        Assert.False(c.ReduceMotion);
+    }
+
+    [Fact]
+    public void ReduceMotion_missing_key_falls_back_to_false()
+    {
+        var back = JsonSerializer.Deserialize<AppConfig>("{}")!;
+        Assert.False(back.ReduceMotion);
+    }
+
+    [Fact]
+    public void ReduceMotion_roundtrips_through_json()
+    {
+        var c = new AppConfig { ReduceMotion = true };
+        var back = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(c))!;
+        Assert.True(back.ReduceMotion);
+    }
 }

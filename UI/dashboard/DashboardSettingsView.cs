@@ -104,6 +104,7 @@ public static class DashboardSettingsView
         y = SegmentedRow(g, draw, "opacity", s.Opacity, OpacitySegs, FmtOpacity(cfg.DashboardOpacity), x, y, w, theme, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:Sticky", s.Sticky, cfg.DashboardSticky, x, y, w, theme, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:OnTop", s.AlwaysOnTop, cfg.DashboardAlwaysOnTop, x, y, w, theme, smallFont, rects);
+        y = ToggleRow(g, draw, "toggle:ReduceMotion", s.ReduceMotion, cfg.ReduceMotion, x, y, w, theme, smallFont, rects);
 
         // -------- Idioma --------
         y = GroupHeader(g, draw, s.Language, x, y, theme, labelFont);
@@ -134,6 +135,7 @@ public static class DashboardSettingsView
             case "toggle:PaceAlerts": return c => c.PaceAlerts = !c.PaceAlerts;
             case "toggle:Sticky": return c => c.DashboardSticky = !c.DashboardSticky;
             case "toggle:OnTop": return c => c.DashboardAlwaysOnTop = !c.DashboardAlwaysOnTop;
+            case "toggle:ReduceMotion": return c => c.ReduceMotion = !c.ReduceMotion;
             case "toggle:Startup": return _ => StartupManager.Toggle();
 
             case "mascotsize:compact": return c => c.MascotSize = "compact";

@@ -105,4 +105,14 @@ public class DashboardConfigTests
         Assert.Null(DashboardSettingsView.ActionFor("special:hooktoggle"));
         Assert.Null(DashboardSettingsView.ActionFor("nonexistent"));
     }
+
+    [Fact]
+    public void ActionFor_reduce_motion_toggles()
+    {
+        var c = new AppConfig { ReduceMotion = false };
+        DashboardSettingsView.ActionFor("toggle:ReduceMotion")!(c);
+        Assert.True(c.ReduceMotion);
+        DashboardSettingsView.ActionFor("toggle:ReduceMotion")!(c);
+        Assert.False(c.ReduceMotion);
+    }
 }

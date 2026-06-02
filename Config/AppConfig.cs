@@ -77,6 +77,15 @@ public sealed class AppConfig
     /// <summary>Sección Gráfica plegada (por defecto sí).</summary>
     public bool CollapsedChart { get; set; } = true;
 
+    // Accesibilidad / microinteracciones (v0.3 F3)
+    /// <summary>
+    /// Reducir movimiento: colapsa TODA animación a su estado final (sin fade/tween/stagger/bounce,
+    /// mascota sin spinner/jitter). Default <c>false</c> = animaciones ON (decisión de Yovan). El gate
+    /// es ÚNICO; el default NO depende del SO (existe <see cref="ClaudeBarWin.Services.Motion.MotionPrefs"/>
+    /// para una futura opción "seguir Windows").
+    /// </summary>
+    public bool ReduceMotion { get; set; } = false;
+
     [JsonIgnore]
     public static string ConfigPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
