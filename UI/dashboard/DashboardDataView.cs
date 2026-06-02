@@ -138,6 +138,15 @@ public static class DashboardDataView
 
         y = DrawModelLine(g, draw, "Opus 7d", usage.SevenDayOpus, x, y, w, smallFont, fg, dim);
         y = DrawModelLine(g, draw, "Sonnet 7d", usage.SevenDaySonnet, x, y, w, smallFont, fg, dim);
+
+        // Explicación honesta del rolling: la ventana de 5h corre desde tu 1ª petición, no a hora fija.
+        // theme.TextMuted / Typography.Caption; suma su alto en ambas ramas (medir/pintar).
+        if (draw)
+        {
+            using var muted = new SolidBrush(theme.TextMuted);
+            g.DrawString(s.RollingHint, Typography.Caption, muted, x, y);
+        }
+        y += 16;
         return y;
     }
 

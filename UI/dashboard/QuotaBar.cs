@@ -80,7 +80,12 @@ public static class QuotaBar
 
         string cd = UsageFormat.Countdown(win?.ResetsAt, s.Resetting);
         if (draw && cd.Length > 0)
-            g.DrawString($"{s.ResetsIn} {cd}", smallFont, dim, x, y);
+        {
+            // "resetea en 2h 13m · mar 18:42" — relativo (countdown) + hora local absoluta.
+            string abs = UsageFormat.ResetAbsolute(win?.ResetsAt);
+            string line = abs.Length > 0 ? $"{s.ResetsIn} {cd} · {abs}" : $"{s.ResetsIn} {cd}";
+            g.DrawString(line, smallFont, dim, x, y);
+        }
         return y + 14;
     }
 }

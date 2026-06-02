@@ -43,6 +43,7 @@ public sealed class Strings
     public string WeekWord { get; init; } = "Week";
     public string ResetsIn { get; init; } = "resets in";
     public string Resetting { get; init; } = "resetting…";
+    public string RollingHint { get; init; } = "rolling 5h window from your 1st request";
     public string SpendHeaderFormat { get; init; } = "Estimated spend ({0}d, API-equiv)";
     public string Loading { get; init; } = "Loading…";
     public string UpdatedAt { get; init; } = "Updated";
@@ -257,6 +258,7 @@ public static class Localization
         WeekWord = "Semana",
         ResetsIn = "resetea en",
         Resetting = "reseteando…",
+        RollingHint = "ventana móvil de 5h desde tu 1ª petición",
         SpendHeaderFormat = "Gasto estimado ({0}d, equiv. API)",
         Loading = "Cargando…",
         UpdatedAt = "Actualizado",
@@ -369,6 +371,7 @@ public static class Localization
         WeekWord = "Week",
         ResetsIn = "reset over",
         Resetting = "resetten…",
+        RollingHint = "voortschrijdend venster van 5u vanaf je 1e verzoek",
         SpendHeaderFormat = "Geschatte uitgaven ({0}d, API-equiv.)",
         Loading = "Laden…",
         UpdatedAt = "Bijgewerkt",
@@ -473,6 +476,7 @@ public static class Localization
         WeekWord = "Semaine",
         ResetsIn = "réinit. dans",
         Resetting = "réinitialisation…",
+        RollingHint = "fenêtre glissante de 5h depuis ta 1re requête",
         SpendHeaderFormat = "Coût estimé ({0}j, équiv. API)",
         Loading = "Chargement…",
         UpdatedAt = "Mis à jour",
@@ -577,6 +581,7 @@ public static class Localization
         WeekWord = "Woche",
         ResetsIn = "Reset in",
         Resetting = "wird zurückgesetzt…",
+        RollingHint = "gleitendes 5-Std-Fenster ab deiner 1. Anfrage",
         SpendHeaderFormat = "Geschätzte Kosten ({0}T, API-Äquiv.)",
         Loading = "Laden…",
         UpdatedAt = "Aktualisiert",
@@ -681,6 +686,7 @@ public static class Localization
         WeekWord = "週間",
         ResetsIn = "リセットまで",
         Resetting = "リセット中…",
+        RollingHint = "最初のリクエストからの5時間移動ウィンドウ",
         SpendHeaderFormat = "推定コスト（{0}日, API換算）",
         Loading = "読み込み中…",
         UpdatedAt = "更新",
@@ -785,6 +791,7 @@ public static class Localization
         WeekWord = "주간",
         ResetsIn = "재설정까지",
         Resetting = "재설정 중…",
+        RollingHint = "첫 요청부터 5시간 이동 윈도우",
         SpendHeaderFormat = "예상 비용 ({0}일, API 환산)",
         Loading = "로딩 중…",
         UpdatedAt = "업데이트됨",
@@ -889,6 +896,7 @@ public static class Localization
         WeekWord = "每週",
         ResetsIn = "重設於",
         Resetting = "重設中…",
+        RollingHint = "從你第一次請求起算的 5 小時滾動視窗",
         SpendHeaderFormat = "估計花費（{0}天，API 約當）",
         Loading = "載入中…",
         UpdatedAt = "已更新",

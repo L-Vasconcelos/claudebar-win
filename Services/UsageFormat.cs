@@ -13,6 +13,10 @@ public static class UsageFormat
         return $"{span.Minutes}m {span.Seconds}s";
     }
 
+    /// <summary>Hora local absoluta del reset en formato "ddd HH:mm" (p.ej. "mar 18:42"); "" si es null.</summary>
+    public static string ResetAbsolute(DateTimeOffset? resetsAt)
+        => resetsAt is { } r ? r.ToLocalTime().ToString("ddd HH:mm") : "";
+
     public static string StateMessage(UsageFetchState state, Strings s) => state switch
     {
         UsageFetchState.NoCredentials => s.StateNoCredentials,
