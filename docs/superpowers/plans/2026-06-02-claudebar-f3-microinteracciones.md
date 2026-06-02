@@ -63,7 +63,7 @@
 1. Test (`MascotAnimatorTests`): dada (fase, `elapsedMs`, semilla) → `frameIndex` válido; en `Idle` el blink es **esporádico** (no en cada tick) y **determinista** para misma semilla; en `Processing` el `spinnerGlyph` **cicla** por una secuencia; `verbIndex` ∈ rango del pool de la fase. Sin `Random`/reloj dentro.
 2. Test (`MascotMoodTests`): `Update(phase, events, elapsedMs)` — entra en `Alert` al pedir atención y **no** sale antes del dwell (histéresis); decae a `Neutral` tras `DecayMs` sin eventos; `Happy` tras evento reset y decae.
 3. Implementar `MascotAnimator` (tempos por fase + jitter = hash de contador + spinner + verbo) y `MascotMood` (histéresis + decay). `MascotRenderer.Draw` pasa a recibir el output del animator (frame elegido + color por fase/humor) en vez de `frameIndex % Count` plano; dibuja además el spinner y, junto a la mascota, el **verbo** (string localizado) con elipsis animada.
-4. Strings: `Localization.cs` — pool corto de verbos por fase (Processing/WaitingForApproval/WaitingForInput/Compacting/Idle/Ended) en los **8 idiomas**. (Nivel de personalidad acordado con Yovan; por defecto **sobrio**.)
+4. Strings: `Localization.cs` — pool de **3-5 verbos por fase** (Processing/WaitingForApproval/WaitingForInput/Compacting/Idle/Ended) en los **8 idiomas**. **Tono JUGUETÓN** (decisión de Yovan): con guiño/carácter, rotación con jitter, idle peek algo más frecuente, humor más expresivo. Clean-room (no copiar verbos de Notchi/Buddi = GPL; inventar propios).
 5. `DashboardHeader.Draw` usa el animator (sustituye el `mascotFrame` plano) y reserva el alto del verbo en ambas ramas (medir/pintar).
 6. Build + suite + render (`mascot-large.png` con verbo + spinner; varios frames/humores).
 **Commit:** `feat(mascot): vida — tempos, blink jitter, spinner, verbos y humor (histéresis/decay)`.
@@ -79,8 +79,8 @@
 
 ## Tarea 7 · Toggle "reducir movimiento" (gate único)
 **Pasos TDD:**
-1. Test (`AppConfigTests`): `ReduceMotion` por defecto = valor del helper de SO (mockeable) — o el default acordado (§6 de la spec). Round-trip de serialización.
-2. `AppConfig.ReduceMotion` (bool) + helper testeable `MotionPrefs.OsReducedMotion()` (envuelve `SPI_GETCLIENTAREAANIMATION`; fallback false=animaciones on). Default en primer arranque.
+1. Test (`AppConfigTests`): `ReduceMotion` por defecto = **`false` (animaciones ON)**, decisión de Yovan. Round-trip de serialización.
+2. `AppConfig.ReduceMotion` (bool, default `false`) + helper testeable `MotionPrefs.OsReducedMotion()` (envuelve `SPI_GETCLIENTAREAANIMATION`; fallback false) que se deja **disponible para una futura opción "seguir Windows"**, pero el default NO depende del SO.
 3. **Gate único**: `reduceMotion` ⇒ `AnimatedValue.Snap` inmediato (todos), `MotionScheduler.WantsFastTick=false` por config, `MascotAnimator` devuelve frame base sin spinner/jitter, stagger/bounce/fade a estado final. Verificar que **no queda ninguna animación** por una sola comprobación propagada.
 4. Fila en `DashboardSettingsView` (toggle) + `DashboardSettingsView.ActionFor` la mapea a `c => c.ReduceMotion = !c.ReduceMotion`. Label "Reducir movimiento" ×8 idiomas.
 5. Build + suite + **render-test con `ReduceMotion=true`** ⇒ debe ser **idéntico al estado final** (sin offsets/alfa intermedios).
