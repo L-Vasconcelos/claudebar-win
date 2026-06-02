@@ -55,6 +55,8 @@ public sealed class Strings
     public string HintPinnedClose { get; init; } = "pinned · ✕ to close";
     public string PreviousDataTip { get; init; } = "⚠ previous data (offline)";
     public string PreviousDataFooter { get; init; } = "previous data";
+    /// <summary>Destello in-panel de celebración cuando una ventana de cuota se resetea (F3).</summary>
+    public string QuotaRenewed { get; init; } = "quota renewed";
 
     // States
     public string StateNoCredentials { get; init; } = "Not signed in — log in to Claude Code";
@@ -283,6 +285,7 @@ public static class Localization
         HintPinnedClose = "fijado · ✕ para cerrar",
         PreviousDataTip = "⚠ datos previos (sin conexión)",
         PreviousDataFooter = "datos previos",
+        QuotaRenewed = "cuota renovada",
         StateNoCredentials = "No autenticado — inicia sesión en Claude Code",
         StateAuthExpired = "Sesión caducada — abre Claude Code",
         StateRateLimited = "Límite de peticiones — reintentando",
@@ -405,6 +408,7 @@ public static class Localization
         HintPinnedClose = "vastgezet · ✕ om te sluiten",
         PreviousDataTip = "⚠ vorige gegevens (offline)",
         PreviousDataFooter = "vorige gegevens",
+        QuotaRenewed = "quota vernieuwd",
         StateNoCredentials = "Niet aangemeld — log in bij Claude Code",
         StateAuthExpired = "Sessie verlopen — open Claude Code",
         StateRateLimited = "Verzoeklimiet — opnieuw proberen",
@@ -519,6 +523,7 @@ public static class Localization
         HintPinnedClose = "épinglé · ✕ pour fermer",
         PreviousDataTip = "⚠ données précédentes (hors ligne)",
         PreviousDataFooter = "données précédentes",
+        QuotaRenewed = "quota renouvelé",
         StateNoCredentials = "Non connecté — connectez-vous à Claude Code",
         StateAuthExpired = "Session expirée — ouvrez Claude Code",
         StateRateLimited = "Limite de requêtes — nouvelle tentative",
@@ -633,6 +638,7 @@ public static class Localization
         HintPinnedClose = "angeheftet · ✕ zum Schließen",
         PreviousDataTip = "⚠ vorherige Daten (offline)",
         PreviousDataFooter = "vorherige Daten",
+        QuotaRenewed = "Kontingent erneuert",
         StateNoCredentials = "Nicht angemeldet — bei Claude Code anmelden",
         StateAuthExpired = "Sitzung abgelaufen — Claude Code öffnen",
         StateRateLimited = "Anfragelimit — erneuter Versuch",
@@ -747,6 +753,7 @@ public static class Localization
         HintPinnedClose = "固定中 · ✕ で閉じる",
         PreviousDataTip = "⚠ 以前のデータ（オフライン）",
         PreviousDataFooter = "以前のデータ",
+        QuotaRenewed = "クォータ更新",
         StateNoCredentials = "未ログイン — Claude Code にログイン",
         StateAuthExpired = "セッション期限切れ — Claude Code を開く",
         StateRateLimited = "レート制限 — 再試行中",
@@ -861,6 +868,7 @@ public static class Localization
         HintPinnedClose = "고정됨 · ✕ 닫기",
         PreviousDataTip = "⚠ 이전 데이터 (오프라인)",
         PreviousDataFooter = "이전 데이터",
+        QuotaRenewed = "쿼터 갱신됨",
         StateNoCredentials = "로그인 안 됨 — Claude Code에 로그인",
         StateAuthExpired = "세션 만료 — Claude Code 열기",
         StateRateLimited = "요청 제한 — 재시도 중",
@@ -975,6 +983,7 @@ public static class Localization
         HintPinnedClose = "已釘選 · ✕ 關閉",
         PreviousDataTip = "⚠ 先前資料（離線）",
         PreviousDataFooter = "先前資料",
+        QuotaRenewed = "額度已更新",
         StateNoCredentials = "未登入 — 請登入 Claude Code",
         StateAuthExpired = "工作階段過期 — 開啟 Claude Code",
         StateRateLimited = "請求受限 — 重試中",

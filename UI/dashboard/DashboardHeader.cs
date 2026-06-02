@@ -21,11 +21,21 @@ public static class DashboardHeader
     };
 
     /// <summary>Dibuja la cabecera y devuelve el nuevo y. Registra el rect del ⚙ en gearRect.</summary>
+    /// <param name="mascotBounceOffsetY">
+    /// Bote de atención (px ≥ 0): desplaza el dibujo de la mascota hacia arriba dentro de su celda
+    /// (vía <c>TranslateTransform</c>). NO cambia el <c>y</c> de layout (medir == pintar). Solo en la
+    /// pasada de pintado; con reduce-motion el llamante pasa 0.
+    /// </param>
+    /// <param name="celebration">
+    /// Destello de celebración in-panel (p.ej. "✓ cuota renovada") cuando una ventana se resetea.
+    /// <c>null</c> = sin destello. NO toca el sistema de notificaciones (eso es F4).
+    /// </param>
     public static int Draw(Graphics g, bool draw, int x, int y, int w,
                            AppSnapshot? snap, LiveSessionsView live, AppConfig cfg, Strings s, Theme theme,
                            MascotState mascot, Mood mascotMood, Font labelFont, Font smallFont, Font mono,
                            ref Rectangle gearRect,
-                           MotionState? motion = null, bool reduceMotion = false)
+                           MotionState? motion = null, bool reduceMotion = false,
+                           int mascotBounceOffsetY = 0, string? celebration = null)
     {
         // 1) botón ⚙ arriba a la derecha (siempre): botón con fondo redondeado + glifo nítido,
         //    para que se lea bien y parezca clicable (antes era un "⚙" diminuto y atenuado, sin fondo).
@@ -40,6 +50,26 @@ public static class DashboardHeader
             g.DrawString(GearGlyph, GearIconFont, glyphBrush, gear, CenterFormat);
         }
 
+        // 1b) destello de celebración de reset ("✓ cuota renovada"): chip in-panel breve en la fila
+        //     superior, a la izquierda del ⚙. Solo en la pasada de pintado y SIN reservar alto (esa
+        //     fila solo aloja el ⚙) → no rompe el invariante medir/pintar. NO es una notificación (F4).
+        if (draw && !string.IsNullOrEmpty(celebration))
+        {
+            string flash = "✓ " + celebration;
+            var fsz = g.MeasureString(flash, smallFont);
+            int chipW = (int)Math.Ceiling(fsz.Width) + Spacing.Sm * 2;
+            int chipH = (int)Math.Ceiling(fsz.Height) + Spacing.Xs;
+            var chip = new Rectangle(gear.X - chipW - Spacing.Sm, y + (gearSize - chipH) / 2, chipW, chipH);
+            if (chip.X > x)
+            {
+                using var chipBg = new SolidBrush(Color.FromArgb(36, theme.Ok));
+                Shapes.FillRounded(g, chipBg, chip, Spacing.Sm);
+                using var okBrush = new SolidBrush(theme.Ok);
+                g.DrawString(flash, smallFont, okBrush,
+                    chip.X + Spacing.Sm, chip.Y + (chipH - (int)Math.Ceiling(fsz.Height)) / 2);
+            }
+        }
+
         // 2) mascota a la izquierda (si ShowMascot y LiveSessionsEnabled): sprite (frame del animador)
         //    + verbo localizado JUGUETÓN con elipsis bajo la mascota. El verbo reserva su alto en AMBAS
         //    pasadas (medir/pintar) para no romper el invariante de layout.
@@ -49,8 +79,14 @@ public static class DashboardHeader
         int mascotH = 0;
         if (cfg.LiveSessionsEnabled && cfg.ShowMascot)
         {
+            // Bote de atención: desplaza SOLO el dibujo de la mascota hacia arriba (px ≥ 0) dentro de
+            // su celda. El offset se mide con draw=false como 0 (no se aplica transform), así medir y
+            // pintar reservan el MISMO alto (invariante de layout). Hacia arriba = y negativo.
+            int bounce = draw ? mascotBounceOffsetY : 0;
+            if (bounce != 0) g.TranslateTransform(0, -bounce);
             var sz = MascotRenderer.Draw(g, draw, x, top, live.GlobalPhase,
                 mascotSize, mascot, theme, mono, mascotMood);
+            if (bounce != 0) g.TranslateTransform(0, bounce);
 
             // Verbo + elipsis (p.ej. "thinking…"). Alto reservado siempre (medir == pintar).
             string verb = MascotAnimator.Verb(s, live.GlobalPhase, mascot.VerbIndex);

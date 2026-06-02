@@ -54,6 +54,16 @@ public sealed class DashboardForm : Form
     private double _lastMoodUpdateMs;            // marca del último Update del humor (para el delta)
     private const int MascotSeed = 0x5EED;       // semilla determinista del jitter (estable por proceso)
 
+    // Bote de atención + celebración de reset (Tarea 6). El bote (Bounce, OutBack) se dispara al entrar
+    // en una fase que pide atención (WaitingFor*) y se RE-dispara cada BounceRepeatEveryMs mientras
+    // persista. La celebración (ResetDetector en UpdateData) compara el ResetsAt/utilización previo y
+    // nuevo de 5h/7d; al detectar un reset enciende el humor Happy y un destello "✓ cuota renovada"
+    // in-panel durante CelebrationMs. Ambos son elapsed-driven; con reduce-motion no se aplican.
+    private readonly ResetDetector _resetDetector = new();
+    private double _bounceStartMs = double.NegativeInfinity; // elapsed del último disparo del bote (−∞ = inactivo)
+    private double _celebrationUntilMs = double.NegativeInfinity; // elapsed hasta el que dura el destello
+    private bool _resetPending;                  // hay un reset detectado sin "consumir" en el humor todavía
+
     /// <summary>Tiempo (ms) en la fase actual de la mascota. Con reduce-motion = 0 (frame base estático).</summary>
     private double MascotElapsedMs() =>
         _reduceMotion ? 0.0 : _clock.Elapsed.TotalMilliseconds - _mascotPhaseStartMs;
@@ -78,7 +88,14 @@ public sealed class DashboardForm : Form
         double moodDelta = now - _lastMoodUpdateMs;
         _lastMoodUpdateMs = now;
         if (moodDelta < 0) moodDelta = 0;
-        _mascotMood.Update(phase, MoodEventFor(phase), moodDelta);
+
+        // Una celebración de reset recién detectada se "consume" como evento de humor (Happy) una vez;
+        // tiene prioridad sobre la fase salvo que esta pida atención (Alert manda).
+        MoodEvent ev = _resetPending && !phase.NeedsAttention()
+            ? MoodEvent.ResetCelebrated
+            : MoodEventFor(phase);
+        _resetPending = false;
+        _mascotMood.Update(phase, ev, moodDelta);
     }
 
     private static MoodEvent MoodEventFor(SessionPhase phase) => phase switch
@@ -87,6 +104,45 @@ public sealed class DashboardForm : Form
         SessionPhase.Processing or SessionPhase.Compacting => MoodEvent.LongProcessing,
         _ => MoodEvent.None,
     };
+
+    /// <summary>
+    /// Mantiene el reloj del bote de atención: lo (re)dispara mientras la fase global pida atención y
+    /// haya pasado <see cref="Motion.BounceRepeatEveryMs"/> desde el último bote; lo apaga si la fase
+    /// deja de pedir atención. Elapsed-driven; con reduce-motion no se dispara (offset 0 en el paint).
+    /// </summary>
+    private void SyncBounce()
+    {
+        if (_reduceMotion || !_liveView.GlobalPhase.NeedsAttention()
+            || !_cfg.LiveSessionsEnabled || !_cfg.ShowMascot)
+        {
+            _bounceStartMs = double.NegativeInfinity;
+            return;
+        }
+        double now = _clock.Elapsed.TotalMilliseconds;
+        bool inFlight = Bounce.IsActive(now - _bounceStartMs, Motion.BouncePeriodMs, Motion.BounceRepeats);
+        bool dueAgain = now - _bounceStartMs >= Motion.BounceRepeatEveryMs;
+        if (!inFlight && dueAgain) _bounceStartMs = now;
+    }
+
+    /// <summary>Offset (px ≥ 0) del bote de atención de la mascota en el instante actual (0 si reduce-motion).</summary>
+    private int MascotBounceOffsetY()
+    {
+        if (_reduceMotion || double.IsNegativeInfinity(_bounceStartMs)) return 0;
+        double t = _clock.Elapsed.TotalMilliseconds - _bounceStartMs;
+        return Bounce.OffsetY(t, Motion.BounceAmplitudePx, Motion.BouncePeriodMs, Motion.BounceRepeats);
+    }
+
+    /// <summary>¿Sigue activo el bote (para alimentar al scheduler)?</summary>
+    private bool BounceActive() =>
+        !_reduceMotion && !double.IsNegativeInfinity(_bounceStartMs)
+        && Bounce.IsActive(_clock.Elapsed.TotalMilliseconds - _bounceStartMs, Motion.BouncePeriodMs, Motion.BounceRepeats);
+
+    /// <summary>¿Está visible el destello de celebración de reset ahora mismo?</summary>
+    private bool CelebrationActive() =>
+        !_reduceMotion && _clock.Elapsed.TotalMilliseconds < _celebrationUntilMs;
+
+    /// <summary>Texto del destello de celebración ("✓ cuota renovada" lo monta la cabecera) o null.</summary>
+    private string? CelebrationText() => CelebrationActive() ? _s.QuotaRenewed : null;
 
     // Hover (Tarea 3): clave del rect interactivo bajo el cursor (o null). OnMouseMove la recalcula
     // sobre los diccionarios de rects ya existentes vía HoverHitTest; si cambia, repinta. La intensidad
@@ -209,13 +265,16 @@ public sealed class DashboardForm : Form
         // Vida de la mascota (Tarea 5): reloj de fase + humor (histéresis/decay). El animador es
         // puro y se muestrea en el paint; aquí solo sincronizamos fase/humor con el reloj.
         SyncMascotPhase();
+        // Bote de atención (Tarea 6): (re)dispara el bote mientras la fase pida atención.
+        SyncBounce();
         bool mascotAlive = !_reduceMotion && _cfg.LiveSessionsEnabled && _cfg.ShowMascot
                            && MascotAnimator.IsAnimatedPhase(_liveView.GlobalPhase);
 
         // El countdown del footer (UpdatedAt · hace N min) cambia cada minuto: en cadencia lenta
         // repintamos igual para refrescarlo, como hacía el 1 Hz de antes.
         bool animating = _fadeOpacity.IsAnimating || _motion.IsAnimating
-                         || _hoverIntensity.IsAnimating || mascotAlive;
+                         || _hoverIntensity.IsAnimating || mascotAlive
+                         || BounceActive() || CelebrationActive();
 
         // Repinta si hubo cambio de animación o es un tick de countdown.
         Invalidate();
@@ -243,11 +302,13 @@ public sealed class DashboardForm : Form
         if (_liveProvider is not null) _liveView = _liveProvider();
         // Vida de la mascota (Tarea 5): resincroniza el reloj de fase + humor con la nueva fase global.
         SyncMascotPhase();
+        // Bote de atención (Tarea 6): (re)dispara el bote si la nueva fase pide atención.
+        SyncBounce();
         Relayout();
         Invalidate();
-        // Si la mascota ha cobrado vida (fase animada) y el panel está visible, arranca el fast-tick.
+        // Si la mascota ha cobrado vida (fase animada o bote activo) y el panel está visible, arranca el fast-tick.
         if (Visible && !_reduceMotion && _cfg.LiveSessionsEnabled && _cfg.ShowMascot
-            && MascotAnimator.IsAnimatedPhase(_liveView.GlobalPhase))
+            && (MascotAnimator.IsAnimatedPhase(_liveView.GlobalPhase) || BounceActive()))
             EnsureFastTick();
     }
 
@@ -281,8 +342,12 @@ public sealed class DashboardForm : Form
         // Tween de números/barras: apunta cada AnimatedValue al nuevo objetivo (desde el valor actual,
         // sin salto). El render muestrea Display(); el tick los Advance. Con reduce-motion colapsan.
         RetargetMotion();
+        // Celebración de reset (Tarea 6): compara el ResetsAt/utilización previo y nuevo de 5h/7d. Al
+        // detectar un reset enciende el destello in-panel + marca el humor Happy pendiente. NO toca el
+        // sistema de notificaciones (eso es F4). Con reduce-motion se omite el destello (estado final).
+        DetectQuotaReset();
         // Si algo arrancó a animar, asegúrate de que el reloj rápido esté latiendo (panel visible).
-        if (Visible && _motion.IsAnimating && !_reduceMotion) EnsureFastTick();
+        if (Visible && (_motion.IsAnimating || CelebrationActive()) && !_reduceMotion) EnsureFastTick();
 
         if (IsHandleCreated)
             BeginInvoke(() =>
@@ -309,6 +374,29 @@ public sealed class DashboardForm : Form
             : usage.SevenDay is null ? usage.FiveHour
             : usage.FiveHour.UtilizationPct >= usage.SevenDay.UtilizationPct ? usage.FiveHour : usage.SevenDay;
         if (crit is not null) _motion.SetTarget("num:crit", crit.UtilizationPct, _reduceMotion);
+    }
+
+    /// <summary>
+    /// Alimenta el <see cref="ResetDetector"/> con las ventanas 5h/7d del snapshot actual. Si alguna
+    /// se ha reseteado (el <c>ResetsAt</c> saltó hacia adelante o la utilización cayó en picado),
+    /// enciende el destello de celebración in-panel durante <see cref="Motion.CelebrationMs"/> y marca
+    /// el humor Happy pendiente. Con reduce-motion no hay destello (estado final), pero el detector se
+    /// alimenta igual para no disparar una celebración tardía al desactivarse reduce-motion.
+    /// </summary>
+    private void DetectQuotaReset()
+    {
+        var usage = _snap?.Usage;
+        bool reset = false;
+        if (usage is not null)
+        {
+            reset |= _resetDetector.Observe("5h", usage.FiveHour);
+            reset |= _resetDetector.Observe("7d", usage.SevenDay);
+        }
+        if (reset && !_reduceMotion)
+        {
+            _celebrationUntilMs = _clock.Elapsed.TotalMilliseconds + Motion.CelebrationMs;
+            _resetPending = true;
+        }
     }
 
     /// <summary>Arranca/acelera el tick a la cadencia rápida para que el tween sea fluido.</summary>
@@ -751,7 +839,7 @@ public sealed class DashboardForm : Form
         y = DashboardHeader.Draw(g, draw, x, y, w,
             _snap, _liveView, _cfg, _s, _theme, SampleMascot(), _mascotMood.Current,
             labelFont, smallFont, mono, ref _gearRect,
-            _motion, _reduceMotion);
+            _motion, _reduceMotion, MascotBounceOffsetY(), CelebrationText());
         if (hOff != 0) g.TranslateTransform(0, -hOff);
 
         // Secciones de datos (índices 1..n)

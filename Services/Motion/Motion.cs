@@ -31,6 +31,12 @@ public static class Motion
     /// <summary>Número de rebotes que decaen en un bote de atención.</summary>
     public const int BounceRepeats = 3;
 
+    /// <summary>Intervalo (ms) de re-disparo del bote mientras la atención persiste (sin volverse molesto).</summary>
+    public const double BounceRepeatEveryMs = 3200.0;
+
+    /// <summary>Duración (ms) del destello in-panel de celebración de reset ("✓ cuota renovada").</summary>
+    public const double CelebrationMs = 2600.0;
+
     /// <summary>Intervalo del tick rápido cuando hay algo animando (~30 fps).</summary>
     public const int FastTickMs = 33;
 
