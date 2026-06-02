@@ -78,9 +78,12 @@ public static class DashboardHeader
         {
             // ventana elegida → etiqueta + pace para colorear la barra igual que el dashboard.
             bool isFive = ReferenceEquals(crit, w5);
-            var critPace = isFive ? snap?.PaceFive?.Status : snap?.PaceSeven?.Status;
+            var critPace = isFive ? snap?.PaceFive : snap?.PaceSeven;
             string critLabel = isFive ? $"{s.SessionWord} (5h)" : $"{s.WeekWord} (7d)";
-            ty = DrawCriticalBar(g, draw, crit, critPace, critLabel, textX, ty, w - (textX - x), cfg, s, theme, labelFont, smallFont);
+            // Delegar en la barra unificada; la cabecera construye sus pinceles fg/muted como antes.
+            using var fg = new SolidBrush(theme.TextPrimary);
+            using var muted = new SolidBrush(theme.TextMuted);
+            ty = QuotaBar.Draw(g, draw, critLabel, crit, critPace, textX, ty, w - (textX - x), cfg, s, theme, labelFont, smallFont, fg, muted);
         }
 
         // pace: línea "↗ 5h X% · 7d Y% ⚠ETA" reusando lo de DrawPace
@@ -97,52 +100,6 @@ public static class DashboardHeader
         if (a is null) return b;
         if (b is null) return a;
         return a.UtilizationPct >= b.UtilizationPct ? a : b;
-    }
-
-    // Cuerpo de DrawBar de DashboardForm.cs adaptado a recibir theme/strings/fonts por parámetro.
-    // Avanza y de forma idéntica en draw=false/draw=true (la simetría medir/pintar se preserva).
-    private static int DrawCriticalBar(Graphics g, bool draw, UsageWindow? win, PaceStatus? pace, string label, int x, int y, int w,
-                                       AppConfig cfg, Strings s, Theme theme, Font labelFont, Font smallFont)
-    {
-        double util = win?.UtilizationPct ?? 0;
-        double clamped = Math.Min(util / 100.0, 1.0);
-        // Colour the section by PACE status (better/worse rate); fall back to riesgo gradual.
-        Color c = pace is { } ps
-            ? (ps == PaceStatus.Critical ? theme.Critical : ps == PaceStatus.Over ? theme.Warn : theme.Ok)
-            : ColorMath.RiskColor(util, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
-
-        if (draw)
-        {
-            using var fg = new SolidBrush(theme.TextPrimary);
-            g.DrawString(label, labelFont, fg, x, y);
-            string right = $"{util:0.#}%";
-            var sz = g.MeasureString(right, Typography.Mono);
-            using var valBrush = new SolidBrush(c);
-            g.DrawString(right, Typography.Mono, valBrush, x + w - sz.Width, y);
-        }
-        y += 22;
-
-        const int barH = 11;
-        if (draw)
-        {
-            using var trackBrush = new SolidBrush(theme.Track);
-            Shapes.FillRounded(g, trackBrush, new Rectangle(x, y, w, barH), 5);
-            int fw = (int)Math.Round(w * clamped);
-            if (fw > 1)
-            {
-                using var fillBrush = new SolidBrush(c);
-                Shapes.FillRounded(g, fillBrush, new Rectangle(x, y, fw, barH), 5);
-            }
-        }
-        y += barH + 3;
-
-        string cd = UsageFormat.Countdown(win?.ResetsAt, s.Resetting);
-        if (draw && cd.Length > 0)
-        {
-            using var muted = new SolidBrush(theme.TextMuted);
-            g.DrawString($"{s.ResetsIn} {cd}", smallFont, muted, x, y);
-        }
-        return y + 14;
     }
 
     // Cuerpo de DrawPace de DashboardForm.cs adaptado a recibir snap/theme/font por parámetro.
