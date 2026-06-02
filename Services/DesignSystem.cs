@@ -36,3 +36,44 @@ public static class ColorMath
         return Lerp(t.Warn, t.Critical, (pct - warn) / (crit - warn));
     }
 }
+
+/// <summary>
+/// Fuentes del sistema de diseño: una familia (Segoe UI Variable) en 4 pasos + mono para números.
+/// Cacheadas estáticamente (viven toda la app); con fallback si la familia no está instalada.
+/// </summary>
+public static class Typography
+{
+    public static readonly Font Hero    = Ui("Segoe UI Variable Display", 28f, FontStyle.Bold);
+    public static readonly Font Title   = Ui("Segoe UI Variable Text", 15f, FontStyle.Bold);
+    public static readonly Font Body    = Ui("Segoe UI Variable Text", 12f, FontStyle.Regular);
+    public static readonly Font Caption = Ui("Segoe UI Variable Text", 11f, FontStyle.Regular);
+    public static readonly Font Mono    = MonoFont(12f);
+
+    // Crea la fuente pedida; si el sistema sustituye por otra familia (no instalada), cae a "Segoe UI".
+    private static Font Ui(string family, float size, FontStyle style)
+    {
+        try
+        {
+            var f = new Font(family, size, style);
+            if (f.Name.StartsWith("Segoe UI", StringComparison.OrdinalIgnoreCase)) return f;
+            f.Dispose();
+        }
+        catch { }
+        return new Font("Segoe UI", size, style);
+    }
+
+    private static Font MonoFont(float size)
+    {
+        foreach (var family in new[] { "Cascadia Mono", "Consolas" })
+        {
+            try
+            {
+                var f = new Font(family, size, FontStyle.Regular, GraphicsUnit.Point);
+                if (f.Name.Equals(family, StringComparison.OrdinalIgnoreCase)) return f;
+                f.Dispose();
+            }
+            catch { }
+        }
+        return new Font("Consolas", size, FontStyle.Regular, GraphicsUnit.Point);
+    }
+}
