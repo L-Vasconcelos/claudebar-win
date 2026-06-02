@@ -163,6 +163,50 @@ public class MascotAnimatorTests
         Assert.True(seen.Count > 1, "el verbo debe rotar dentro del pool");
     }
 
+    // --- reduce-motion: puerta única → frame base estático (Tarea 7) -------
+
+    [Fact]
+    public void ReduceMotion_collapses_to_the_static_base_state_for_every_phase_and_time()
+    {
+        // Con reduceMotion=true el animador devuelve SIEMPRE el frame base: sin spinner (incluso en
+        // Processing/Compacting, que normalmente sí lo llevan), sin parpadeo, frame 0, verbo 0. Así la
+        // puerta única no deja ningún resto de animación (ni un spinner congelado).
+        foreach (SessionPhase p in Enum.GetValues<SessionPhase>())
+        {
+            for (double t = 0; t <= 6000; t += 37)
+            {
+                var st = MascotAnimator.Sample(p, t, seed: 9, reduceMotion: true);
+                Assert.Equal('\0', st.SpinnerGlyph);
+                Assert.False(st.Blinking);
+                Assert.Equal(0, st.FrameIndex);
+                Assert.Equal(0, st.VerbIndex);
+            }
+        }
+    }
+
+    [Fact]
+    public void ReduceMotion_suppresses_the_spinner_that_is_otherwise_present()
+    {
+        // Regresión directa del bloqueante: en Processing/Compacting el spinner está vivo por defecto,
+        // pero con reduce-motion debe desaparecer (no quedar congelado en SpinnerSequence[0] = '⠋').
+        foreach (var p in new[] { SessionPhase.Processing, SessionPhase.Compacting })
+        {
+            Assert.NotEqual('\0', MascotAnimator.Sample(p, 0, seed: 1).SpinnerGlyph);
+            Assert.Equal('\0', MascotAnimator.Sample(p, 0, seed: 1, reduceMotion: true).SpinnerGlyph);
+        }
+    }
+
+    [Fact]
+    public void ReduceMotion_matches_the_published_static_state()
+    {
+        Assert.Equal(MascotAnimator.StaticState, MascotAnimator.Sample(SessionPhase.Processing, 1234, reduceMotion: true));
+        // El StaticState es el frame base esperado: sin movimiento de ningún tipo.
+        Assert.Equal('\0', MascotAnimator.StaticState.SpinnerGlyph);
+        Assert.False(MascotAnimator.StaticState.Blinking);
+        Assert.Equal(0, MascotAnimator.StaticState.FrameIndex);
+        Assert.Equal(0, MascotAnimator.StaticState.VerbIndex);
+    }
+
     [Fact]
     public void Localized_verb_is_resolved_for_every_phase_and_language()
     {

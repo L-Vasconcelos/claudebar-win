@@ -41,9 +41,22 @@ public static class MascotAnimator
     // --- Verbo: cada cuánto rota dentro del pool ---------------------------
     private const double VerbStepMs = 1700.0;
 
-    /// <summary>Muestrea el estado de animación de la mascota en <paramref name="elapsedMs"/> de la fase.</summary>
-    public static MascotState Sample(SessionPhase phase, double elapsedMs, int seed = 0)
+    /// <summary>
+    /// Frame base estático de la mascota: sin parpadeo, sin spinner, verbo en el índice 0. Es el
+    /// estado al que colapsa toda la vida de la mascota cuando <c>reduceMotion</c> está activo
+    /// (puerta única de la Tarea 7): conserva color/forma por fase pero NO hay movimiento.
+    /// </summary>
+    public static MascotState StaticState => new(FrameIndex: 0, Blinking: false, SpinnerGlyph: '\0', VerbIndex: 0);
+
+    /// <summary>
+    /// Muestrea el estado de animación de la mascota en <paramref name="elapsedMs"/> de la fase. Con
+    /// <paramref name="reduceMotion"/> colapsa al <see cref="StaticState"/> (frame base, sin spinner ni
+    /// jitter) por la <b>misma puerta</b> que el resto del motor — así reduce-motion no deja ningún
+    /// resto de animación (spinner congelado incluido).
+    /// </summary>
+    public static MascotState Sample(SessionPhase phase, double elapsedMs, int seed = 0, bool reduceMotion = false)
     {
+        if (reduceMotion) return StaticState;
         if (elapsedMs < 0) elapsedMs = 0;
 
         int frameCount = MascotSprite.Frames(phase, MascotSize.Large).Count;

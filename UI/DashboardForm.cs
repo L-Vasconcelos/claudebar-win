@@ -64,13 +64,17 @@ public sealed class DashboardForm : Form
     private double _celebrationUntilMs = double.NegativeInfinity; // elapsed hasta el que dura el destello
     private bool _resetPending;                  // hay un reset detectado sin "consumir" en el humor todavía
 
-    /// <summary>Tiempo (ms) en la fase actual de la mascota. Con reduce-motion = 0 (frame base estático).</summary>
-    private double MascotElapsedMs() =>
-        _reduceMotion ? 0.0 : _clock.Elapsed.TotalMilliseconds - _mascotPhaseStartMs;
+    /// <summary>Tiempo (ms) en la fase actual de la mascota (elapsed crudo del reloj de fase).</summary>
+    private double MascotElapsedMs() => _clock.Elapsed.TotalMilliseconds - _mascotPhaseStartMs;
 
-    /// <summary>Muestrea el estado del animador para la fase global vigente.</summary>
+    /// <summary>
+    /// Muestrea el estado del animador para la fase global vigente. La puerta única de reduce-motion
+    /// se PROPAGA al animador (<c>reduceMotion: _reduceMotion</c>), que colapsa al frame base estático
+    /// (sin spinner ni jitter). No se confía en elapsed=0 para suprimir el spinner: <c>Sample(Processing,
+    /// 0)</c> aún devolvería el glifo <c>SpinnerSequence[0]</c>, así que el gate va por el flag.
+    /// </summary>
     private MascotState SampleMascot() =>
-        MascotAnimator.Sample(_liveView.GlobalPhase, MascotElapsedMs(), MascotSeed);
+        MascotAnimator.Sample(_liveView.GlobalPhase, MascotElapsedMs(), MascotSeed, _reduceMotion);
 
     /// <summary>
     /// Reinicia el reloj de fase si <see cref="LiveSessionsView.GlobalPhase"/> cambió y empuja el
