@@ -270,10 +270,10 @@ internal static class Program
         spend.CostByModel["Sonnet"] = 35.20;
         spend.CostByModel["Haiku"] = 1.10;
 
-        var paceFive = new PaceResult("5h", 62, 1.30,
+        var paceFive = new PaceResult("5h", 62, 1.30, 47.7,
             new DateTimeOffset(now.AddHours(1).AddMinutes(10), TimeSpan.Zero),
             new DateTimeOffset(now.AddHours(1).AddMinutes(40), TimeSpan.Zero), true, PaceStatus.Critical);
-        var paceSeven = new PaceResult("7d", 84, 0.95, null,
+        var paceSeven = new PaceResult("7d", 84, 0.95, 88.4, null,
             new DateTimeOffset(now.AddDays(2).AddHours(6), TimeSpan.Zero), false, PaceStatus.Ok);
 
         return new AppSnapshot

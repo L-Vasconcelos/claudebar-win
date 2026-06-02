@@ -6,6 +6,7 @@ public sealed record PaceResult(
     string Window,                 // "5h" | "7d"
     double UtilPct,
     double PaceRatio,              // used% / ideal% (>1 = ahead of pace)
+    double IdealPct,               // % donde deberías ir según el tiempo transcurrido
     DateTimeOffset? EtaUtc,        // projected time to hit 100% (null if not burning)
     DateTimeOffset? ResetsAt,
     bool ExhaustsBeforeReset,
@@ -58,7 +59,7 @@ public static class PaceCalculator
                    : paceRatio >= OverThreshold ? PaceStatus.Over
                    : PaceStatus.Ok;
 
-        return new PaceResult(window, u, paceRatio, eta, reset, exhausts, status);
+        return new PaceResult(window, u, paceRatio, idealUsed, eta, reset, exhausts, status);
     }
 
     private static double? PositiveRate(IReadOnlyList<PctPoint> recent, Func<PctPoint, double?> sel, DateTime fromUtc, DateTime nowUtc)
