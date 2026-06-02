@@ -1,3 +1,4 @@
+using System.Drawing.Drawing2D;
 using ClaudeBarWin.Config;
 using ClaudeBarWin.Services;
 
@@ -39,13 +40,16 @@ public static class DashboardSettingsView
 
         // -------- Sesiones en vivo --------
         y = GroupHeader(g, draw, s.MenuLiveSessions, x, y, theme, labelFont);
-        // Activar/desactivar la feature instalando/quitando los hooks (acción especial: diálogo + instalador).
-        y = ActionRow(g, draw, "special:hooktoggle",
-            HookInstaller.IsInstalled() ? s.MenuUninstallHooks : s.MenuInstallHooks, x, y, w, theme, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:ShowMascot", s.MenuShowMascot, cfg.ShowMascot, x, y, w, theme, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:Suppress", s.MenuSuppressWhenFocused, cfg.SuppressWhenFocused, x, y, w, theme, smallFont, rects);
         y = SegmentedRow(g, draw, "mascotsize", s.MascotSizeLabel,
             new[] { ("compact", s.MascotSizeCompact), ("large", s.MascotSizeLarge) }, cfg.MascotSize, x, y, w, theme, smallFont, rects);
+        // Activador de la feature = BOTÓN destacado (no una fila más): instala/quita hooks en
+        // ~/.claude/settings.json con confirmación en el host. Verde = activar, rojo = desactivar (delicado).
+        bool hooksOn = HookInstaller.IsInstalled();
+        y = ButtonRow(g, draw, "special:hooktoggle",
+            hooksOn ? s.MenuUninstallHooks : s.MenuInstallHooks,
+            hooksOn ? theme.Critical : theme.Ok, x, y, w, theme, smallFont, rects);
 
         // -------- Notificaciones --------
         y = GroupHeader(g, draw, s.Notifications, x, y, theme, labelFont);
@@ -249,6 +253,42 @@ public static class DashboardSettingsView
             g.DrawString("› " + label, f, b, x, y);
         }
         return y + 20;
+    }
+
+    /// <summary>
+    /// Botón destacado de ancho completo (relleno tenue + borde + texto del color de acento) para acciones
+    /// que deben "verse como botón" y no como una fila más. Registra rects[key]. Avanza h+8.
+    /// </summary>
+    private static int ButtonRow(Graphics g, bool draw, string key, string label, Color accent,
+        int x, int y, int w, Theme theme, Font f, Dictionary<string, Rectangle> rects)
+    {
+        const int h = 28;
+        var r = new Rectangle(x, y, w, h);
+        rects[key] = r;
+        if (draw)
+        {
+            using var path = RoundedRectPath(new Rectangle(x, y, w - 1, h - 1), 7);
+            using (var fill = new SolidBrush(Color.FromArgb(38, accent)))
+                g.FillPath(fill, path);
+            using (var pen = new Pen(accent, 1.5f))
+                g.DrawPath(pen, path);
+            using var tb = new SolidBrush(accent);
+            using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            g.DrawString(label, f, tb, r, sf);
+        }
+        return y + h + 8;
+    }
+
+    private static GraphicsPath RoundedRectPath(Rectangle r, int radius)
+    {
+        int d = Math.Max(2, radius * 2);
+        var p = new GraphicsPath();
+        p.AddArc(r.X, r.Y, d, d, 180, 90);
+        p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+        p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+        p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+        p.CloseFigure();
+        return p;
     }
 
     /// <summary>

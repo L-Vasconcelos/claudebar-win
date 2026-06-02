@@ -8,19 +8,33 @@ namespace ClaudeBarWin.UI;
 /// <summary>Cabecera de un vistazo: mascota + estado servicio + cuota crítica + pace. Sin estado.</summary>
 public static class DashboardHeader
 {
+    // Glifo de engranaje de la fuente de iconos del sistema (Segoe MDL2 Assets, Win10+): nítido y vectorial,
+    // a diferencia del carácter de texto "⚙" que sale diminuto/borroso. Cacheado (se crea una sola vez).
+    private const string GearGlyph = ""; // MDL2 "Settings"
+    private static readonly Font GearIconFont = new("Segoe MDL2 Assets", 15f, GraphicsUnit.Pixel);
+    private static readonly StringFormat CenterFormat = new()
+    {
+        Alignment = StringAlignment.Center,
+        LineAlignment = StringAlignment.Center
+    };
+
     /// <summary>Dibuja la cabecera y devuelve el nuevo y. Registra el rect del ⚙ en gearRect.</summary>
     public static int Draw(Graphics g, bool draw, int x, int y, int w,
                            AppSnapshot? snap, LiveSessionsView live, AppConfig cfg, Strings s, Theme theme,
                            int mascotFrame, Font labelFont, Font smallFont, Font mono,
                            ref Rectangle gearRect)
     {
-        // 1) botón ⚙ arriba a la derecha (siempre)
-        var gear = new Rectangle(x + w - 18, y, 16, 16);
+        // 1) botón ⚙ arriba a la derecha (siempre): botón con fondo redondeado + glifo nítido,
+        //    para que se lea bien y parezca clicable (antes era un "⚙" diminuto y atenuado, sin fondo).
+        const int gearSize = 24;
+        var gear = new Rectangle(x + w - gearSize, y, gearSize, gearSize);
         gearRect = gear;
         if (draw)
         {
-            using var b = new SolidBrush(theme.Dim);
-            g.DrawString("⚙", smallFont, b, gear.X, gear.Y); // ⚙
+            using (var bgBrush = new SolidBrush(theme.Track))
+                FillRounded(g, bgBrush, gear, 7);
+            using var glyphBrush = new SolidBrush(theme.Foreground);
+            g.DrawString(GearGlyph, GearIconFont, glyphBrush, gear, CenterFormat);
         }
 
         // 2) mascota a la izquierda (si ShowMascot y LiveSessionsEnabled)

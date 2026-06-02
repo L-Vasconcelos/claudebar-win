@@ -217,7 +217,7 @@ internal static class Program
     /// user can see how they escalate, then exits. Diagnostic / demo only.</summary>
     private static void RunNotifyDemo()
     {
-        var samples = new (int pct, string dot, ToolTipIcon icon, UsageStatus st)[]
+        var trayBadges = new (int pct, string dot, ToolTipIcon icon, UsageStatus st)[]
         {
             (25, "🟢", ToolTipIcon.Info, UsageStatus.Ok),
             (50, "🟡", ToolTipIcon.Warning, UsageStatus.Ok),
@@ -231,7 +231,7 @@ internal static class Program
 
         void Show(int idx)
         {
-            var s = samples[idx];
+            var s = trayBadges[idx];
             var ic = TrayIconRenderer.Render(s.pct, Theme.StatusColor(Theme.Dark, s.st));
             tray.Icon = ic;
             cur?.Dispose();
@@ -247,7 +247,7 @@ internal static class Program
         var t = new System.Windows.Forms.Timer { Interval = 4500 };
         t.Tick += (_, _) =>
         {
-            if (i < samples.Length) Show(i++);
+            if (i < trayBadges.Length) Show(i++);
             else { t.Stop(); tray.Visible = false; tray.Dispose(); cur?.Dispose(); ctx.ExitThread(); }
         };
         t.Start();
@@ -346,16 +346,16 @@ internal static class Program
         }
 
         // Tray icon badges by status.
-        var samples = new (int pct, UsageStatus st)[]
+        var trayBadges = new (int pct, UsageStatus st)[]
         { (42, UsageStatus.Ok), (78, UsageStatus.Warn), (95, UsageStatus.Critical), (130, UsageStatus.Critical) };
         const int scale = 3, pad = 10, icon = 32;
-        using (var strip = new Bitmap((icon * scale + pad) * samples.Length + pad, icon * scale + pad * 2))
+        using (var strip = new Bitmap((icon * scale + pad) * trayBadges.Length + pad, icon * scale + pad * 2))
         using (var g = Graphics.FromImage(strip))
         {
             g.Clear(Color.FromArgb(45, 45, 48));
             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             int x = pad;
-            foreach (var s in samples)
+            foreach (var s in trayBadges)
             {
                 using var ic = TrayIconRenderer.Render(s.pct, Theme.StatusColor(Theme.Dark, s.st));
                 using var b = ic.ToBitmap();
@@ -373,18 +373,18 @@ internal static class Program
         var dir = Path.Combine(Path.GetTempPath(), "claudebar-render");
         Directory.CreateDirectory(dir);
 
-        var samples = new (int pct, UsageStatus st)[]
+        var trayBadges = new (int pct, UsageStatus st)[]
         {
             (42, UsageStatus.Ok), (78, UsageStatus.Warn), (95, UsageStatus.Critical), (130, UsageStatus.Critical)
         };
         const int scale = 3, pad = 10, icon = 32;
-        using (var strip = new Bitmap((icon * scale + pad) * samples.Length + pad, icon * scale + pad * 2))
+        using (var strip = new Bitmap((icon * scale + pad) * trayBadges.Length + pad, icon * scale + pad * 2))
         using (var g = Graphics.FromImage(strip))
         {
             g.Clear(Color.FromArgb(45, 45, 48));
             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             int x = pad;
-            foreach (var s in samples)
+            foreach (var s in trayBadges)
             {
                 using var ic = TrayIconRenderer.Render(s.pct, Theme.StatusColor(Theme.Dark, s.st));
                 using var bmp = ic.ToBitmap();
@@ -428,7 +428,39 @@ internal static class Program
             bmpL.Save(Path.Combine(dir, "mascot-large.png"));
         }
 
-        Console.WriteLine("rendered data.png + settings.png + mascot-large.png");
+        // Tira de badges del icono de bandeja para QA visual: cada estado a 48px (nativo) y a 16px
+        // (tamaño real en la barra de tareas a 100% DPI), sobre un fondo gris tipo taskbar.
+        {
+            var trayQa = new (string label, Icon ico)[]
+            {
+                ("12%",  TrayIconRenderer.Render(12,  Theme.StatusColor(Theme.Dark, UsageStatus.Ok))),
+                ("68%",  TrayIconRenderer.Render(68,  Theme.StatusColor(Theme.Dark, UsageStatus.Warn))),
+                ("95%",  TrayIconRenderer.Render(95,  Theme.StatusColor(Theme.Dark, UsageStatus.Critical))),
+                ("99+",  TrayIconRenderer.Render(120, Theme.StatusColor(Theme.Dark, UsageStatus.Critical))),
+                ("pend", TrayIconRenderer.Render(45,  Theme.StatusColor(Theme.Dark, UsageStatus.Warn), pending: true)),
+                ("err",  TrayIconRenderer.RenderError(Theme.Dark.Neutral)),
+            };
+            const int cell = 64;
+            using var strip = new Bitmap(trayQa.Length * cell, cell + 16 + 22);
+            using (var g2 = Graphics.FromImage(strip))
+            {
+                g2.Clear(Color.FromArgb(0x2A, 0x2A, 0x2A));
+                g2.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                using var lf = new Font("Segoe UI", 8f);
+                for (int i = 0; i < trayQa.Length; i++)
+                {
+                    using var bm = trayQa[i].ico.ToBitmap();
+                    int cx = i * cell;
+                    g2.DrawImage(bm, cx + (cell - 48) / 2, 8, 48, 48);        // 48px nativo
+                    g2.DrawImage(bm, cx + (cell - 16) / 2, 8 + 48 + 4, 16, 16); // 16px = barra real
+                    g2.DrawString(trayQa[i].label, lf, Brushes.White, cx + 6, cell + 18);
+                    trayQa[i].ico.Dispose();
+                }
+            }
+            strip.Save(Path.Combine(dir, "tray-badges.png"));
+        }
+
+        Console.WriteLine("rendered data.png + settings.png + mascot-large.png + tray-badges.png");
         Console.WriteLine(dir);
     }
 }

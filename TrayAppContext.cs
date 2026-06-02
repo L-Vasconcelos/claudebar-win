@@ -285,8 +285,20 @@ public sealed class TrayAppContext : ApplicationContext
 
     private void ToggleHooks()
     {
+        // Instalar/quitar hooks toca la configuración GLOBAL de Claude Code (~/.claude/settings.json),
+        // que puede estar usándose en sesiones 24/7. Por eso ambos sentidos piden confirmación explícita
+        // (botón por defecto "No" → no se dispara con un Enter/clic accidental).
         if (HookInstaller.IsInstalled())
         {
+            var confirm = MessageBox.Show(
+                "Vas a DESACTIVAR las sesiones en vivo de ClaudeBar.\n\n" +
+                "Se quitarán los hooks de tu configuración global de Claude Code (~/.claude/settings.json) " +
+                "y la mascota y los avisos de estado dejarán de actualizarse.\n\n" +
+                "Se hará una copia de seguridad de settings.json antes de tocarlo.\n\n" +
+                "¿Seguro que quieres desactivarlas?",
+                _s.MenuLiveSessions, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (confirm != DialogResult.Yes) return;
+
             HookInstaller.Uninstall(DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"));
             MutateConfig(c => c.LiveSessionsEnabled = false);
             StopPipe();
@@ -295,9 +307,13 @@ public sealed class TrayAppContext : ApplicationContext
         }
 
         var ok = MessageBox.Show(
-            "ClaudeBar va a modificar ~/.claude/settings.json para recibir eventos de tus sesiones de Claude Code. Se hará una copia de seguridad antes. ¿Continuar?",
-            _s.MenuLiveSessions, MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
-        if (ok != DialogResult.OK) return;
+            "Vas a ACTIVAR las sesiones en vivo de ClaudeBar.\n\n" +
+            "Esto añadirá hooks a tu configuración global de Claude Code (~/.claude/settings.json) para que " +
+            "ClaudeBar reciba el estado de tus sesiones (mascota + avisos de bandeja).\n\n" +
+            "Se hará una copia de seguridad de settings.json antes de modificarlo.\n\n" +
+            "¿Continuar?",
+            _s.MenuLiveSessions, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+        if (ok != DialogResult.Yes) return;
 
         var backup = HookInstaller.Install(HookScript.Contents(), DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"));
         MutateConfig(c => c.LiveSessionsEnabled = true);

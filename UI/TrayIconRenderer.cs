@@ -30,33 +30,37 @@ public static class TrayIconRenderer
 
     private static Icon RenderBadge(string text, Color bg, bool pending)
     {
-        const int size = 32;
+        // Render at high resolution (48px) so Windows downscales to a crisp tray icon on any DPI.
+        const int size = 48;
         using var bmp = new Bitmap(size, size);
         using (var g = Graphics.FromImage(bmp))
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            g.TextRenderingHint = TextRenderingHint.AntiAlias;
             g.Clear(Color.Transparent);
 
             using (var brush = new SolidBrush(bg))
-                FillRounded(g, brush, new Rectangle(0, 0, size - 1, size - 1), 8);
+                FillRounded(g, brush, new Rectangle(0, 0, size - 1, size - 1), 11);
 
-            float fontPx = text.Length >= 3 ? 13f : 17f;
+            // Larger glyph that fills more of the badge → readable even when shrunk into the tray.
+            // 3-char ("99+") gets a smaller size and NoWrap so it stays on a single line (no "99 / +").
+            float fontPx = text.Length >= 3 ? 18f : 30f;
             using var font = new Font("Segoe UI", fontPx, FontStyle.Bold, GraphicsUnit.Pixel);
             using var sf = new StringFormat
             {
                 Alignment = StringAlignment.Center,
-                LineAlignment = StringAlignment.Center
+                LineAlignment = StringAlignment.Center,
+                FormatFlags = StringFormatFlags.NoWrap
             };
-            g.DrawString(text, font, Brushes.White, new RectangleF(0, -1, size, size), sf);
+            g.DrawString(text, font, Brushes.White, new RectangleF(0, -2f, size, size), sf);
 
             if (pending)
             {
                 var amber = Color.FromArgb(0xF5, 0xA6, 0x23);
-                int d = 12;
+                int d = 18;
                 var badge = new Rectangle(size - d - 1, 0, d, d);
                 using var fill = new SolidBrush(amber);
-                using var ring = new Pen(Color.FromArgb(0x1A, 0x1A, 0x1A), 1.5f);
+                using var ring = new Pen(Color.FromArgb(0x1A, 0x1A, 0x1A), 2.5f);
                 g.FillEllipse(fill, badge);
                 g.DrawEllipse(ring, badge);
             }
