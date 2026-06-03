@@ -58,4 +58,37 @@ public class ThemeTokenTests
         double r = ColorMath.ContrastRatio(Theme.Light.TextSecondary, Theme.Light.Background);
         Assert.True(r >= 4.5, $"TextSecondary del tema claro contrasta {r:0.00}:1 (< 4.5)");
     }
+
+    // --- v0.3.5 P1 #3: subir el contraste donde fallaba (texto pequeño AA ≥ 4.5:1) ---
+
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void Text_muted_meets_aa_small_text_contrast_in_every_theme(Theme t)
+    {
+        // El gris/verde tenue (subtítulos, footer, verbo de mascota) debe ser legible en TODOS los temas.
+        // El CLI tenía #006E2C (~3.3:1 sobre negro) → ilegible; ahora #00963C (~5.4:1). Un único token
+        // TextMuted por tema que cumple AA.
+        double r = ColorMath.ContrastRatio(t.TextMuted, t.Background);
+        Assert.True(r >= 4.5, $"[{t.Id}] TextMuted contrasta {r:0.00}:1 (< 4.5)");
+    }
+
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void Accent_as_text_meets_aa_small_text_contrast_in_every_theme(Theme t)
+    {
+        // El acento usado como TEXTO/borde fino (botón "Importar tema") debe cumplir AA. El naranja de
+        // relleno (#CC785C) caía a ~3.1:1 como texto sobre fondo claro → AccentText lo oscurece (#A84B33).
+        double r = ColorMath.ContrastRatio(t.AccentText, t.Background);
+        Assert.True(r >= 4.5, $"[{t.Id}] AccentText contrasta {r:0.00}:1 (< 4.5)");
+    }
+
+    [Fact]
+    public void AccentText_falls_back_to_accent_when_not_overridden()
+    {
+        // En oscuro/CLI el acento ya es legible como texto → AccentText == Accent (sin override).
+        Assert.Equal(Theme.Dark.Accent, Theme.Dark.AccentText);
+        Assert.Equal(Theme.Cli.Accent, Theme.Cli.AccentText);
+        // El tema claro SÍ lo oscurece (override presente).
+        Assert.NotEqual(Theme.Light.Accent, Theme.Light.AccentText);
+    }
 }

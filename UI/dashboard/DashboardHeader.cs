@@ -70,20 +70,23 @@ public static class DashboardHeader
             }
         }
 
-        // 2) mascota a la izquierda (si ShowMascot): sprite (frame del animador) + verbo localizado
-        //    JUGUETÓN con elipsis bajo la mascota. El verbo reserva su alto en AMBAS pasadas
-        //    (medir/pintar) para no romper el invariante de layout.
+        // 2) mascota en su PROPIA banda a ancho completo (si ShowMascot): sprite (frame del animador) +
+        //    verbo localizado JUGUETÓN con elipsis bajo la mascota. El verbo reserva su alto en AMBAS
+        //    pasadas (medir/pintar) para no romper el invariante de layout.
+        //    P1 #2 (sin colisión): la mascota YA NO comparte fila con el bloque de estado (antes el sprite
+        //    robaba ancho a la columna de texto y la línea de salud se cortaba en el borde). Ahora ocupa
+        //    una banda propia ARRIBA, con aire (Spacing.Sm) antes del bloque de estado, que pasa a usar el
+        //    ancho COMPLETO (textX = x). Adiós al recorte por columna robada.
         //    T0: la visibilidad se DESACOPLA de LiveSessionsEnabled (antes `live && mascota`, el bug):
         //    con ShowMascot on y live off se ve un gato Idle estático (ambiente). Las puertas de
         //    ANIMACIÓN siguen exigiendo live on (bote en SyncBounce, fast-tick/mascotAlive en
         //    DashboardForm; aquí el bounce llega ya gateado y, con draw=false, se fuerza a 0).
-        // Margen superior del bloque de estado (T9/§3.4): el contenido arrancaba en y+18 y se solapaba
-        // con la fila del ⚙/✕ (24px). Ahora baja a `gearSize + Spacing.Xs` para despegarlo de los
-        // botones. Tokenizado (fin del 18 mágico) y simétrico en medir/pintar.
+        // Margen superior del bloque (T9/§3.4): el contenido arrancaba en y+18 y se solapaba con la fila
+        // del ⚙/✕ (24px). Ahora baja a `gearSize + Spacing.Xs` para despegarlo de los botones.
         int top = y + gearSize + Spacing.Xs;
         var mascotSize = MascotSprite.ParseSize(cfg.MascotSize);
+        // El bloque de estado usa el ancho COMPLETO: la mascota ya no comparte su fila (banda propia).
         int textX = x;
-        int mascotH = 0;
         if (cfg.ShowMascot)
         {
             // Bote de atención: desplaza SOLO el dibujo de la mascota hacia arriba (px ≥ 0) dentro de
@@ -117,11 +120,13 @@ public static class DashboardHeader
                 }
             }
 
-            textX = x + sz.Width + 12;
-            mascotH = sz.Height + (verbH > 0 ? verbH + 2 : 0);
+            // Banda de la mascota: alto de sprite + verbo. El bloque de estado arranca DEBAJO con aire
+            // Spacing.Sm (gutter vertical). Esto suma en AMBAS pasadas (no depende de draw) → medir==pintar.
+            int mascotBandH = sz.Height + (verbH > 0 ? verbH + 2 : 0);
+            top += mascotBandH + Spacing.Sm;
         }
 
-        // 3) a la derecha: estado de servicio + UN glance de cuota (sin barra/reset/pace).
+        // 3) bloque de estado a ancho completo: estado de servicio + UN glance de cuota (sin barra/reset/pace).
         // P0 #4: el header YA NO pinta la barra crítica completa (barra+reset+pace), que DUPLICABA la
         // primera fila de la sección "Cuota" (misma sesión y su pace pintados dos veces) y cuyo pace se
         // cortaba ("⚠ vie 1…") porque la columna de la mascota roba ancho. La "Sesión (5h)" completa vive
@@ -193,7 +198,9 @@ public static class DashboardHeader
             ty += 16; // glance de UNA línea
         }
 
-        int bottom = Math.Max(ty, top + mascotH);
+        // La mascota vive en su banda ARRIBA (ya sumada en `top`), así que el fondo del header es el final
+        // del bloque de estado. Divisor de "Cuota" debajo, con la mascota por ENCIMA (P1 #2).
+        int bottom = ty;
         // separador
         if (draw) { using var p = new Pen(theme.Separator); g.DrawLine(p, x, bottom + 4, x + w, bottom + 4); }
         return bottom + 10;

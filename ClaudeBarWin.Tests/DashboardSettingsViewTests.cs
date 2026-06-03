@@ -719,6 +719,39 @@ public class DashboardSettingsViewTests
     }
 
     [Fact]
+    public void Inactive_chip_has_separator_border_so_it_reads_as_button()
+    {
+        // P1 #3: el chip INACTIVO lleva un borde sutil (Theme.Separator) para leerse como BOTÓN incluso
+        // cuando su relleno (BgElevated) casi iguala al fondo del panel — el caso del tema claro (#FFF sobre
+        // #FAFAFA, antes invisible). Verificado en el tema CLARO: el borde superior del chip (1px) es del
+        // color Separator y el relleno interior NO. (El chip activo no lo necesita: ya contrasta.)
+        const int x = 16, w = 308, y = 30;
+        using var bmp = new Bitmap(x + w + 40, 100);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Light.Background);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.MultiSegmentRow(g, draw: true, "milestone", "", MilestoneSegs,
+            new[] { 25 }, x, y, w, Theme.Light, Typography.Caption, rects);
+
+        Assert.True(rects.TryGetValue("milestone:50", out var r)); // 50 inactivo → relleno BgElevated + borde
+        var sep = Theme.Light.Separator;
+        bool NearSep(Color c) => Math.Abs(c.R - sep.R) <= 12 && Math.Abs(c.G - sep.G) <= 12 && Math.Abs(c.B - sep.B) <= 12;
+
+        // Busca el borde Separator en el lado SUPERIOR del chip (recorre la fila justo en r.Y, parte central
+        // para evitar las esquinas redondeadas). El trazo de 1px vive en [r.Y, r.Y+1].
+        bool foundBorder = false;
+        int midX = r.X + r.Width / 2;
+        for (int py = r.Y; py <= r.Y + 1 && !foundBorder; py++)
+            if (NearSep(bmp.GetPixel(midX, py))) foundBorder = true;
+        Assert.True(foundBorder, "el chip inactivo debe tener un borde Separator (track) en el tema claro");
+
+        // El interior del chip (relleno BgElevated #FFF) NO es Separator (no se rellenó con el borde).
+        var inner = bmp.GetPixel(r.X + r.Width / 2, r.Y + r.Height / 2);
+        Assert.False(NearSep(inner), "el relleno del chip inactivo no debe ser del color del borde");
+    }
+
+    [Fact]
     public void MultiSegmentRow_advance_is_one_segment_row()
     {
         // Los hitos compactos (25/50/75/95) caben en un renglón → el avance es el de una fila de
@@ -1159,25 +1192,158 @@ public class DashboardSettingsViewTests
     }
 
     [Fact]
-    public void LiveSessions_badge_says_active_green_when_installed()
+    public void LiveSessions_master_is_positive_toggle_not_double_negation_label()
     {
-        // Con hooks instalados el StatusBadge dice "Activas" en verde (Theme.Ok).
-        const int x = 16, w = 308, y = 30;
-        using var bmp = new Bitmap(x + w + 40, 200);
+        // P1 #1: la fila maestra es un toggle POSITIVO. Su label es "Activadas" (s.Enabled, mismo patrón que
+        // NOTIFICACIONES) — NUNCA la antigua doble negación "Desactivar (quitar hooks)". El subtítulo gris
+        // explica los hooks. No hay StatusBadge "Activas/Instalar" duplicando al toggle.
+        using var bmp = NewBmp();
         using var g = Graphics.FromImage(bmp);
-        g.Clear(Theme.Dark.Background);
         var cfg = Cfg();
         var s = Localization.Get("es");
         var rects = new Dictionary<string, Rectangle>();
 
-        // Badge geométrico independiente: el helper de badge usa Ok cuando installed.
-        var badge = DashboardSettingsView.StatusBadge(g, draw: true, s.BadgeActive, Theme.Dark.Ok,
-            x, x + w, y, 28, Theme.Dark, Typography.Caption);
-        var c = bmp.GetPixel(badge.X + 3, badge.Y + badge.Height / 2);
-        var ok = Theme.Dark.Ok;
-        Assert.True(Math.Abs(c.R - ok.R) <= 10 && Math.Abs(c.G - ok.G) <= 10 && Math.Abs(c.B - ok.B) <= 10,
-            "instalado → badge verde (Ok)");
-        Assert.Equal("Activas", s.BadgeActive);
+        DashboardSettingsView.LiveSessionsSection(g, draw: true, hooksInstalled: true,
+            X, 100, W, cfg, s, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        // La fila maestra responde y es la de hooks.
+        Assert.True(rects.ContainsKey("special:hooktoggle"), "la fila maestra de hooks debe registrarse");
+        // El label POSITIVO es "Activadas"; ya no se usa el de doble negación en la fila maestra.
+        Assert.Equal("Activadas", s.Enabled);
+        Assert.Contains("Desactivar", s.MenuUninstallHooks); // sigue existiendo para el menú del tray…
+        // …pero la fila maestra del panel NO usa ese label de doble negación (lo verifica el pixel del pill).
+        Assert.Equal("Instala/quita hooks en ~/.claude/settings.json", s.LiveSessionsSubtitle);
+    }
+
+    [Fact]
+    public void LiveSessions_master_toggle_pill_reflects_installed_state()
+    {
+        // El pill del master refleja el estado: ON (Accent) cuando los hooks están instalados, OFF
+        // (Separator) cuando no. El pill comunica el estado → no hace falta un badge aparte (sin doble).
+        const int x = 16, w = 308;
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+
+        Color SampleMasterPill(bool installed, bool onSide)
+        {
+            using var bmp = new Bitmap(x + w + 40, 200);
+            using var g = Graphics.FromImage(bmp);
+            g.Clear(Theme.Dark.Background);
+            var rects = new Dictionary<string, Rectangle>();
+            DashboardSettingsView.LiveSessionsSection(g, draw: true, hooksInstalled: installed,
+                x, 20, w, cfg, s, Theme.Dark, Typography.Body, Typography.Caption, rects);
+            var r = rects["special:hooktoggle"];
+            // El pill se ancla a la derecha (track 36×20, margen Sm). Muestrea el lado del TRACK sin knob:
+            // ON → knob a la derecha → muestrear cuarto izquierdo; OFF → knob izq → cuarto derecho.
+            int trackRight = x + w - 8;          // rightX - Spacing.Sm
+            int trackLeft = trackRight - 36;     // PillTrackW
+            int py = r.Y + r.Height / 2;
+            int px = onSide ? trackLeft + 36 / 4 : trackRight - 36 / 4;
+            return bmp.GetPixel(px, py);
+        }
+
+        var cOn = SampleMasterPill(installed: true, onSide: true);
+        var acc = Theme.Dark.Accent;
+        Assert.True(Math.Abs(cOn.R - acc.R) <= 10 && Math.Abs(cOn.G - acc.G) <= 10 && Math.Abs(cOn.B - acc.B) <= 10,
+            $"hooks instalados → pill ON (Accent), fue #{cOn.R:X2}{cOn.G:X2}{cOn.B:X2}");
+
+        var cOff = SampleMasterPill(installed: false, onSide: false);
+        var sep = Theme.Dark.Separator;
+        Assert.True(Math.Abs(cOff.R - sep.R) <= 10 && Math.Abs(cOff.G - sep.G) <= 10 && Math.Abs(cOff.B - sep.B) <= 10,
+            $"hooks NO instalados → pill OFF (Separator), fue #{cOff.R:X2}{cOff.G:X2}{cOff.B:X2}");
+    }
+
+    // -------- MasterToggleRow: fila maestra POSITIVA con toggle-pill + subtítulo que ENVUELVE (P1 #1) --------
+
+    [Fact]
+    public void MasterToggleRow_measure_equals_paint()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.MasterToggleRow(g, draw: false, "special:hooktoggle",
+            "Activadas", "Instala/quita hooks en ~/.claude/settings.json", true,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.MasterToggleRow(g, draw: true, "special:hooktoggle",
+            "Activadas", "Instala/quita hooks en ~/.claude/settings.json", true,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void MasterToggleRow_hit_rect_covers_full_row_width()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.MasterToggleRow(g, draw: true, "special:hooktoggle",
+            "Activadas", "Instala/quita hooks en ~/.claude/settings.json", false,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.TryGetValue("special:hooktoggle", out var r));
+        Assert.Equal(X, r.X);
+        Assert.Equal(W, r.Width);
+        Assert.True(r.Height > 0);
+    }
+
+    [Fact]
+    public void MasterToggleRow_long_subtitle_wraps_not_ellipsizes()
+    {
+        // ANTI-CORTE (invariante de Yovan): un subtítulo más ancho que la columna de texto se ENVUELVE a 2+
+        // líneas (la fila crece), JAMÁS se elide. Verificado en los 8 idiomas (todos los subtítulos de hooks
+        // son largos). Sin "…" en el subtítulo; la fila con subtítulo largo es más alta que una de 1 línea.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+
+        // Altura de referencia: misma fila con un subtítulo CORTO de 1 línea.
+        var rShort = new Dictionary<string, Rectangle>();
+        DashboardSettingsView.MasterToggleRow(g, draw: true, "k", "Activadas", "ok", true,
+            X, 0, W, Theme.Dark, Typography.Body, Typography.Caption, rShort);
+        int shortH = rShort["k"].Height;
+
+        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
+        {
+            var s = Localization.Get(lang);
+            // El subtítulo de hooks no debe contener la elipsis (no se elide en ningún idioma).
+            Assert.DoesNotContain(TextWrap.Ellipsis, s.LiveSessionsSubtitle);
+
+            var rects = new Dictionary<string, Rectangle>();
+            DashboardSettingsView.MasterToggleRow(g, draw: true, "k", s.Enabled, s.LiveSessionsSubtitle, true,
+                X, 0, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+            int h = rects["k"].Height;
+            Assert.True(h > shortH,
+                $"[{lang}] el subtítulo largo de hooks debe ENVOLVER (fila más alta que 1 línea): h={h}, ref={shortH}");
+        }
+    }
+
+    [Fact]
+    public void MasterToggleRow_text_column_never_overlaps_pill()
+    {
+        // El texto (título+subtítulo) se mide contra la columna a la IZQUIERDA del pill (gutter Spacing.Md):
+        // ninguna línea del subtítulo, medida, rebasa el borde izquierdo del pill. Garantiza que el texto
+        // completo cabe sin solaparse con el control (medición determinista = la del propio helper).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var s = Localization.Get("nl"); // el subtítulo más largo (~359px)
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.MasterToggleRow(g, draw: true, "k", s.Enabled, s.LiveSessionsSubtitle, true,
+            X, 0, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        // Columna de texto: desde X hasta el borde izquierdo del pill (anclado a la derecha) menos gutter Md.
+        const int pillTrackW = 36; // PillTrackW
+        int pillLeft = (X + W) - Spacing.Sm - pillTrackW;
+        int textColW = pillLeft - Spacing.Md - X;
+        var lines = TextWrap.WordWrap(s.LiveSessionsSubtitle, textColW,
+            t => g.MeasureString(t, Typography.Caption).Width);
+        foreach (var line in lines)
+            Assert.True(g.MeasureString(line, Typography.Caption).Width <= textColW + 1,
+                $"la línea '{line}' rebasa la columna de texto ({textColW}px) → se solaparía con el pill");
+        Assert.True(lines.Count >= 2, "el subtítulo largo debe ocupar ≥2 líneas (envuelto, no cortado)");
     }
 
     // -------- Draw completo: orden de secciones, sin duplicados, mascota como dependiente --------

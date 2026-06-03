@@ -406,6 +406,12 @@ public static class DashboardDataView
                 bool active = key == activeKey;
                 using var bg = new SolidBrush(active ? theme.Accent : theme.BgElevated);
                 Shapes.FillRounded(g, bg, rect, 4);
+                // Borde sutil del chip inactivo (track) para que se lea como BOTÓN incluso cuando el
+                // BgElevated casi iguala al fondo (tema claro: #FFF sobre #FAFAFA, antes invisible). El
+                // chip activo (Accent) no lo necesita: ya contrasta. (P1 #3, lenguaje de pill único.)
+                if (!active)
+                    using (var bd = new Pen(theme.Separator))
+                        Shapes.DrawRounded(g, bd, rect, 4);
                 using var tb = new SolidBrush(active ? ColorMath.Contrast(theme.Accent) : theme.TextPrimary);
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString(label, font, tb, rect, sf);

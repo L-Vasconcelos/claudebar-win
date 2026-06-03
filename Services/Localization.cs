@@ -145,9 +145,11 @@ public sealed class Strings
 
     // Live sessions / Mascot
     public string MenuLiveSessions { get; init; } = "Live sessions";
-    /// <summary>Subtítulo de la fila maestra de hooks (T7): explica qué activan las sesiones en vivo.
-    /// Acortado (v0.3.5) para caber en UNA línea junto al badge sin recortarse (P0 #2).</summary>
-    public string LiveSessionsSubtitle { get; init; } = "Live status of your sessions";
+    /// <summary>Subtítulo de la fila maestra (P1 #1): la fila es ahora un toggle POSITIVO ("Sesiones en
+    /// vivo" ON = activadas). El subtítulo gris explica qué hace activar/desactivar — instala/quita los
+    /// hooks en la config global de Claude Code — en vez de la antigua doble negación del label. Sin
+    /// elipsis: si no cabe en 1 línea, la fila lo ENVUELVE (anti-corte).</summary>
+    public string LiveSessionsSubtitle { get; init; } = "Installs/removes hooks in ~/.claude/settings.json";
     public string MenuShowMascot { get; init; } = "Show mascot";
     public string MenuSuppressWhenFocused { get; init; } = "Mute when terminal focused";
     public string MenuInstallHooks { get; init; } = "Enable (install hooks)…";
@@ -360,7 +362,7 @@ public static class Localization
         UpdateDownloadedFmt = "Descargado en:\n{0}\n\nCierra ClaudeBar y reemplaza el .exe en uso por este archivo.",
         UpdateFailed = "No se pudo comprobar/descargar la actualización.",
         MenuLiveSessions = "Sesiones en vivo",
-        LiveSessionsSubtitle = "Estado de tus sesiones en vivo",
+        LiveSessionsSubtitle = "Instala/quita hooks en ~/.claude/settings.json",
         MenuShowMascot = "Mostrar mascota",
         MenuSuppressWhenFocused = "Silenciar si la terminal tiene foco",
         MenuInstallHooks = "Activar (instalar hooks)…",
@@ -483,7 +485,7 @@ public static class Localization
         UpdateDownloadedFmt = "Gedownload naar:\n{0}\n\nSluit ClaudeBar en vervang de actieve .exe door dit bestand.",
         UpdateFailed = "Kan de update niet controleren/downloaden.",
         MenuLiveSessions = "Live sessies",
-        LiveSessionsSubtitle = "Live status van je sessies",
+        LiveSessionsSubtitle = "Installeert/verwijdert hooks in ~/.claude/settings.json",
         MenuShowMascot = "Mascotte tonen",
         MenuSuppressWhenFocused = "Dempen als terminal focus heeft",
         MenuInstallHooks = "Inschakelen (hooks installeren)…",
@@ -606,7 +608,7 @@ public static class Localization
         UpdateDownloadedFmt = "Téléchargé dans :\n{0}\n\nFerme ClaudeBar et remplace le .exe en cours par ce fichier.",
         UpdateFailed = "Impossible de vérifier/télécharger la mise à jour.",
         MenuLiveSessions = "Sessions en direct",
-        LiveSessionsSubtitle = "État de tes sessions en direct",
+        LiveSessionsSubtitle = "Installe/retire les hooks dans ~/.claude/settings.json",
         MenuShowMascot = "Afficher la mascotte",
         MenuSuppressWhenFocused = "Muet si le terminal a le focus",
         MenuInstallHooks = "Activer (installer les hooks)…",
@@ -729,7 +731,7 @@ public static class Localization
         UpdateDownloadedFmt = "Heruntergeladen nach:\n{0}\n\nSchließe ClaudeBar und ersetze die laufende .exe durch diese Datei.",
         UpdateFailed = "Update konnte nicht geprüft/geladen werden.",
         MenuLiveSessions = "Live-Sitzungen",
-        LiveSessionsSubtitle = "Live-Status deiner Sitzungen",
+        LiveSessionsSubtitle = "Installiert/entfernt Hooks in ~/.claude/settings.json",
         MenuShowMascot = "Maskottchen anzeigen",
         MenuSuppressWhenFocused = "Stumm, wenn Terminal im Fokus",
         MenuInstallHooks = "Aktivieren (Hooks installieren)…",
@@ -852,7 +854,7 @@ public static class Localization
         UpdateDownloadedFmt = "ダウンロード先:\n{0}\n\nClaudeBar を閉じて、実行中の .exe をこのファイルに置き換えてください。",
         UpdateFailed = "更新の確認/ダウンロードに失敗しました。",
         MenuLiveSessions = "ライブセッション",
-        LiveSessionsSubtitle = "セッションのライブ状態",
+        LiveSessionsSubtitle = "~/.claude/settings.json にフックを追加/削除",
         MenuShowMascot = "マスコットを表示",
         MenuSuppressWhenFocused = "ターミナルがフォーカス中はミュート",
         MenuInstallHooks = "有効化（フックをインストール）…",
@@ -975,7 +977,7 @@ public static class Localization
         UpdateDownloadedFmt = "다운로드 위치:\n{0}\n\nClaudeBar를 닫고 실행 중인 .exe를 이 파일로 교체하세요.",
         UpdateFailed = "업데이트 확인/다운로드에 실패했습니다.",
         MenuLiveSessions = "실시간 세션",
-        LiveSessionsSubtitle = "세션의 실시간 상태",
+        LiveSessionsSubtitle = "~/.claude/settings.json에 훅 설치/제거",
         MenuShowMascot = "마스코트 표시",
         MenuSuppressWhenFocused = "터미널이 포커스일 때 음소거",
         MenuInstallHooks = "활성화 (훅 설치)…",
@@ -1098,7 +1100,7 @@ public static class Localization
         UpdateDownloadedFmt = "已下載到:\n{0}\n\n關閉 ClaudeBar 並用此檔案取代執行中的 .exe。",
         UpdateFailed = "無法檢查／下載更新。",
         MenuLiveSessions = "即時工作階段",
-        LiveSessionsSubtitle = "工作階段的即時狀態",
+        LiveSessionsSubtitle = "在 ~/.claude/settings.json 安裝／移除 hooks",
         MenuShowMascot = "顯示吉祥物",
         MenuSuppressWhenFocused = "終端機聚焦時靜音",
         MenuInstallHooks = "啟用（安裝 hooks）…",

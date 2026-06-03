@@ -231,6 +231,62 @@ public class DashboardHeaderTests
         Assert.Equal(RunHeaderSnap(g, draw: false, cfg, withEta), RunHeaderSnap(g, draw: false, cfg, noEta));
     }
 
+    // --- v0.3.5 P1 #2: la mascota tiene su PROPIA banda a ancho completo (sin colisión con el estado) ---
+
+    [Fact]
+    public void Mascot_band_stacks_above_status_block_not_in_parallel()
+    {
+        // La mascota ya NO comparte fila con el bloque de estado: ocupa una banda propia ARRIBA y el estado
+        // va DEBAJO (apilados, no en paralelo). Por tanto, con mascota + salud el header es más alto que
+        // con SOLO salud, en al menos el alto de la banda de la mascota (que ya conocemos de un header con
+        // mascota y sin estado). Si fueran en paralelo (diseño viejo) el alto sería el MÁXIMO, no la suma.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+
+        var snapHealth = new AppSnapshot
+        {
+            Health = new HealthStatus(HealthLevel.Operational, "All Systems Operational"),
+            LatestState = UsageFetchState.Ok, UsageAtUtc = DateTime.UtcNow
+        };
+
+        int mascotOnlyBand = RunHeader(g, draw: false, Cfg(showMascot: true, liveEnabled: false))
+                           - RunHeader(g, draw: false, Cfg(showMascot: false, liveEnabled: false));
+        Assert.True(mascotOnlyBand > 0, "la banda de la mascota debe reservar alto");
+
+        int statusOnly = RunHeaderSnap(g, draw: false, Cfg(showMascot: false, liveEnabled: false), snapHealth);
+        int mascotPlusStatus = RunHeaderSnap(g, draw: false, Cfg(showMascot: true, liveEnabled: false), snapHealth);
+
+        // Apilados: el alto con mascota+estado supera al de solo estado en (aprox.) la banda de la mascota.
+        Assert.True(mascotPlusStatus >= statusOnly + mascotOnlyBand - 1,
+            $"la mascota debe APILARSE sobre el estado (su banda), no ir en paralelo: " +
+            $"mascota+estado={mascotPlusStatus}, soloEstado={statusOnly}, banda={mascotOnlyBand}");
+    }
+
+    [Fact]
+    public void Mascot_band_measure_equals_paint_with_full_usage_and_health()
+    {
+        // medir==pintar con la mascota en su banda + salud + glance de cuota (el caso real del dashboard).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg(showMascot: true, liveEnabled: false);
+        var snap = FullSnap(DateTime.UtcNow);
+
+        Assert.Equal(RunHeaderSnap(g, draw: false, cfg, snap), RunHeaderSnap(g, draw: true, cfg, snap));
+    }
+
+    [Fact]
+    public void Mascot_band_measure_equals_paint_with_bounce()
+    {
+        // El bote (transform de pintado) no rompe el invariante con la banda apilada: medir(0)==pintar(bounce).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg(showMascot: true, liveEnabled: false);
+
+        int measured = RunHeader(g, draw: false, cfg, bounce: 0);
+        int painted = RunHeader(g, draw: true, cfg, bounce: 7);
+        Assert.Equal(measured, painted);
+    }
+
     [Fact]
     public void Header_measure_equals_paint_with_mascot_and_health_on_narrow_panel()
     {

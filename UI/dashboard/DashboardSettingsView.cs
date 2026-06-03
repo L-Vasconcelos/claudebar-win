@@ -111,7 +111,9 @@ public static class DashboardSettingsView
         // botón muerto).
         y = SectionHeader(g, draw, s.About, x, y, w, theme, smallFont);
         y = InfoRow(g, draw, s.VersionLabel, "v" + (version ?? ResolveVersion()), x, y, w, theme, labelFont, rects);
-        y = ButtonRow(g, draw, "special:importtheme", s.ImportTheme, theme.Accent, x, y, w, theme, labelFont, rects);
+        // AccentText (no Accent): el acento como TEXTO/borde fino debe cumplir AA (en tema claro el naranja
+        // de relleno caía a ~3.1:1). En oscuro/CLI AccentText == Accent (sin cambio visible). (P1 #3)
+        y = ButtonRow(g, draw, "special:importtheme", s.ImportTheme, theme.AccentText, x, y, w, theme, labelFont, rects);
 
         return y;
     }
@@ -287,6 +289,7 @@ public static class DashboardSettingsView
             Critical = D(t.Critical),
             Neutral = D(t.Neutral),
             Accent = D(t.Accent),
+            AccentTextOverride = D(t.AccentText),
             BgElevated = D(t.BgElevated),
             TextMuted = D(t.TextMuted),
             Separator = D(t.Separator),
@@ -471,27 +474,33 @@ public static class DashboardSettingsView
     }
 
     /// <summary>
-    /// Sección "SESIONES EN VIVO": cabecera + fila MAESTRA = instalar/quitar hooks (<c>special:hooktoggle</c>)
-    /// con <see cref="StatusBadge"/> a la derecha (verde "Activas" si <paramref name="hooksInstalled"/>, ámbar
-    /// "Instalar" si no) y subtítulo aclaratorio; debajo, los DEPENDIENTES (Mostrar mascota, Tamaño, Silenciar)
-    /// vía <see cref="DrawDependent"/>: sangrados <c>Spacing.Lg</c>, y cuando los hooks NO están instalados se
-    /// pintan atenuados (~0.5) e INERTES (sus rects no se registran → un clic no muta nada). La fila maestra
-    /// SIEMPRE responde (es la que instala los hooks). Esto elimina el duplicado/huérfano: "Mostrar mascota"
-    /// deja de ser una fila suelta por encima del master y pasa a depender visiblemente de él. La geometría no
-    /// depende de <paramref name="hooksInstalled"/> (solo color + inercia) → medir==pintar y el avance es
-    /// idéntico esté instalado o no. <paramref name="hooksInstalled"/> se inyecta para poder testear ambas
-    /// ramas de forma determinista (el <see cref="Draw"/> pasa <c>HookInstaller.IsInstalled()</c>).
+    /// Sección "SESIONES EN VIVO": cabecera + fila MAESTRA en POSITIVO (P1 #1) = toggle-pill
+    /// (<c>special:hooktoggle</c>) cuyo estado ON refleja <paramref name="hooksInstalled"/> (=activadas).
+    /// El label es "Activadas" (<c>s.Enabled</c>, mismo patrón que la fila maestra de NOTIFICACIONES; NO
+    /// duplica el texto de la cabecera "SESIONES EN VIVO" ni la antigua doble negación "Desactivar (quitar
+    /// hooks)") y el subtítulo gris explica que activar/desactivar instala/quita los hooks en
+    /// <c>~/.claude/settings.json</c>. <b>Sin StatusBadge</b>: el toggle ya comunica el estado, así que la
+    /// pill NO compite con un segundo control "Activas/Instalar" (elimina el "cosas dobles"). El clic enruta
+    /// a <c>special:hooktoggle</c> (el host pide confirmación antes de tocar la config global). Debajo, los
+    /// DEPENDIENTES (Mostrar mascota, Tamaño, Silenciar) vía <see cref="DrawDependent"/>: sangrados
+    /// <c>Spacing.Lg</c> y, mientras los hooks NO están instalados, atenuados (~0.5) e INERTES (sus rects no
+    /// se registran → un clic no muta nada). La fila maestra SIEMPRE responde (es la que instala los hooks).
+    /// Esto mantiene el huérfano resuelto: "Mostrar mascota" depende visiblemente del master. La geometría no
+    /// depende de <paramref name="hooksInstalled"/> (solo color + inercia + estado del pill) → medir==pintar
+    /// y el avance es idéntico esté instalado o no. <paramref name="hooksInstalled"/> se inyecta para testear
+    /// ambas ramas (el <see cref="Draw"/> pasa <c>HookInstaller.IsInstalled()</c>).
     /// </summary>
     internal static int LiveSessionsSection(Graphics g, bool draw, bool hooksInstalled, int x, int y, int w,
         AppConfig cfg, Strings s, Theme theme, Font labelFont, Font smallFont, Dictionary<string, Rectangle> rects)
     {
         y = SectionHeader(g, draw, s.MenuLiveSessions, x, y, w, theme, smallFont);
-        // Fila maestra: instala/quita hooks (delicado → diálogo en el host). Título ACCIONABLE (distinto de la
-        // cabecera de sección, sin duplicar texto) + StatusBadge semántico a la derecha (Activas/Instalar).
-        y = MasterRowWithBadge(g, draw, "special:hooktoggle",
-            hooksInstalled ? s.MenuUninstallHooks : s.MenuInstallHooks, s.LiveSessionsSubtitle,
-            hooksInstalled ? s.BadgeActive : s.BadgeInstall,
-            hooksInstalled ? theme.Ok : theme.Warn,
+        // Fila maestra POSITIVA: toggle-pill (ON = activadas). El label es "Activadas" (mismo patrón que la
+        // fila maestra de NOTIFICACIONES: cabecera = nombre de la feature, fila = on/off) para NO duplicar el
+        // texto de la cabecera "SESIONES EN VIVO" (invariante: sin cosas dobles). El subtítulo gris explica que
+        // activar/desactivar instala/quita hooks (acción delicada → confirmación en el host). Sin StatusBadge:
+        // el toggle ya comunica el estado.
+        y = MasterToggleRow(g, draw, "special:hooktoggle",
+            s.Enabled, s.LiveSessionsSubtitle, hooksInstalled,
             x, y, w, theme, labelFont, smallFont, rects);
         // Dependientes: atenuados + inertes mientras no haya hooks (la mascota Idle solo cobra vida con hooks).
         y = DrawDependent(hooksInstalled, x, y, w, theme, rects,
@@ -507,6 +516,55 @@ public static class DashboardSettingsView
             (ix, iw, th) => ToggleRow(g, draw, "toggle:Suppress", s.MenuSuppressWhenFocused, null,
                 cfg.SuppressWhenFocused, ix, supY, iw, th, labelFont, smallFont, rects));
         return y;
+    }
+
+    /// <summary>
+    /// Fila MAESTRA con toggle-pill (P1 #1): título (<c>labelFont</c>/<c>TextPrimary</c>) + subtítulo gris
+    /// debajo (<c>smallFont</c>/<c>TextMuted</c>) a la IZQUIERDA + <see cref="TogglePill"/> a la DERECHA cuyo
+    /// estado refleja <paramref name="on"/>. A diferencia de <see cref="ToggleRow"/>, la columna de texto
+    /// ENVUELVE (WordWrap) dentro de <c>[x, pill.X - Spacing.Md]</c> en lugar de pintar en una sola línea que
+    /// se solaparía con el pill: así un subtítulo largo (p.ej. "Instala/quita hooks en ~/.claude/settings.json")
+    /// se lee ENTERO en 2 líneas, NUNCA cortado ni elidido (invariante anti-corte de Yovan). Se usa para la
+    /// fila maestra de "Sesiones en vivo" en POSITIVO (ON = activadas); su clave es normalmente "special:*"
+    /// (la enruta el host con confirmación). El hit-test es el rect COMPLETO de la fila. Mide==pinta: el
+    /// recuento de líneas (y por tanto el alto) es idéntico en ambas pasadas. Devuelve el nuevo <c>y</c>.
+    /// </summary>
+    internal static int MasterToggleRow(Graphics g, bool draw, string key, string label, string? subtitle, bool on,
+        int x, int y, int w, Theme theme, Font labelFont, Font smallFont, Dictionary<string, Rectangle> rects)
+    {
+        // El pill se ancla a la derecha (mismo cálculo que TogglePill, sin dibujar todavía): su borde
+        // izquierdo fija el ancho de la columna de texto (gutter Spacing.Md), así el texto NUNCA pasa por
+        // debajo del pill. Medir==pintar: la geometría del pill no depende de draw.
+        int pillLeft = (x + w) - Spacing.Sm - PillTrackW;
+        int textColW = pillLeft - Spacing.Md - x;
+        if (textColW <= 0) textColW = Math.Max(1, w); // defensa: nunca ≤ 0
+
+        var labelLines = TextWrap.WordWrap(label, textColW, t => g.MeasureString(t, labelFont).Width);
+        int titleLineH = (int)Math.Ceiling(g.MeasureString(label, labelFont).Height);
+        int titleH = labelLines.Count * titleLineH;
+
+        bool hasSub = !string.IsNullOrEmpty(subtitle);
+        var subLines = hasSub
+            ? TextWrap.WordWrap(subtitle!, textColW, t => g.MeasureString(t, smallFont).Width)
+            : new List<string>();
+        int subLineH = hasSub ? (int)Math.Ceiling(g.MeasureString(subtitle!, smallFont).Height) : 0;
+        int subH = subLines.Count * subLineH;
+
+        int contentH = Math.Max(PillTrackH, titleH + subH);
+
+        var r = new Rectangle(x, y, w, contentH);
+        rects[key] = r;
+        if (draw)
+        {
+            int ly = y;
+            using (var b = new SolidBrush(theme.TextPrimary))
+                foreach (var line in labelLines) { g.DrawString(line, labelFont, b, x, ly); ly += titleLineH; }
+            if (hasSub)
+                using (var sb = new SolidBrush(theme.TextMuted))
+                    foreach (var line in subLines) { g.DrawString(line, smallFont, sb, x, ly); ly += subLineH; }
+            TogglePill(g, draw: true, on, x + w, y, contentH, theme);
+        }
+        return y + contentH + Spacing.Sm;
     }
 
     /// <summary>
@@ -841,6 +899,11 @@ public static class DashboardSettingsView
             {
                 using var bg = new SolidBrush(on ? theme.Accent : theme.BgElevated);
                 Shapes.FillRounded(g, bg, rect, 4);
+                // Mismo borde "track" del chip inactivo que DrawSegments → un único lenguaje de pill que
+                // se lee como botón en todos los temas (P1 #3).
+                if (!on)
+                    using (var bd = new Pen(theme.Separator))
+                        Shapes.DrawRounded(g, bd, rect, 4);
                 using var tb = new SolidBrush(on ? ColorMath.Contrast(theme.Accent) : theme.TextPrimary);
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString(txt, f, tb, rect, sf);

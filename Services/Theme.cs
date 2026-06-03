@@ -21,6 +21,17 @@ public sealed class Theme
     public Color TextMuted { get; init; }
     public Color Separator { get; init; }
 
+    /// <summary>
+    /// Variante del acento legible cuando se usa como TEXTO/borde fino (no como relleno). El
+    /// <see cref="Accent"/> de relleno lleva texto <see cref="ColorMath.Contrast"/> encima y contrasta
+    /// bien; pero pintado como texto sobre el fondo del panel puede caer por debajo de AA (el naranja
+    /// Claude sobre fondo claro daba ~3.1:1). Este token oscurece el acento lo justo para texto pequeño
+    /// (≥4.5:1) manteniendo el tinte. En oscuro/CLI coincide con <see cref="Accent"/> (ya legible);
+    /// solo el tema claro lo oscurece. Si no se setea, cae a <see cref="Accent"/>.
+    /// </summary>
+    public Color? AccentTextOverride { get; init; }
+    public Color AccentText => AccentTextOverride ?? Accent;
+
     // Alias semánticos sobre los campos existentes (sin romper consumidores).
     public Color TextPrimary => Foreground;
     public Color TextSecondary => Dim;
@@ -57,6 +68,10 @@ public sealed class Theme
         Critical = Color.FromArgb(220, 38, 38),
         Neutral = Color.FromArgb(161, 161, 170),
         Accent = Color.FromArgb(0xCC, 0x78, 0x5C),
+        // Acento-como-texto oscurecido (#A84B33): el naranja de relleno (#CC785C) sobre el fondo claro
+        // caía a ~3.1:1 como texto/borde (botón "Importar tema" ilegible, P1 #3). Este tono mantiene el
+        // tinte Claude y sube a ~5.4:1 (AA texto pequeño). Solo el tema claro lo necesita.
+        AccentTextOverride = Color.FromArgb(0xA8, 0x4B, 0x33),
         BgElevated = Color.FromArgb(255, 255, 255),
         // Gris tenue subido (#6C6C72): el anterior #8E8E93 caía a ~3.1:1 sobre el fondo claro. Ahora
         // ~5.0:1 (AA, T9) — antes era el mismo valor que en oscuro pese a fondos opuestos.
@@ -77,7 +92,9 @@ public sealed class Theme
         Neutral = Color.FromArgb(90, 90, 90),
         Accent = Color.FromArgb(0, 217, 89),
         BgElevated = Color.FromArgb(10, 16, 10),
-        TextMuted = Color.FromArgb(0, 110, 44),
+        // Verde tenue subido (#00963C): el anterior #006E2C caía a ~3.3:1 sobre el negro del CLI
+        // (subtítulos/footer/verbo de mascota ilegibles, P1 #3). Ahora ~5.4:1 (AA texto pequeño).
+        TextMuted = Color.FromArgb(0, 0x96, 0x3C),
         Separator = Color.FromArgb(0, 50, 20)
     };
 
