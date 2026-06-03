@@ -26,6 +26,39 @@ public static class DashboardSettingsView
     // Hitos de notificación individuales (toggles sobre NotifyMilestones).
     private static readonly int[] MilestoneOptions = { 25, 50, 75, 95 };
 
+    // --- Scroll del panel de ajustes (v0.3.7) -----------------------------------------------------
+    // El panel de ajustes era más alto que la pantalla ("de arriba a abajo", queja de Yovan): ahora el
+    // alto de la ventana se LIMITA a un % del área útil y el contenido rueda con la rueda del ratón.
+    // Matemática PURA aquí (testeable); el estado del scroll vive en DashboardForm.
+
+    /// <summary>Tope del alto del panel de ajustes como % del alto útil de la pantalla.</summary>
+    public const int MaxPanelHeightPct = 65;
+    /// <summary>Píxeles de desplazamiento por "diente" de rueda (delta 120).</summary>
+    public const int WheelStepPx = 48;
+    /// <summary>Ancho de la barrita de scroll (px) y su margen al borde derecho.</summary>
+    public const int ScrollBarW = 4, ScrollBarMargin = 4;
+
+    /// <summary>Acota el scroll a [0, contentH - viewportH]; 0 si el contenido cabe entero.</summary>
+    internal static int ClampScroll(int scroll, int contentH, int viewportH)
+        => Math.Max(0, Math.Min(scroll, Math.Max(0, contentH - viewportH)));
+
+    /// <summary>
+    /// Rect del pulgar de la barra de scroll: alto proporcional al viewport (mínimo 24px para que
+    /// siempre se pueda ver/agarrar) y posición proporcional al scroll. <see cref="Rectangle.Empty"/>
+    /// cuando el contenido cabe (sin overflow no hay barra).
+    /// </summary>
+    internal static Rectangle ThumbRect(int trackX, int trackTop, int viewportH, int contentH, int scroll)
+    {
+        if (contentH <= viewportH || viewportH <= 0) return Rectangle.Empty;
+        int thumbH = Math.Max(24, (int)((long)viewportH * viewportH / contentH));
+        thumbH = Math.Min(thumbH, viewportH);
+        int maxScroll = contentH - viewportH;
+        int maxThumbTravel = viewportH - thumbH;
+        int thumbY = trackTop + (maxScroll <= 0 ? 0
+            : (int)((long)ClampScroll(scroll, contentH, viewportH) * maxThumbTravel / maxScroll));
+        return new Rectangle(trackX, thumbY, ScrollBarW, thumbH);
+    }
+
     /// <summary>Dibuja el panel y registra rects clicables con clave de acción. Devuelve nuevo y.
     /// <paramref name="version"/> es la versión a mostrar en "Acerca de"; si es null se resuelve desde
     /// el ensamblado en ejecución (inyectable para test).</summary>

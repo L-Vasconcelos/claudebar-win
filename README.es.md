@@ -57,7 +57,8 @@ Tres temas — **Oscuro**, **Claro** y **CLI** (la captura de CLI está en modo 
 
 **Una sola pantalla de ajustes agrupados** — todas las opciones en una página única y limpia, con
 filas maestras que controlan a sus dependientes (activa las sesiones en vivo y *entonces* se
-despierta el control de la mascota):
+despierta el control de la mascota). El panel limita su alto a ~65% de la pantalla y **se desplaza
+con la rueda del ratón** (barrita fina a la derecha):
 
 <p align="center"><img src="assets/settings.png" alt="Panel de ajustes agrupado — todas las opciones en una pantalla" width="300"></p>
 
@@ -341,9 +342,10 @@ la carpeta de Inicio — **sin registro, sin admin**, totalmente reversible.
 ## Configuración
 
 Abre el dashboard y pulsa el **⚙** (arriba a la derecha) — **toda la configuración vive en una sola
-pantalla agrupada**. Las filas maestras controlan a sus dependientes: desactiva **Notificaciones** y
-los avisos de ritmo/hitos se atenúan; desactiva **Sesiones en vivo** y los controles de
-mascota/silenciar se atenúan.
+pantalla agrupada**. El panel nunca se come la pantalla: limita su alto a ~65% y el contenido **se
+desplaza con la rueda del ratón**. Las filas maestras controlan a sus dependientes: desactiva
+**Notificaciones** y los avisos de ritmo/hitos se atenúan; desactiva **Sesiones en vivo** y los
+controles de mascota/silenciar se atenúan.
 
 | Grupo | Qué contiene |
 |---|---|

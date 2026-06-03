@@ -224,6 +224,14 @@ public sealed class DashboardForm : Form
     private readonly Dictionary<string, Rectangle> _sectionRects = new();   // "quota"/"sessions"/"spend"/"chart"
     private readonly Dictionary<string, Rectangle> _settingsRects = new();  // clave de acción ("toggle:X"/"theme:dark"/…)
 
+    // Scroll del panel de ajustes (v0.3.7): el panel se LIMITA en alto (MaxPanelHeightPct del área
+    // útil) y el contenido rueda. El offset/altos viven aquí; la matemática pura en DashboardSettingsView.
+    private int _settingsScroll;                 // desplazamiento actual del contenido (px, 0 = arriba)
+    private int _settingsContentH;               // alto real del contenido de ajustes (sin tope)
+    private int _settingsViewportTop;            // y donde arranca la zona scrollable (bajo "‹ Ajustes")
+    private const int SettingsViewportBottomPad = 12; // aire entre el final del viewport y el borde
+    private readonly Dictionary<string, Rectangle> _scratchRects = new();   // dict desechable para MEDIR
+
     // Chart
     private Func<ChartRange, Task<List<HistoryBucket>>>? _historyProvider;
     private Func<ChartRange, Task<List<PctPoint>>>? _pctProvider;
@@ -254,8 +262,8 @@ public sealed class DashboardForm : Form
     /// (claves "special:*", p.ej. "special:importtheme"/"special:hooktoggle"). El host las maneja.</summary>
     public event Action<string>? SpecialActionRequested;
 
-    /// <summary>Cambia a la vista de ajustes (⚙). Reajusta el alto del popup y repinta.</summary>
-    public void ShowSettings() { _viewMode = "settings"; Relayout(); Invalidate(); }
+    /// <summary>Cambia a la vista de ajustes (⚙). Resetea el scroll, reajusta el alto y repinta.</summary>
+    public void ShowSettings() { _viewMode = "settings"; _settingsScroll = 0; Relayout(); Invalidate(); }
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -693,16 +701,31 @@ public sealed class DashboardForm : Form
 
     // ---------- input ----------
 
+    /// <summary>
+    /// Rueda del ratón en la vista de ajustes (v0.3.7): desplaza el contenido WheelStepPx por diente,
+    /// acotado a [0, overflow]. En la vista de datos no hace nada (esa vista auto-dimensiona).
+    /// </summary>
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        if (_viewMode != "settings") return;
+        int viewportH = Height - _settingsViewportTop - SettingsViewportBottomPad;
+        if (_settingsContentH <= viewportH) return;
+        int step = e.Delta / 120 * DashboardSettingsView.WheelStepPx;
+        int ns = DashboardSettingsView.ClampScroll(_settingsScroll - step, _settingsContentH, viewportH);
+        if (ns != _settingsScroll) { _settingsScroll = ns; Invalidate(); }
+    }
+
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
         if (e.Button != MouseButtons.Left) return;
         if (_closeRect.Contains(e.Location)) { Hide(); return; }
 
-        // ⚙ → abrir ajustes (solo en la vista de datos).
+        // ⚙ → abrir ajustes (solo en la vista de datos). ShowSettings resetea además el scroll.
         if (_viewMode == "data" && _gearRect.Contains(e.Location))
         {
-            _viewMode = "settings"; Relayout(); Invalidate(); return;
+            ShowSettings(); return;
         }
 
         // Vista de ajustes: ‹ vuelve a datos; cada fila clicada emite su mutación. Sin drag aquí.
@@ -926,7 +949,13 @@ public sealed class DashboardForm : Form
         }
         y += 50;
 
-        // ----- Vista de ajustes -----
+        // ----- Vista de ajustes: alto LIMITADO + scroll (v0.3.7) -----
+        // El panel medía más que la pantalla ("de arriba a abajo"). Ahora: chrome + "‹ Ajustes" fijos
+        // arriba; el contenido se mide ENTERO (pasada de medida con dict desechable), el alto de la
+        // ventana se acota a MaxPanelHeightPct del área útil, y el contenido se pinta desplazado
+        // -_settingsScroll con CLIP al viewport. Los rects clicables salen de la pasada de pintado (ya
+        // desplazados) y se INTERSECAN con el viewport para que una fila medio fuera no responda bajo
+        // el chrome. Con todo visible no hay barra ni scroll (comportamiento de siempre).
         if (_viewMode == "settings")
         {
             if (draw)
@@ -936,8 +965,54 @@ public sealed class DashboardForm : Form
             }
             _backRect = new Rectangle(x, y, 80, 20);
             y += 24;
-            y = DashboardSettingsView.Draw(g, draw, x, y, w, _cfg, _s, _theme, labelFont, smallFont, _settingsRects);
-            return y + 18;
+            int contentTop = y;
+            _settingsViewportTop = contentTop;
+
+            // 1) Medir el contenido completo (sin tope) — el dict es desechable: los rects buenos
+            //    (desplazados) los registra la pasada de pintado de abajo.
+            _scratchRects.Clear();
+            _settingsContentH = DashboardSettingsView.Draw(g, draw: false, x, contentTop, w,
+                _cfg, _s, _theme, labelFont, smallFont, _scratchRects) - contentTop;
+
+            // 2) Tope de alto: % del área útil de la pantalla del panel.
+            var wa = Screen.FromControl(this).WorkingArea;
+            int maxH = wa.Height * DashboardSettingsView.MaxPanelHeightPct / 100;
+            int fullH = contentTop + _settingsContentH + 18;
+            int h = Math.Min(fullH, maxH);
+            int viewportH = h - contentTop - SettingsViewportBottomPad;
+            _settingsScroll = DashboardSettingsView.ClampScroll(_settingsScroll, _settingsContentH, viewportH);
+
+            if (draw)
+            {
+                var viewport = new Rectangle(0, contentTop, Width, viewportH);
+                var prevClip = g.Clip;
+                g.SetClip(viewport);
+                try
+                {
+                    DashboardSettingsView.Draw(g, draw: true, x, contentTop - _settingsScroll, w,
+                        _cfg, _s, _theme, labelFont, smallFont, _settingsRects);
+                }
+                finally { g.Clip = prevClip; }
+
+                // Filas medio fuera del viewport: recortar su zona clicable (y de hover) al viewport.
+                foreach (var k in _settingsRects.Keys.ToList())
+                {
+                    var r = Rectangle.Intersect(_settingsRects[k], viewport);
+                    if (r.Height <= 0) _settingsRects.Remove(k); else _settingsRects[k] = r;
+                }
+
+                // Barrita de scroll (solo con overflow): pista sutil + pulgar proporcional.
+                if (_settingsContentH > viewportH)
+                {
+                    int trackX = Width - DashboardSettingsView.ScrollBarW - DashboardSettingsView.ScrollBarMargin;
+                    using (var tb = new SolidBrush(Color.FromArgb(50, _theme.TextMuted)))
+                        Shapes.FillRounded(g, tb, new Rectangle(trackX, contentTop, DashboardSettingsView.ScrollBarW, viewportH), 2);
+                    var thumb = DashboardSettingsView.ThumbRect(trackX, contentTop, viewportH, _settingsContentH, _settingsScroll);
+                    using var thb = new SolidBrush(Color.FromArgb(160, _theme.TextMuted));
+                    Shapes.FillRounded(g, thb, thumb, 2);
+                }
+            }
+            return h;
         }
 
         // ----- Vista de datos: cabecera de un vistazo + secciones plegables -----

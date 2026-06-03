@@ -55,7 +55,8 @@ Three themes — **Dark**, **Light**, and **CLI** (the CLI shot is in `Quota %` 
 </p>
 
 **One grouped settings screen** — every option on a single, clean page, with master rows that
-gate their dependents (turn on live sessions, *then* the mascot control wakes up):
+gate their dependents (turn on live sessions, *then* the mascot control wakes up). The panel caps
+its height at ~65% of your screen and **scrolls with the mouse wheel** (thin scrollbar on the right):
 
 <p align="center"><img src="assets/settings.png" alt="Grouped settings panel — all options on one screen" width="300"></p>
 
@@ -328,8 +329,9 @@ in the Startup folder — **no registry, no admin**, fully reversible.
 ## Configuration
 
 Open the dashboard and click the **⚙** (top-right) — **every setting lives on one grouped
-screen**. Master rows gate their dependents: turn **Notifications** off and pace/milestones grey
-out; turn **Live sessions** off and the mascot/suppress controls grey out.
+screen**. The panel never eats your display: it caps at ~65% of the screen height and the content
+**scrolls with the mouse wheel**. Master rows gate their dependents: turn **Notifications** off and
+pace/milestones grey out; turn **Live sessions** off and the mascot/suppress controls grey out.
 
 | Group | What's in it |
 |---|---|
