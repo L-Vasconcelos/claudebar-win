@@ -365,32 +365,102 @@ public static class DashboardSettingsView
         return y + h + Spacing.Sm;
     }
 
+    // Sufijo del valor de un CycleRow (chevron). El valor a su izquierda es lo que se elide.
+    private const string CycleChevron = "  ›";
+
     /// <summary>
-    /// Fila que cicla: "Etiqueta" a la izquierda + "&lt;valor actual&gt; ›" a la derecha. Un clic en
-    /// cualquier punto de la fila cicla al siguiente valor (la mutación la pone <see cref="ActionFor"/>).
+    /// Geometría medida de un <see cref="CycleRow"/>: posición/ancho de la etiqueta izquierda y del
+    /// valor derecho (YA elidido si no cabía). PURO (sin dibujo) para test e implementación: garantiza
+    /// que etiqueta y valor no se solapan (gutter ≥ <c>Spacing.Md</c>) y que el valor deja margen
+    /// derecho ≥ <c>Spacing.Sm</c>. Devuelve (labelX, labelW, valueX, valueW).
     /// </summary>
-    private static int CycleRow(Graphics g, bool draw, string key, string label, string current,
+    internal static (int lx, int lw, int rx, int rw) CycleRowLayout(Graphics g, string label, string current,
+        int x, int w, Font f)
+    {
+        int labelW = (int)Math.Ceiling(g.MeasureString(label, f).Width);
+        int rightEdge = x + w - Spacing.Sm;            // margen derecho de seguridad
+        // El valor (con chevron) puede ocupar como mucho desde labelRight+gutter hasta rightEdge.
+        int valueLeftBound = x + labelW + Spacing.Md;
+        int maxValueW = rightEdge - valueLeftBound;
+        string shown = ShownCycleValue(g, label, current, x, w, f);
+        int valueW = (int)Math.Ceiling(g.MeasureString(shown, f).Width);
+        if (valueW > maxValueW) valueW = Math.Max(0, maxValueW); // defensa: nunca exceder
+        int valueX = rightEdge - valueW;               // anclado a la derecha con margen
+        if (valueX < valueLeftBound) valueX = valueLeftBound;
+        return (x, labelW, valueX, valueW);
+    }
+
+    /// <summary>
+    /// Texto del valor que un <see cref="CycleRow"/> muestra realmente: el valor actual + chevron,
+    /// elidido con elipsis MEDIDA si la suma etiqueta+gutter+valor+margen excede <paramref name="w"/>.
+    /// PURO y determinista (misma medición en draw=false/true → mismo resultado, clave para medir==pintar).
+    /// </summary>
+    internal static string CycleRowShownValue(Graphics g, string label, string current, int x, int w, Font f)
+        => ShownCycleValue(g, label, current, x, w, f);
+
+    private static string ShownCycleValue(Graphics g, string label, string current, int x, int w, Font f)
+    {
+        int labelW = (int)Math.Ceiling(g.MeasureString(label, f).Width);
+        int rightEdge = x + w - Spacing.Sm;
+        int valueLeftBound = x + labelW + Spacing.Md;
+        int maxValueW = rightEdge - valueLeftBound;
+        string full = current + CycleChevron;
+        if ((int)Math.Ceiling(g.MeasureString(full, f).Width) <= maxValueW) return full;
+        // No cabe → elidir SOLO el valor, conservando el chevron a la derecha del valor recortado.
+        double chevronW = g.MeasureString(CycleChevron, f).Width;
+        string clipped = TextWrap.Ellipsize(current, maxValueW - chevronW, x2 => g.MeasureString(x2, f).Width);
+        return clipped.Length == 0 ? TextWrap.Ellipsis : clipped + CycleChevron;
+    }
+
+    /// <summary>
+    /// Fila que cicla: "Etiqueta" a la izquierda + "&lt;valor actual&gt; ›" a la derecha (elidido si no
+    /// cabe; nunca solapa la etiqueta ni rebasa el margen derecho). Un clic en cualquier punto de la fila
+    /// cicla al siguiente valor (la mutación la pone <see cref="ActionFor"/>). Mide==pinta: la decisión de
+    /// elidir es la misma en ambas pasadas, así que el rect y el <c>y</c> de salida son idénticos.
+    /// </summary>
+    internal static int CycleRow(Graphics g, bool draw, string key, string label, string current,
         int x, int y, int w, Theme theme, Font f, Dictionary<string, Rectangle> rects)
     {
         var r = new Rectangle(x, y, w, RowContentHeight);
         rects[key] = r;
         if (draw)
         {
+            var (_, _, rx, _) = CycleRowLayout(g, label, current, x, w, f);
             using var fgb = new SolidBrush(theme.TextPrimary);
             using var dimb = new SolidBrush(theme.TextSecondary);
             g.DrawString(label, f, dimb, x, y);
-            string right = current + "  ›";
-            var sz = g.MeasureString(right, f);
-            g.DrawString(right, f, fgb, x + w - sz.Width, y);
+            string right = ShownCycleValue(g, label, current, x, w, f);
+            g.DrawString(right, f, fgb, rx, y);
         }
         return y + RowAdvance;
     }
 
+    // Geometría de los chips de segmento — MISMA que DashboardDataView.DrawSegments (un solo estilo).
+    private const int SegGap = 3, SegPadX = 7;
+
+    /// <summary>Ancho total (incl. gaps) de una fila de segmentos con las etiquetas dadas.</summary>
+    private static int SegmentsTotalWidth(Graphics g, Font f, IReadOnlyList<string> labels)
+    {
+        if (labels.Count == 0) return 0;
+        int total = 0;
+        for (int i = 0; i < labels.Count; i++)
+            total += (int)g.MeasureString(labels[i], f).Width + SegPadX * 2;
+        return total + SegGap * (labels.Count - 1);
+    }
+
+    /// <summary>Avance de una fila de segmentos de UN renglón (para test del wrap a 2 filas).</summary>
+    internal static int SegmentRowAdvanceForTest => SegmentRowAdvance;
+
     /// <summary>
-    /// Fila con etiqueta opcional + segmentos en fila a la derecha (look &amp; hit-test reusando
-    /// <see cref="DashboardDataView.DrawSegments"/>). Cada segmento registra rects[$"{key}:{val}"].
+    /// Fila con etiqueta opcional + segmentos a la derecha (mismo look &amp; hit-test que
+    /// <see cref="DashboardDataView.DrawSegments"/>: activo en Accent + texto Contrast). ANTI-TRUNCAMIENTO:
+    /// mide el ancho total en draw=false; si los segmentos NO caben en el espacio útil
+    /// (<c>[labelRight+gutter, x+w-Spacing.Sm]</c>) <b>envuelve a 2 filas</b> alineadas a
+    /// <c>contentLeft</c>; si caben, se anclan a la derecha dejando margen ≥ <c>Spacing.Sm</c>. Ningún chip
+    /// se pinta con <c>x &lt; contentLeft</c>. La decisión (1 fila vs 2) es idéntica en medir/pintar →
+    /// mismo <c>y</c> de salida. Cada segmento registra rects[$"{key}:{val}"].
     /// </summary>
-    private static int SegmentedRow(Graphics g, bool draw, string key, string label,
+    internal static int SegmentedRow(Graphics g, bool draw, string key, string label,
         (string val, string txt)[] segs, string active, int x, int y, int w, Theme theme, Font f,
         Dictionary<string, Rectangle> rects)
     {
@@ -399,10 +469,53 @@ public static class DashboardSettingsView
             using var b = new SolidBrush(theme.TextPrimary);
             g.DrawString(label, f, b, x, y);
         }
-        // segmentos alineados a la derecha; clave compuesta "key:val", activo en theme.Ok.
-        DashboardDataView.DrawSegments(g, draw, f, theme,
-            segs.Select(seg => (seg.txt, $"{key}:{seg.val}")).ToArray(),
-            $"{key}:{active}", x + w, y, rightAlign: true, rects);
-        return y + SegmentRowAdvance;
+
+        var keyed = segs.Select(seg => (seg.txt, $"{key}:{seg.val}")).ToArray();
+        string activeKey = $"{key}:{active}";
+        int labelRight = string.IsNullOrEmpty(label)
+            ? x
+            : x + (int)Math.Ceiling(g.MeasureString(label, f).Width) + Spacing.Md;
+        int rightEdge = x + w - Spacing.Sm;            // margen derecho de seguridad
+
+        int total = SegmentsTotalWidth(g, f, segs.Select(s => s.txt).ToList());
+        int avail = rightEdge - Math.Max(labelRight, x);
+
+        if (total <= avail)
+        {
+            // Cabe en un renglón: anclar a la derecha (deja margen ≥ Sm; primer chip ≥ labelRight ≥ x).
+            DashboardDataView.DrawSegments(g, draw, f, theme, keyed, activeKey,
+                rightEdge, y, rightAlign: true, rects);
+            return y + SegmentRowAdvance;
+        }
+
+        // No cabe → envolver a 2 filas, alineadas a contentLeft (ningún chip a la izquierda de x).
+        // Reparto: tantos segmentos como quepan en el ancho útil de una fila (desde x), resto a la 2ª.
+        int rowWidth = x + w - x; // ancho útil del renglón empezando en contentLeft
+        int split = SplitIndexForWrap(g, f, segs.Select(s => s.txt).ToList(), rowWidth);
+        var first = keyed.Take(split).ToArray();
+        var second = keyed.Skip(split).ToArray();
+
+        DashboardDataView.DrawSegments(g, draw, f, theme, first, activeKey,
+            x, y, rightAlign: false, rects);
+        DashboardDataView.DrawSegments(g, draw, f, theme, second, activeKey,
+            x, y + SegmentHeight + Spacing.Sm, rightAlign: false, rects);
+        return y + (SegmentHeight + Spacing.Sm) * 2;
+    }
+
+    /// <summary>
+    /// Índice de corte para envolver a 2 filas: cuántos segmentos (≥1) caben en <paramref name="rowWidth"/>
+    /// empezando en contentLeft. Determinista (misma medición en ambas pasadas).
+    /// </summary>
+    private static int SplitIndexForWrap(Graphics g, Font f, IReadOnlyList<string> labels, int rowWidth)
+    {
+        int count = 0, acc = 0;
+        for (int i = 0; i < labels.Count; i++)
+        {
+            int wseg = (int)g.MeasureString(labels[i], f).Width + SegPadX * 2;
+            int next = acc + (count > 0 ? SegGap : 0) + wseg;
+            if (count > 0 && next > rowWidth) break;
+            acc = next; count++;
+        }
+        return Math.Max(1, count); // al menos 1 por fila para no perder segmentos
     }
 }

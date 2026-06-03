@@ -310,4 +310,202 @@ public class DashboardSettingsViewTests
                 if (IsAccent(px, py)) { accentOnLeft = true; break; }
         Assert.False(accentOnLeft, "no debe haber cápsula/check a la izquierda (sin glifo ☑)");
     }
+
+    // ================= T3: anti-truncamiento en CycleRow y SegmentedRow =================
+
+    // -------- CycleRow: medir==pintar + valor elidido sin solapar la etiqueta --------
+
+    [Fact]
+    public void CycleRow_measure_equals_paint_short_value()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.CycleRow(g, draw: false, "cycle:x", "Idioma", "Español",
+            X, 100, W, Theme.Dark, Typography.Caption, rects);
+        int painted = DashboardSettingsView.CycleRow(g, draw: true, "cycle:x", "Idioma", "Español",
+            X, 100, W, Theme.Dark, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void CycleRow_measure_equals_paint_overflowing_value()
+    {
+        // El caso PosCustom: valor muy largo que obliga a elidir. La decisión debe ser idéntica
+        // en medir y pintar → mismo y de salida.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+        const string longVal = "Personalizada (arrastra el panel)";
+
+        int measured = DashboardSettingsView.CycleRow(g, draw: false, "cycle:position", "Posición", longVal,
+            X, 100, W, Theme.Dark, Typography.Caption, rects);
+        int painted = DashboardSettingsView.CycleRow(g, draw: true, "cycle:position", "Posición", longVal,
+            X, 100, W, Theme.Dark, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void CycleRow_long_value_does_not_overlap_label_and_keeps_right_margin()
+    {
+        // La etiqueta se pinta a la izquierda y el valor (elidido) a la derecha; nunca se solapan
+        // y el valor deja margen derecho ≥ Spacing.Sm.
+        const int x = 16, w = 200, y = 40; // ancho estrecho a propósito para forzar elipsis
+        using var bmp = new Bitmap(x + w + 60, 120);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        var rects = new Dictionary<string, Rectangle>();
+        const string longVal = "Personalizada (arrastra el panel)";
+
+        DashboardSettingsView.CycleRow(g, draw: true, "cycle:position", "Posición", longVal,
+            x, y, w, Theme.Dark, Typography.Caption, rects);
+
+        // Geometría medida: la etiqueta termina antes de donde empieza el valor (sin solape),
+        // y el valor no rebasa x+w-Spacing.Sm.
+        var (lx, lw, rx, rw) = DashboardSettingsView.CycleRowLayout(g, "Posición", longVal, x, w, Typography.Caption);
+        Assert.True(lx + lw + Spacing.Md <= rx, "la etiqueta y el valor no deben solaparse (gutter ≥ Md)");
+        Assert.True(rx + rw <= x + w - Spacing.Sm, "el valor debe dejar margen derecho ≥ Sm");
+        Assert.True(rx >= x, "el valor no empieza a la izquierda del contenido");
+    }
+
+    [Fact]
+    public void CycleRow_short_value_is_not_ellipsized()
+    {
+        // Un valor corto que cabe NO debe llevar elipsis (no se toca lo que entra). El texto mostrado
+        // es valor + chevron; lo relevante es que NO contiene la elipsis.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        string shown = DashboardSettingsView.CycleRowShownValue(g, "Idioma", "Español", X, W, Typography.Caption);
+        Assert.StartsWith("Español", shown);
+        Assert.DoesNotContain("…", shown);
+    }
+
+    [Fact]
+    public void CycleRow_overflowing_value_is_ellipsized()
+    {
+        // Valor que no cabe en un ancho estrecho → se muestra con elipsis (no el texto completo).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        const string longVal = "Personalizada (arrastra el panel)";
+        string shown = DashboardSettingsView.CycleRowShownValue(g, "Posición", longVal, 16, 200, Typography.Caption);
+        Assert.NotEqual(longVal, shown);
+        Assert.DoesNotContain("Personalizada (arrastra", shown); // se recortó el valor
+        Assert.Contains("…", shown);                              // con elipsis medida
+    }
+
+    // -------- SegmentedRow: medir==pintar + sin chip fuera de contentLeft + margen derecho --------
+
+    [Fact]
+    public void SegmentedRow_measure_equals_paint_fitting()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+        var segs = new[] { ("30", "30s"), ("60", "1m"), ("300", "5m"), ("900", "15m") };
+
+        int measured = DashboardSettingsView.SegmentedRow(g, draw: false, "freq", "", segs, "60",
+            X, 100, W, Theme.Dark, Typography.Caption, rects);
+        int painted = DashboardSettingsView.SegmentedRow(g, draw: true, "freq", "", segs, "60",
+            X, 100, W, Theme.Dark, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void SegmentedRow_no_segment_starts_left_of_content()
+    {
+        // Frecuencia compacta: ningún chip se pinta con x < contentLeft (X) y el bloque deja
+        // margen derecho ≥ Spacing.Sm respecto a X+W.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+        var segs = new[] { ("30", "30s"), ("60", "1m"), ("300", "5m"), ("900", "15m") };
+
+        DashboardSettingsView.SegmentedRow(g, draw: true, "freq", "", segs, "60",
+            X, 100, W, Theme.Dark, Typography.Caption, rects);
+
+        foreach (var key in new[] { "freq:30", "freq:60", "freq:300", "freq:900" })
+        {
+            Assert.True(rects.TryGetValue(key, out var r), $"falta el rect {key}");
+            Assert.True(r.X >= X, $"{key}: chip a la izquierda de contentLeft (x={r.X} < {X})");
+            Assert.True(r.Right <= X + W - Spacing.Sm, $"{key}: chip sin margen derecho (right={r.Right} > {X + W - Spacing.Sm})");
+        }
+    }
+
+    [Fact]
+    public void SegmentedRow_wraps_to_two_rows_when_segments_exceed_width()
+    {
+        // Segmentos artificialmente anchos que NO caben en una fila → la fila crece (2 filas) y
+        // ningún chip queda a la izquierda de contentLeft. Medir==pintar se mantiene.
+        const int x = 16, w = 120; // ancho muy estrecho
+        using var bmp = new Bitmap(x + w + 80, 200);
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+        var segs = new[] { ("a", "Treinta"), ("b", "Un minuto"), ("c", "Cinco min"), ("d", "Quince min") };
+
+        int measured = DashboardSettingsView.SegmentedRow(g, draw: false, "wrap", "", segs, "a",
+            x, 0, w, Theme.Dark, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.SegmentedRow(g, draw: true, "wrap", "", segs, "a",
+            x, 0, w, Theme.Dark, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+        // Debe haber crecido más de una fila simple (envolvió a 2 filas).
+        Assert.True(measured > 0 + DashboardSettingsView.SegmentRowAdvanceForTest,
+            "una fila que no cabe en un renglón debe envolver y ocupar más alto");
+        foreach (var seg in segs)
+        {
+            Assert.True(rects.TryGetValue($"wrap:{seg.Item1}", out var r), $"falta wrap:{seg.Item1}");
+            Assert.True(r.X >= x, $"wrap:{seg.Item1} a la izquierda de contentLeft (x={r.X})");
+        }
+    }
+
+    [Fact]
+    public void SegmentedRow_with_label_segments_do_not_overlap_label()
+    {
+        // Con etiqueta a la izquierda, los segmentos no deben invadir el texto de la etiqueta.
+        const int x = 16, w = 308, y = 40;
+        using var bmp = new Bitmap(x + w + 40, 120);
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+        var segs = new[] { ("percent", "%"), ("pace", "▲"), ("both", "%▲") };
+
+        DashboardSettingsView.SegmentedRow(g, draw: true, "icon", "Contenido del icono", segs, "percent",
+            x, y, w, Theme.Dark, Typography.Caption, rects);
+
+        float labelRight = x + g.MeasureString("Contenido del icono", Typography.Caption).Width;
+        foreach (var seg in segs)
+        {
+            Assert.True(rects.TryGetValue($"icon:{seg.Item1}", out var r));
+            Assert.True(r.X >= labelRight + Spacing.Md - 1, $"icon:{seg.Item1} invade la etiqueta (x={r.X}, labelRight={labelRight:0})");
+        }
+    }
+
+    // -------- Draw completo: las filas reales no truncan (regresión de frecuencia compacta) --------
+
+    [Fact]
+    public void Draw_frequency_segments_fit_within_content_in_all_languages()
+    {
+        // Regresión del corte 'gundos': con etiquetas compactas, los 4 chips de frecuencia caben
+        // dentro de [X, X+W] en todos los idiomas (ningún x<X, ningún right>X+W-Sm).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
+        {
+            var s = Localization.Get(lang);
+            var rects = new Dictionary<string, Rectangle>();
+            DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+                Typography.Body, Typography.Caption, rects);
+            foreach (var key in new[] { "freq:30", "freq:60", "freq:300", "freq:900" })
+            {
+                Assert.True(rects.TryGetValue(key, out var r), $"[{lang}] falta {key}");
+                Assert.True(r.X >= X, $"[{lang}] {key} a la izquierda de contentLeft (x={r.X})");
+                Assert.True(r.Right <= X + W, $"[{lang}] {key} rebasa el borde derecho (right={r.Right})");
+            }
+        }
+    }
 }

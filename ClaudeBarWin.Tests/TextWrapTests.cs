@@ -72,4 +72,52 @@ public class TextWrapTests
         var lines = TextWrap.WordWrap("uno dos tres", maxWidth: 0, Measure);
         Assert.Equal(new[] { "uno", "dos", "tres" }, lines);
     }
+
+    // ---------------- T3: elipsis medida (Ellipsize) ----------------
+
+    [Fact]
+    public void Ellipsize_returns_text_unchanged_when_it_fits()
+    {
+        // "hola" (40 px) cabe en 100 px → sin tocar.
+        Assert.Equal("hola", TextWrap.Ellipsize("hola", maxWidth: 100, Measure));
+    }
+
+    [Fact]
+    public void Ellipsize_clips_with_measured_ellipsis_when_too_wide()
+    {
+        // "Personalizada" (130 px) no cabe en 70 px → recorta y añade "…", resultado mide ≤ 70.
+        var clipped = TextWrap.Ellipsize("Personalizada", maxWidth: 70, Measure);
+        Assert.NotEqual("Personalizada", clipped);
+        Assert.EndsWith("…", clipped);
+        Assert.True(Measure(clipped) <= 70, $"el texto elidido debe caber en 70 px, midió {Measure(clipped)}");
+    }
+
+    [Fact]
+    public void Ellipsize_never_exceeds_width_for_any_target()
+    {
+        // Invariante: para cualquier ancho objetivo, el resultado nunca excede ese ancho.
+        for (int wpx = 0; wpx <= 200; wpx += 7)
+        {
+            var clipped = TextWrap.Ellipsize("abcdefghijklmnop", maxWidth: wpx, Measure);
+            Assert.True(Measure(clipped) <= Math.Max(wpx, Measure("…")) || clipped == "…" || clipped.Length == 0,
+                $"width {wpx}: '{clipped}' midió {Measure(clipped)}");
+        }
+    }
+
+    [Fact]
+    public void Ellipsize_when_only_ellipsis_fits_returns_just_ellipsis()
+    {
+        // Si ni un carácter + "…" cabe, devuelve solo "…" (10 px) cuando este cabe.
+        var clipped = TextWrap.Ellipsize("abcdef", maxWidth: 12, Measure);
+        Assert.Equal("…", clipped);
+    }
+
+    [Fact]
+    public void Ellipsize_is_deterministic_same_input_same_output()
+    {
+        // Determinismo: misma entrada → misma salida (clave para medir==pintar).
+        var a = TextWrap.Ellipsize("texto largo de prueba", maxWidth: 95, Measure);
+        var b = TextWrap.Ellipsize("texto largo de prueba", maxWidth: 95, Measure);
+        Assert.Equal(a, b);
+    }
 }

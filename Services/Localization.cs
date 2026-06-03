@@ -22,10 +22,12 @@ public sealed class Strings
     /// <summary>Toggle "reducir movimiento" (F3): colapsa toda animación a su estado final.</summary>
     public string ReduceMotion { get; init; } = "Reduce motion";
     public string UpdateFrequency { get; init; } = "Update frequency";
-    public string Sec30 { get; init; } = "30 seconds";
-    public string Min1 { get; init; } = "1 minute";
-    public string Min5 { get; init; } = "5 minutes";
-    public string Min15 { get; init; } = "15 minutes";
+    // Etiquetas COMPACTAS estilo Apple para los segmentos de frecuencia (4 chips en una fila estrecha).
+    // El formato largo cortaba el primer chip ("gundos"); ver T3 de la spec v0.3.5.
+    public string Sec30 { get; init; } = "30s";
+    public string Min1 { get; init; } = "1m";
+    public string Min5 { get; init; } = "5m";
+    public string Min15 { get; init; } = "15m";
     public string Notifications { get; init; } = "Notifications";
     public string Enabled { get; init; } = "Enabled";
     public string NotifyWhenReaching { get; init; } = "Notify when reaching…";
@@ -256,10 +258,10 @@ public static class Localization
         AlwaysOnTop = "Siempre encima",
         ReduceMotion = "Reducir movimiento",
         UpdateFrequency = "Frecuencia de actualización",
-        Sec30 = "30 segundos",
-        Min1 = "1 minuto",
-        Min5 = "5 minutos",
-        Min15 = "15 minutos",
+        Sec30 = "30s",
+        Min1 = "1m",
+        Min5 = "5m",
+        Min15 = "15m",
         Notifications = "Notificaciones",
         Enabled = "Activadas",
         NotifyWhenReaching = "Avisar al llegar a…",
@@ -380,10 +382,10 @@ public static class Localization
         AlwaysOnTop = "Altijd op voorgrond",
         ReduceMotion = "Beweging beperken",
         UpdateFrequency = "Verversingsfrequentie",
-        Sec30 = "30 seconden",
-        Min1 = "1 minuut",
-        Min5 = "5 minuten",
-        Min15 = "15 minuten",
+        Sec30 = "30s",
+        Min1 = "1m",
+        Min5 = "5m",
+        Min15 = "15m",
         Notifications = "Meldingen",
         Enabled = "Ingeschakeld",
         NotifyWhenReaching = "Melden bij het bereiken van…",
@@ -496,10 +498,10 @@ public static class Localization
         AlwaysOnTop = "Toujours au premier plan",
         ReduceMotion = "Réduire les animations",
         UpdateFrequency = "Fréquence d'actualisation",
-        Sec30 = "30 secondes",
-        Min1 = "1 minute",
-        Min5 = "5 minutes",
-        Min15 = "15 minutes",
+        Sec30 = "30s",
+        Min1 = "1m",
+        Min5 = "5m",
+        Min15 = "15m",
         Notifications = "Notifications",
         Enabled = "Activées",
         NotifyWhenReaching = "Alerter à…",
@@ -612,10 +614,10 @@ public static class Localization
         AlwaysOnTop = "Immer im Vordergrund",
         ReduceMotion = "Bewegung reduzieren",
         UpdateFrequency = "Aktualisierungsintervall",
-        Sec30 = "30 Sekunden",
-        Min1 = "1 Minute",
-        Min5 = "5 Minuten",
-        Min15 = "15 Minuten",
+        Sec30 = "30s",
+        Min1 = "1m",
+        Min5 = "5m",
+        Min15 = "15m",
         Notifications = "Benachrichtigungen",
         Enabled = "Aktiviert",
         NotifyWhenReaching = "Benachrichtigen bei…",
@@ -960,10 +962,10 @@ public static class Localization
         AlwaysOnTop = "永遠在最上層",
         ReduceMotion = "減少動態效果",
         UpdateFrequency = "更新頻率",
-        Sec30 = "30 秒",
-        Min1 = "1 分鐘",
-        Min5 = "5 分鐘",
-        Min15 = "15 分鐘",
+        Sec30 = "30秒",
+        Min1 = "1分鐘",
+        Min5 = "5分鐘",
+        Min15 = "15分鐘",
         Notifications = "通知",
         Enabled = "已啟用",
         NotifyWhenReaching = "達到時通知…",

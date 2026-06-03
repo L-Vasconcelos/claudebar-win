@@ -44,4 +44,30 @@ public static class TextWrap
         lines.Add(current);
         return lines;
     }
+
+    /// <summary>Elipsis Unicode (un solo glifo, más estrecho que "...").</summary>
+    public const string Ellipsis = "…";
+
+    /// <summary>
+    /// Recorta <paramref name="text"/> con una elipsis medida para que NO exceda
+    /// <paramref name="maxWidth"/> según <paramref name="measure"/>. Si ya cabe, lo devuelve intacto.
+    /// Recorta carácter a carácter desde la cola hasta que <c>prefijo + "…"</c> entra; si ni un solo
+    /// carácter + elipsis cabe, devuelve solo la elipsis (o cadena vacía si ni la elipsis cabe).
+    /// Puro y determinista (misma entrada → misma salida) para garantizar medir==pintar.
+    /// </summary>
+    public static string Ellipsize(string text, double maxWidth, Func<string, double> measure)
+    {
+        text ??= string.Empty;
+        if (text.Length == 0 || measure(text) <= maxWidth) return text;
+
+        double ellW = measure(Ellipsis);
+        if (ellW > maxWidth) return string.Empty; // ni la elipsis cabe
+        // Recorta desde la cola hasta que prefijo+elipsis entre.
+        for (int len = text.Length - 1; len >= 1; len--)
+        {
+            string candidate = text[..len] + Ellipsis;
+            if (measure(candidate) <= maxWidth) return candidate;
+        }
+        return Ellipsis; // solo la elipsis cabe
+    }
 }
