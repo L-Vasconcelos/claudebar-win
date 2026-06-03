@@ -7,6 +7,17 @@
 - Invariante transversal en CADA tarea de render: `draw=false` (mide) y `draw=true` (pintan) devuelven el MISMO `y`. Tokens de `Spacing`/`Theme`, sin literales nuevos.
 - Baseline de tests a no romper: ~227 (≈212 métodos `[Fact]/[Theory]`). Cada tarea deja la suite verde.
 
+> ## ⚙️ DECISIÓN DE YOVAN (2026-06-03): **UNA PANTALLA AGRUPADA, SIN PESTAÑAS**
+> El panel de ajustes es **una sola vista vertical** (no tabs/panes navegables). Todo visible, ordenado por secciones con **cabecera en MAYÚSCULAS + divisor 1px + aire generoso** entre grupos. Esto **ANULA** la parte de "tab-bar de 4 panes" de la spec: **NO** se implementa navegación por pestañas ni `_settingsTab`. Se conservan TODOS los componentes (SectionHeader, TogglePill, anti-truncamiento, StatusBadge, MultiSegmentRow, master/dependientes) y la eliminación de duplicados. Orden de secciones (arriba = más usado):
+> 1. **MOSTRAR** — Gasto estimado · Estado del servicio · Gráfica de uso
+> 2. **SESIONES EN VIVO** — Activar (master, StatusBadge) → [dependientes indentados] Mostrar mascota · Tamaño · Silenciar con foco
+> 3. **NOTIFICACIONES** — Notificaciones (master) → [dep] Avisos de ritmo · Avisar a (hitos 25/50/75/95)
+> 4. **ACTUALIZACIÓN** — Frecuencia (30s/1m/5m/15m)
+> 5. **ICONO DE BANDEJA** — Contenido (%/▲/%▲) · Umbral de color (70/90·80/95·60/85)  ← el umbral va AQUÍ (color del icono), separado de los hitos de notificación, así no duplica
+> 6. **APARIENCIA** — Tema · Posición · Opacidad · Fijar al perder foco · Siempre encima · Reducir movimiento
+> 7. **SISTEMA** — Arrancar con Windows · Idioma
+> 8. **ACERCA DE** — Versión · Importar tema .itermcolors · Abrir carpeta de logs · Ver en GitHub
+
 Trailer de commit en TODAS las tareas:
 ```
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
@@ -66,16 +77,15 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
 ---
 
-## T4 — StatusBadge + tab-bar de panes (navegación)
+## T4 — StatusBadge (sin tab-bar — decisión: una pantalla)
 
-- **Objetivo**: tab-bar de pills (`General · Pantalla · En vivo · Sistema`) que dibuja SOLO el pane activo; StatusBadge semántico para la fila maestra de hooks.
+- **Objetivo**: StatusBadge semántico para la fila maestra de hooks. **NO** hay tab-bar (Yovan eligió una sola pantalla agrupada). El panel se dibuja como UNA vista con todas las secciones en orden.
 - **Pasos**:
-  1. (TDD) Tests: la tab-bar registra `tab:general|display|live|system`; el rect activo (Accent) corresponde al pane pintado; cambiar de pane cambia el contenido y el `y` final es el del pane visible (medir==pintar por pane); el pane inactivo no contribuye al alto.
-  2. `DashboardForm`: estado `_settingsTab` (default "general"), routing de `tab:*` en el click handler (cambia `_settingsTab`, `Relayout`, `Invalidate`); fila tab-bar tras "‹ Ajustes" (reutilizando `DrawSegments`).
-  3. `StatusBadge` helper: mini `RoundedRectPath` + texto 1 línea centrado (`StringFormat` center), color `Theme.Ok`/`Warn`, truncado tail.
-  4. `DashboardSettingsView.Draw` recibe el tab activo y enruta a `DrawPaneGeneral/Display/Live/System`.
-- **Archivos**: `UI/dashboard/DashboardSettingsView.cs`, `UI/DashboardForm.cs`, `Services/Localization.cs`, `ClaudeBarWin.Tests/`.
-- **Commit**: `feat(settings): tab-bar de 4 panes (solo pinta el activo) + StatusBadge semántico`
+  1. (TDD) Test: `StatusBadge` mide==pinta; mini `RoundedRectPath` + texto 1 línea centrado (`StringFormat` center), color `Theme.Ok` ("Activas") / `Theme.Warn` ("Instalar"), truncado tail dentro de su ancho.
+  2. Implementar `StatusBadge` helper en `DashboardSettingsView`.
+  3. (No se toca `DashboardForm` para tabs; no hay `_settingsTab`.)
+- **Archivos**: `UI/dashboard/DashboardSettingsView.cs`, `ClaudeBarWin.Tests/`.
+- **Commit**: `feat(settings): StatusBadge semántico (Activas/Instalar) para la fila maestra de hooks`
 
 ---
 
@@ -91,40 +101,43 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
 ---
 
-## T6 — Pane GENERAL + Pane PANTALLA (estructura + master/dependientes notificaciones)
+## T6 — Secciones MOSTRAR + NOTIFICACIONES + ACTUALIZACIÓN (master/dependientes) — una pantalla
 
-- **Objetivo**: poblar los dos primeros panes según la spec, con notificaciones como master+dependientes y umbral de color movido a Pantalla.
+- **Objetivo**: en la vista única, poblar las secciones de arriba con el `DrawDependent` (master/dependientes) para notificaciones. (NO panes; secciones consecutivas con `SectionHeader`+divisor entre cada una.)
 - **Pasos**:
-  1. (TDD) Test: en pane General, con `Notifications=off`, PaceAlerts e hitos quedan **inertes** (su rect no dispara mutación) y se dibujan atenuados (opacity ~0.5); con `Notifications=on` responden.
-  2. `DrawPaneGeneral`: secciones PANEL (ShowSpend+sub / ShowHealth / ShowChart), ACTUALIZACIÓN (Frecuencia), NOTIFICACIONES (Notifications master → PaceAlerts + MultiSegment hitos dependientes indentados `Spacing.Lg`).
-  3. `DrawPaneDisplay`: ICONO DE BANDEJA (Contenido + Umbral de color con sub), TEMA (Tema), VENTANA DEL PANEL (Posición/Opacidad/Sticky/OnTop/ReduceMotion+sub).
-  4. Helper `DrawDependent(...)`: aplica indent `Spacing.Lg` + atenuación + inercia cuando el master está off (no registra rect activo o lo registra inerte).
+  1. (TDD) Test: con `Notifications=off`, PaceAlerts e hitos quedan **inertes** (su rect no dispara mutación) y se dibujan atenuados (opacity ~0.5); con `Notifications=on` responden. Helper `DrawDependent` aplica indent `Spacing.Lg` + atenuación + inercia.
+  2. Sección **MOSTRAR**: ShowSpend (+sub "Coste equivalente por modelo") / ShowHealth / ShowChart.
+  3. Sección **NOTIFICACIONES**: Notifications (master) → PaceAlerts + MultiSegment hitos (25/50/75/95), dependientes indentados `Spacing.Lg`.
+  4. Sección **ACTUALIZACIÓN**: Frecuencia (SegmentedRow 30s/1m/5m/15m).
+  5. Helper `DrawDependent(...)`: indent `Spacing.Lg` + atenuación + inercia cuando el master está off (no registra rect activo o lo registra inerte).
 - **Archivos**: `UI/dashboard/DashboardSettingsView.cs`, `ClaudeBarWin.Tests/`.
-- **Commit**: `feat(settings): panes General y Pantalla + notificaciones master/dependientes + umbral de color en Pantalla`
+- **Commit**: `feat(settings): secciones Mostrar/Notificaciones/Actualización + DrawDependent (master/dependientes)`
 
 ---
 
-## T7 — Pane EN VIVO (master hooks + mascota dependiente) — quitar duplicado
+## T7 — Sección SESIONES EN VIVO (master hooks + mascota dependiente) + ICONO + APARIENCIA — quitar duplicados
 
-- **Objetivo**: sección "Sesiones en vivo" con fila maestra = botón hooks + StatusBadge, y Mostrar mascota / Tamaño / Silenciar como dependientes atenuados+inertes cuando los hooks no están instalados.
+- **Objetivo**: la sección "SESIONES EN VIVO" con fila maestra = botón hooks + StatusBadge, y Mostrar mascota / Tamaño / Silenciar como dependientes atenuados+inertes cuando los hooks no están instalados. Más las secciones ICONO DE BANDEJA (Contenido + Umbral de color) y APARIENCIA (Tema/Posición/Opacidad/Sticky/OnTop/ReduceMotion).
 - **Pasos**:
   1. (TDD) Test: con `HookInstaller.IsInstalled()==false`, los 3 dependientes están inertes+atenuados; el StatusBadge dice "Instalar" (ámbar); con true → "Activas" (verde) y dependientes activos.
-  2. `DrawPaneLive`: fila maestra `special:hooktoggle` con sub + StatusBadge; dependientes `toggle:ShowMascot`, `mascotsize`, `toggle:Suppress` vía `DrawDependent`.
-  3. Quitar definitivamente la presentación antigua (mascota suelta encima del botón).
+  2. Sección **SESIONES EN VIVO**: fila maestra `special:hooktoggle` (+sub "Recibe el estado de tus sesiones de Claude Code") + StatusBadge; dependientes `toggle:ShowMascot`, `mascotsize`, `toggle:Suppress` vía `DrawDependent`.
+  3. Sección **ICONO DE BANDEJA**: Contenido (%/▲/%▲) + Umbral de color (70/90·80/95·60/85) — el umbral aquí (color del icono), separado de los hitos de notificación → elimina el duplicado conceptual.
+  4. Sección **APARIENCIA**: Tema · Posición (CycleRow) · Opacidad · Fijar al perder foco · Siempre encima · Reducir movimiento (+sub "Desactiva animaciones").
+  5. Quitar definitivamente la presentación antigua (mascota suelta encima del botón; toggles de ventana mezclados sin orden).
 - **Archivos**: `UI/dashboard/DashboardSettingsView.cs`, `Services/Localization.cs`, `ClaudeBarWin.Tests/`.
-- **Commit**: `feat(settings): pane En vivo con master de hooks + StatusBadge y mascota/tamaño/silenciar dependientes`
+- **Commit**: `feat(settings): sección En vivo (master hooks + mascota dependiente) + Icono/Apariencia, sin duplicados`
 
 ---
 
-## T8 — Pane SISTEMA / ACERCA DE + i18n "Sistema" + acciones consolidadas
+## T8 — Secciones SISTEMA + ACERCA DE + i18n "Sistema" + acciones consolidadas (final de la vista)
 
-- **Objetivo**: mover acciones al final, localizar "Sistema", deshacer la dispersión de Importar tema.
+- **Objetivo**: las dos últimas secciones de la vista única: mover acciones al final, localizar "Sistema", deshacer la dispersión de Importar tema.
 - **Pasos**:
   1. Añadir `MenuSystem` a `Strings` (todos los idiomas) y usarlo (fin del literal hardcodeado).
-  2. `DrawPaneSystem`: SISTEMA (Arrancar con Windows, Idioma) + ACERCA DE (Versión texto, Importar .itermcolors ButtonRow). Logs/GitHub solo si el host enruta su `special:*` (si no, no se pintan).
-  3. Retirar "Importar .itermcolors" de Apariencia/Pantalla.
+  2. Sección **SISTEMA**: Arrancar con Windows, Idioma (CycleRow). Sección **ACERCA DE**: Versión (texto), Importar .itermcolors (ButtonRow). Logs/GitHub solo si el host enruta su `special:*` (si no, no se pintan).
+  3. Retirar "Importar .itermcolors" de Apariencia.
 - **Archivos**: `UI/dashboard/DashboardSettingsView.cs`, `Services/Localization.cs`, `ClaudeBarWin.Tests/`.
-- **Commit**: `feat(settings): pane Sistema/Acerca de + 'Sistema' localizado + Importar tema consolidado`
+- **Commit**: `feat(settings): secciones Sistema/Acerca de + 'Sistema' localizado + Importar tema consolidado`
 
 ---
 
@@ -157,6 +170,6 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
 ## Orden de dependencia (resumen)
 
-`T0` (fix mascota, independiente) → `T1` (tokens/SectionHeader) → `T2` (TogglePill/Row) → `T3` (anti-truncamiento) → `T4` (tab-bar/StatusBadge) → `T5` (MultiSegmentRow) → `T6` (panes General+Pantalla) → `T7` (pane En vivo) → `T8` (pane Sistema) → `T9` (arreglos visuales dashboard) → `T10` (verificación + render).
+`T0` (fix mascota, independiente) → `T1` (tokens/SectionHeader) → `T2` (TogglePill/Row) → `T3` (anti-truncamiento) → `T4` (StatusBadge, SIN tab-bar) → `T5` (MultiSegmentRow) → `T6` (secciones Mostrar/Notificaciones/Actualización) → `T7` (sección En vivo + Icono + Apariencia) → `T8` (secciones Sistema/Acerca de) → `T9` (arreglos visuales dashboard) → `T10` (verificación + render).
 
-T1–T5 son los componentes; T6–T8 los ensamblan en panes; T9 es ortogonal al panel (dashboard) y puede solaparse con T6–T8 si conviene; T10 cierra.
+T1–T5 son los componentes; T6–T8 ensamblan las secciones en **UNA sola vista vertical** (decisión Yovan: sin pestañas), en el orden del banner de arriba, con `SectionHeader`+divisor+aire entre cada sección; T9 es ortogonal al panel (dashboard) y puede solaparse con T6–T8; T10 cierra. **El render de T10 valida la vista única (no panes): scroll de todas las secciones sin cortes, mascota Idle visible.**
