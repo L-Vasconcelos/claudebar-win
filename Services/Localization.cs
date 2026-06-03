@@ -19,6 +19,8 @@ public sealed class Strings
     public string PosCustom { get; init; } = "Custom (drag the panel)";
     public string Sticky { get; init; } = "Pinned (don't auto-close)";
     public string AlwaysOnTop { get; init; } = "Always on top";
+    /// <summary>Toggle "reducir movimiento" (F3): colapsa toda animación a su estado final.</summary>
+    public string ReduceMotion { get; init; } = "Reduce motion";
     public string UpdateFrequency { get; init; } = "Update frequency";
     public string Sec30 { get; init; } = "30 seconds";
     public string Min1 { get; init; } = "1 minute";
@@ -43,13 +45,20 @@ public sealed class Strings
     public string WeekWord { get; init; } = "Week";
     public string ResetsIn { get; init; } = "resets in";
     public string Resetting { get; init; } = "resetting…";
+    public string RollingHint { get; init; } = "rolling 5h window from your 1st request";
     public string SpendHeaderFormat { get; init; } = "Estimated spend ({0}d, API-equiv)";
     public string Loading { get; init; } = "Loading…";
     public string UpdatedAt { get; init; } = "Updated";
+    /// <summary>{0} = elapsed text (e.g. "5 min"). "ago 5 min" / "hace 5 min".</summary>
+    public string AgoFormat { get; init; } = "{0} ago";
+    public string StaleLabel { get; init; } = "stale";
+    public string LocalSeal { get; init; } = "Your credentials and data never leave this device · no telemetry";
     public string HintClickToHide { get; init; } = "click the icon to hide";
     public string HintPinnedClose { get; init; } = "pinned · ✕ to close";
     public string PreviousDataTip { get; init; } = "⚠ previous data (offline)";
     public string PreviousDataFooter { get; init; } = "previous data";
+    /// <summary>Destello in-panel de celebración cuando una ventana de cuota se resetea (F3).</summary>
+    public string QuotaRenewed { get; init; } = "quota renewed";
 
     // States
     public string StateNoCredentials { get; init; } = "Not signed in — log in to Claude Code";
@@ -74,6 +83,18 @@ public sealed class Strings
     public string HealthOk { get; init; } = "Operational";
     public string HealthDegraded { get; init; } = "Degraded";
     public string HealthOutage { get; init; } = "Outage";
+
+    // Dashboard sections (v0.3)
+    public string SectionQuota { get; init; } = "Quota";
+    public string SectionSessions { get; init; } = "Sessions";
+    public string SectionSpend { get; init; } = "Spend";
+    public string SectionChart { get; init; } = "Chart";
+
+    // Settings panel (v0.3)
+    public string Back { get; init; } = "Back";
+    public string MascotSizeLabel { get; init; } = "Mascot size";
+    public string MascotSizeCompact { get; init; } = "compact";
+    public string MascotSizeLarge { get; init; } = "large";
 
     // Chart & misc
     public string UsageChart { get; init; } = "Usage chart";
@@ -111,7 +132,38 @@ public sealed class Strings
     /// <summary>{0} = path.</summary>
     public string UpdateDownloadedFmt { get; init; } = "Downloaded to:\n{0}\n\nClose ClaudeBar and replace the running .exe with this file.";
     public string UpdateFailed { get; init; } = "Couldn't check/download the update.";
+
+    // Live sessions / Mascot
+    public string MenuLiveSessions { get; init; } = "Live sessions";
+    public string MenuShowMascot { get; init; } = "Show mascot";
+    public string MenuSuppressWhenFocused { get; init; } = "Mute when terminal focused";
+    public string MenuInstallHooks { get; init; } = "Enable (install hooks)…";
+    public string MenuUninstallHooks { get; init; } = "Disable (remove hooks)";
+    public string NoActiveSessions { get; init; } = "No active sessions";
+    public string SessionPhaseIdle { get; init; } = "idle";
+    public string SessionPhaseProcessing { get; init; } = "working";
+    public string SessionPhaseWaitingApproval { get; init; } = "waiting for OK";
+    public string SessionPhaseWaitingInput { get; init; } = "your turn";
+    public string SessionPhaseCompacting { get; init; } = "compacting";
+    /// <summary>{0} = nombre del proyecto.</summary>
+    public string NotifWaitingApprovalFmt { get; init; } = "Claude is waiting for your OK in {0}";
+    /// <summary>{0} = nombre del proyecto.</summary>
+    public string NotifWaitingInputFmt { get; init; } = "Claude finished in {0}";
+    public string LiveSessionsTitle { get; init; } = "Claude sessions";
+    /// <summary>{0} = ruta del backup de settings.json.</summary>
+    public string HooksInstalledFmt { get; init; } = "Live sessions on. Backup: {0}";
+    public string HooksRemoved { get; init; } = "Live sessions off. Hooks removed.";
     public string Changelog { get; init; } = "What's new";
+
+    // Mascot verbs (F3): pool de 3-5 verbos JUGUETONES por fase, junto a la mascota con elipsis
+    // animada ("thinking…"). Clean-room (inventados, no copiados de Notchi/Buddi = GPL). El
+    // MascotAnimator rota por el pool con jitter; el índice se acota al tamaño del pool.
+    public string[] MascotVerbsProcessing { get; init; } = { "thinking", "cooking", "tinkering", "noodling", "scheming" };
+    public string[] MascotVerbsWaitingApproval { get; init; } = { "your call", "needs a nod", "psst, you" };
+    public string[] MascotVerbsWaitingInput { get; init; } = { "your turn", "all ears", "waiting up", "go ahead" };
+    public string[] MascotVerbsCompacting { get; init; } = { "tidying up", "folding memory", "squishing", "decluttering" };
+    public string[] MascotVerbsIdle { get; init; } = { "napping", "loafing", "daydreaming", "stretching" };
+    public string[] MascotVerbsEnded { get; init; } = { "all done", "wrapped up", "out cold" };
 }
 
 public static class Localization
@@ -135,6 +187,27 @@ public static class Localization
             ? ResolveSystemCode()
             : cfg.Language;
         return Get(code);
+    }
+
+    /// <summary>Orden de ciclo del selector de idioma del panel: "system" + los 8 códigos.</summary>
+    public static readonly string[] LanguageCycle =
+        new[] { "system" }.Concat(Languages.Select(l => l.Code)).ToArray();
+
+    /// <summary>Nombre legible de un código de idioma ("system" → SystemDefault; resto → nativo).</summary>
+    public static string LanguageDisplayName(string code, Strings s)
+    {
+        if (string.IsNullOrEmpty(code) || code == "system") return s.SystemDefault;
+        foreach (var (c, native) in Languages)
+            if (c == code) return native;
+        return code;
+    }
+
+    /// <summary>Siguiente idioma en el ciclo (envuelve al principio).</summary>
+    public static string NextLanguage(string current)
+    {
+        var cur = string.IsNullOrEmpty(current) ? "system" : current;
+        int i = Array.IndexOf(LanguageCycle, cur);
+        return LanguageCycle[(i < 0 ? 0 : (i + 1) % LanguageCycle.Length)];
     }
 
     public static string ResolveSystemCode()
@@ -181,6 +254,7 @@ public static class Localization
         PosCustom = "Personalizada (arrastra el panel)",
         Sticky = "Fijado (no se cierra solo)",
         AlwaysOnTop = "Siempre encima",
+        ReduceMotion = "Reducir movimiento",
         UpdateFrequency = "Frecuencia de actualización",
         Sec30 = "30 segundos",
         Min1 = "1 minuto",
@@ -203,13 +277,18 @@ public static class Localization
         WeekWord = "Semana",
         ResetsIn = "resetea en",
         Resetting = "reseteando…",
+        RollingHint = "ventana móvil de 5h desde tu 1ª petición",
         SpendHeaderFormat = "Gasto estimado ({0}d, equiv. API)",
         Loading = "Cargando…",
         UpdatedAt = "Actualizado",
+        AgoFormat = "hace {0}",
+        StaleLabel = "desfasado",
+        LocalSeal = "Tus credenciales y datos no salen del equipo · sin telemetría",
         HintClickToHide = "clic en el icono para ocultar",
         HintPinnedClose = "fijado · ✕ para cerrar",
         PreviousDataTip = "⚠ datos previos (sin conexión)",
         PreviousDataFooter = "datos previos",
+        QuotaRenewed = "cuota renovada",
         StateNoCredentials = "No autenticado — inicia sesión en Claude Code",
         StateAuthExpired = "Sesión caducada — abre Claude Code",
         StateRateLimited = "Límite de peticiones — reintentando",
@@ -226,6 +305,14 @@ public static class Localization
         HealthOk = "Operativo",
         HealthDegraded = "Degradado",
         HealthOutage = "Caído",
+        SectionQuota = "Cuota",
+        SectionSessions = "Sesiones",
+        SectionSpend = "Gasto",
+        SectionChart = "Gráfica",
+        Back = "Volver",
+        MascotSizeLabel = "Tamaño mascota",
+        MascotSizeCompact = "compacta",
+        MascotSizeLarge = "grande",
         UsageChart = "Gráfica de uso",
         NoData = "Sin datos en este rango",
         OpenBilling = "Abrir facturación…",
@@ -252,7 +339,29 @@ public static class Localization
         UpdatePromptFmt = "Versión actual: v{0}\nÚltima disponible: {1}\n\n¿Descargar ahora?",
         UpdateDownloadedFmt = "Descargado en:\n{0}\n\nCierra ClaudeBar y reemplaza el .exe en uso por este archivo.",
         UpdateFailed = "No se pudo comprobar/descargar la actualización.",
-        Changelog = "Novedades"
+        MenuLiveSessions = "Sesiones en vivo",
+        MenuShowMascot = "Mostrar mascota",
+        MenuSuppressWhenFocused = "Silenciar si la terminal tiene foco",
+        MenuInstallHooks = "Activar (instalar hooks)…",
+        MenuUninstallHooks = "Desactivar (quitar hooks)",
+        NoActiveSessions = "Sin sesiones activas",
+        SessionPhaseIdle = "en reposo",
+        SessionPhaseProcessing = "trabajando",
+        SessionPhaseWaitingApproval = "espera tu OK",
+        SessionPhaseWaitingInput = "tu turno",
+        SessionPhaseCompacting = "compactando",
+        NotifWaitingApprovalFmt = "Claude espera tu OK en {0}",
+        NotifWaitingInputFmt = "Claude terminó en {0}",
+        LiveSessionsTitle = "Sesiones de Claude",
+        HooksInstalledFmt = "Sesiones en vivo activadas. Backup: {0}",
+        HooksRemoved = "Sesiones en vivo desactivadas. Hooks quitados.",
+        Changelog = "Novedades",
+        MascotVerbsProcessing = new[] { "pensando", "cocinando", "tramando", "dándole al coco", "maquinando" },
+        MascotVerbsWaitingApproval = new[] { "tú decides", "un visto bueno", "psst, oye" },
+        MascotVerbsWaitingInput = new[] { "te toca", "soy todo oídos", "aquí esperando", "cuando quieras" },
+        MascotVerbsCompacting = new[] { "ordenando", "plegando memoria", "comprimiendo", "haciendo hueco" },
+        MascotVerbsIdle = new[] { "echando la siesta", "haciendo el vago", "soñando despierto", "estirándome" },
+        MascotVerbsEnded = new[] { "listo", "asunto cerrado", "fuera de combate" }
     };
 
     private static readonly Strings Dutch = new()
@@ -269,6 +378,7 @@ public static class Localization
         PosCustom = "Aangepast (sleep het paneel)",
         Sticky = "Vastgezet (niet automatisch sluiten)",
         AlwaysOnTop = "Altijd op voorgrond",
+        ReduceMotion = "Beweging beperken",
         UpdateFrequency = "Verversingsfrequentie",
         Sec30 = "30 seconden",
         Min1 = "1 minuut",
@@ -291,13 +401,18 @@ public static class Localization
         WeekWord = "Week",
         ResetsIn = "reset over",
         Resetting = "resetten…",
+        RollingHint = "voortschrijdend venster van 5u vanaf je 1e verzoek",
         SpendHeaderFormat = "Geschatte uitgaven ({0}d, API-equiv.)",
         Loading = "Laden…",
         UpdatedAt = "Bijgewerkt",
+        AgoFormat = "{0} geleden",
+        StaleLabel = "verouderd",
+        LocalSeal = "Je inloggegevens en data verlaten dit apparaat nooit · geen telemetrie",
         HintClickToHide = "klik op het pictogram om te verbergen",
         HintPinnedClose = "vastgezet · ✕ om te sluiten",
         PreviousDataTip = "⚠ vorige gegevens (offline)",
         PreviousDataFooter = "vorige gegevens",
+        QuotaRenewed = "quota vernieuwd",
         StateNoCredentials = "Niet aangemeld — log in bij Claude Code",
         StateAuthExpired = "Sessie verlopen — open Claude Code",
         StateRateLimited = "Verzoeklimiet — opnieuw proberen",
@@ -340,7 +455,29 @@ public static class Localization
         UpdatePromptFmt = "Huidige versie: v{0}\nNieuwste: {1}\n\nNu downloaden?",
         UpdateDownloadedFmt = "Gedownload naar:\n{0}\n\nSluit ClaudeBar en vervang de actieve .exe door dit bestand.",
         UpdateFailed = "Kan de update niet controleren/downloaden.",
-        Changelog = "Wat is er nieuw"
+        MenuLiveSessions = "Live sessies",
+        MenuShowMascot = "Mascotte tonen",
+        MenuSuppressWhenFocused = "Dempen als terminal focus heeft",
+        MenuInstallHooks = "Inschakelen (hooks installeren)…",
+        MenuUninstallHooks = "Uitschakelen (hooks verwijderen)",
+        NoActiveSessions = "Geen actieve sessies",
+        SessionPhaseIdle = "inactief",
+        SessionPhaseProcessing = "bezig",
+        SessionPhaseWaitingApproval = "wacht op jouw OK",
+        SessionPhaseWaitingInput = "jouw beurt",
+        SessionPhaseCompacting = "comprimeren",
+        NotifWaitingApprovalFmt = "Claude wacht op jouw OK in {0}",
+        NotifWaitingInputFmt = "Claude is klaar in {0}",
+        LiveSessionsTitle = "Claude-sessies",
+        HooksInstalledFmt = "Live sessies aan. Back-up: {0}",
+        HooksRemoved = "Live sessies uit. Hooks verwijderd.",
+        Changelog = "Wat is er nieuw",
+        MascotVerbsProcessing = new[] { "aan het denken", "aan het koken", "aan het knutselen", "aan het broeden", "aan het smeden" },
+        MascotVerbsWaitingApproval = new[] { "jouw keuze", "een knikje graag", "psst, jij daar" },
+        MascotVerbsWaitingInput = new[] { "jouw beurt", "een en al oor", "wacht op je", "ga je gang" },
+        MascotVerbsCompacting = new[] { "opruimen", "geheugen vouwen", "comprimeren", "ruimte maken" },
+        MascotVerbsIdle = new[] { "dutje doen", "lekker luieren", "dagdromen", "uitrekken" },
+        MascotVerbsEnded = new[] { "klaar", "afgerond", "knock-out" }
     };
 
     private static readonly Strings French = new()
@@ -357,6 +494,7 @@ public static class Localization
         PosCustom = "Personnalisée (glissez le panneau)",
         Sticky = "Épinglé (ne pas fermer auto)",
         AlwaysOnTop = "Toujours au premier plan",
+        ReduceMotion = "Réduire les animations",
         UpdateFrequency = "Fréquence d'actualisation",
         Sec30 = "30 secondes",
         Min1 = "1 minute",
@@ -379,13 +517,18 @@ public static class Localization
         WeekWord = "Semaine",
         ResetsIn = "réinit. dans",
         Resetting = "réinitialisation…",
+        RollingHint = "fenêtre glissante de 5h depuis ta 1re requête",
         SpendHeaderFormat = "Coût estimé ({0}j, équiv. API)",
         Loading = "Chargement…",
         UpdatedAt = "Mis à jour",
+        AgoFormat = "il y a {0}",
+        StaleLabel = "obsolète",
+        LocalSeal = "Tes identifiants et tes données ne quittent jamais cet appareil · sans télémétrie",
         HintClickToHide = "cliquez sur l'icône pour masquer",
         HintPinnedClose = "épinglé · ✕ pour fermer",
         PreviousDataTip = "⚠ données précédentes (hors ligne)",
         PreviousDataFooter = "données précédentes",
+        QuotaRenewed = "quota renouvelé",
         StateNoCredentials = "Non connecté — connectez-vous à Claude Code",
         StateAuthExpired = "Session expirée — ouvrez Claude Code",
         StateRateLimited = "Limite de requêtes — nouvelle tentative",
@@ -428,7 +571,29 @@ public static class Localization
         UpdatePromptFmt = "Version actuelle : v{0}\nDernière : {1}\n\nTélécharger maintenant ?",
         UpdateDownloadedFmt = "Téléchargé dans :\n{0}\n\nFerme ClaudeBar et remplace le .exe en cours par ce fichier.",
         UpdateFailed = "Impossible de vérifier/télécharger la mise à jour.",
-        Changelog = "Nouveautés"
+        MenuLiveSessions = "Sessions en direct",
+        MenuShowMascot = "Afficher la mascotte",
+        MenuSuppressWhenFocused = "Muet si le terminal a le focus",
+        MenuInstallHooks = "Activer (installer les hooks)…",
+        MenuUninstallHooks = "Désactiver (retirer les hooks)",
+        NoActiveSessions = "Aucune session active",
+        SessionPhaseIdle = "au repos",
+        SessionPhaseProcessing = "en cours",
+        SessionPhaseWaitingApproval = "attend votre OK",
+        SessionPhaseWaitingInput = "à vous",
+        SessionPhaseCompacting = "compactage",
+        NotifWaitingApprovalFmt = "Claude attend votre OK dans {0}",
+        NotifWaitingInputFmt = "Claude a terminé dans {0}",
+        LiveSessionsTitle = "Sessions Claude",
+        HooksInstalledFmt = "Sessions en direct activées. Sauvegarde : {0}",
+        HooksRemoved = "Sessions en direct désactivées. Hooks retirés.",
+        Changelog = "Nouveautés",
+        MascotVerbsProcessing = new[] { "je réfléchis", "je mijote", "je bricole", "je cogite", "je manigance" },
+        MascotVerbsWaitingApproval = new[] { "à toi de voir", "un petit oui ?", "psst, toi" },
+        MascotVerbsWaitingInput = new[] { "à toi", "tout ouïe", "je t'attends", "vas-y" },
+        MascotVerbsCompacting = new[] { "je range", "je plie la mémoire", "je compresse", "je fais de la place" },
+        MascotVerbsIdle = new[] { "je fais la sieste", "je flâne", "je rêvasse", "je m'étire" },
+        MascotVerbsEnded = new[] { "terminé", "emballé", "K.-O." }
     };
 
     private static readonly Strings German = new()
@@ -445,6 +610,7 @@ public static class Localization
         PosCustom = "Benutzerdefiniert (Panel ziehen)",
         Sticky = "Angeheftet (nicht autom. schließen)",
         AlwaysOnTop = "Immer im Vordergrund",
+        ReduceMotion = "Bewegung reduzieren",
         UpdateFrequency = "Aktualisierungsintervall",
         Sec30 = "30 Sekunden",
         Min1 = "1 Minute",
@@ -467,13 +633,18 @@ public static class Localization
         WeekWord = "Woche",
         ResetsIn = "Reset in",
         Resetting = "wird zurückgesetzt…",
+        RollingHint = "gleitendes 5-Std-Fenster ab deiner 1. Anfrage",
         SpendHeaderFormat = "Geschätzte Kosten ({0}T, API-Äquiv.)",
         Loading = "Laden…",
         UpdatedAt = "Aktualisiert",
+        AgoFormat = "vor {0}",
+        StaleLabel = "veraltet",
+        LocalSeal = "Deine Anmeldedaten und Daten verlassen nie dieses Gerät · keine Telemetrie",
         HintClickToHide = "Symbol anklicken zum Ausblenden",
         HintPinnedClose = "angeheftet · ✕ zum Schließen",
         PreviousDataTip = "⚠ vorherige Daten (offline)",
         PreviousDataFooter = "vorherige Daten",
+        QuotaRenewed = "Kontingent erneuert",
         StateNoCredentials = "Nicht angemeldet — bei Claude Code anmelden",
         StateAuthExpired = "Sitzung abgelaufen — Claude Code öffnen",
         StateRateLimited = "Anfragelimit — erneuter Versuch",
@@ -516,7 +687,29 @@ public static class Localization
         UpdatePromptFmt = "Aktuelle Version: v{0}\nNeueste: {1}\n\nJetzt herunterladen?",
         UpdateDownloadedFmt = "Heruntergeladen nach:\n{0}\n\nSchließe ClaudeBar und ersetze die laufende .exe durch diese Datei.",
         UpdateFailed = "Update konnte nicht geprüft/geladen werden.",
-        Changelog = "Neuerungen"
+        MenuLiveSessions = "Live-Sitzungen",
+        MenuShowMascot = "Maskottchen anzeigen",
+        MenuSuppressWhenFocused = "Stumm, wenn Terminal im Fokus",
+        MenuInstallHooks = "Aktivieren (Hooks installieren)…",
+        MenuUninstallHooks = "Deaktivieren (Hooks entfernen)",
+        NoActiveSessions = "Keine aktiven Sitzungen",
+        SessionPhaseIdle = "im Leerlauf",
+        SessionPhaseProcessing = "arbeitet",
+        SessionPhaseWaitingApproval = "wartet auf dein OK",
+        SessionPhaseWaitingInput = "du bist dran",
+        SessionPhaseCompacting = "komprimiert",
+        NotifWaitingApprovalFmt = "Claude wartet auf dein OK in {0}",
+        NotifWaitingInputFmt = "Claude ist fertig in {0}",
+        LiveSessionsTitle = "Claude-Sitzungen",
+        HooksInstalledFmt = "Live-Sitzungen an. Backup: {0}",
+        HooksRemoved = "Live-Sitzungen aus. Hooks entfernt.",
+        Changelog = "Neuerungen",
+        MascotVerbsProcessing = new[] { "am Grübeln", "am Brüten", "am Basteln", "am Tüfteln", "am Schmieden" },
+        MascotVerbsWaitingApproval = new[] { "deine Wahl", "ein Nicken bitte", "pst, du da" },
+        MascotVerbsWaitingInput = new[] { "du bist dran", "ganz Ohr", "warte auf dich", "leg los" },
+        MascotVerbsCompacting = new[] { "räume auf", "falte Speicher", "komprimiere", "schaffe Platz" },
+        MascotVerbsIdle = new[] { "halte ein Nickerchen", "faulenze", "träume vor mich hin", "strecke mich" },
+        MascotVerbsEnded = new[] { "fertig", "abgehakt", "k. o." }
     };
 
     private static readonly Strings Japanese = new()
@@ -533,6 +726,7 @@ public static class Localization
         PosCustom = "カスタム（ドラッグで移動）",
         Sticky = "固定（自動で閉じない）",
         AlwaysOnTop = "常に最前面",
+        ReduceMotion = "アニメーションを減らす",
         UpdateFrequency = "更新頻度",
         Sec30 = "30秒",
         Min1 = "1分",
@@ -555,13 +749,18 @@ public static class Localization
         WeekWord = "週間",
         ResetsIn = "リセットまで",
         Resetting = "リセット中…",
+        RollingHint = "最初のリクエストからの5時間移動ウィンドウ",
         SpendHeaderFormat = "推定コスト（{0}日, API換算）",
         Loading = "読み込み中…",
         UpdatedAt = "更新",
+        AgoFormat = "{0}前",
+        StaleLabel = "古い",
+        LocalSeal = "認証情報とデータはこの端末から外に出ません · テレメトリなし",
         HintClickToHide = "アイコンをクリックで非表示",
         HintPinnedClose = "固定中 · ✕ で閉じる",
         PreviousDataTip = "⚠ 以前のデータ（オフライン）",
         PreviousDataFooter = "以前のデータ",
+        QuotaRenewed = "クォータ更新",
         StateNoCredentials = "未ログイン — Claude Code にログイン",
         StateAuthExpired = "セッション期限切れ — Claude Code を開く",
         StateRateLimited = "レート制限 — 再試行中",
@@ -604,7 +803,29 @@ public static class Localization
         UpdatePromptFmt = "現在のバージョン: v{0}\n最新: {1}\n\n今すぐダウンロードしますか？",
         UpdateDownloadedFmt = "ダウンロード先:\n{0}\n\nClaudeBar を閉じて、実行中の .exe をこのファイルに置き換えてください。",
         UpdateFailed = "更新の確認/ダウンロードに失敗しました。",
-        Changelog = "変更点"
+        MenuLiveSessions = "ライブセッション",
+        MenuShowMascot = "マスコットを表示",
+        MenuSuppressWhenFocused = "ターミナルがフォーカス中はミュート",
+        MenuInstallHooks = "有効化（フックをインストール）…",
+        MenuUninstallHooks = "無効化（フックを削除）",
+        NoActiveSessions = "アクティブなセッションなし",
+        SessionPhaseIdle = "待機中",
+        SessionPhaseProcessing = "処理中",
+        SessionPhaseWaitingApproval = "承認待ち",
+        SessionPhaseWaitingInput = "あなたの番",
+        SessionPhaseCompacting = "圧縮中",
+        NotifWaitingApprovalFmt = "Claude が {0} で承認を待っています",
+        NotifWaitingInputFmt = "Claude が {0} で完了しました",
+        LiveSessionsTitle = "Claude セッション",
+        HooksInstalledFmt = "ライブセッション オン。バックアップ: {0}",
+        HooksRemoved = "ライブセッション オフ。フックを削除しました。",
+        Changelog = "変更点",
+        MascotVerbsProcessing = new[] { "考え中", "調理中", "いじり中", "ひらめき中", "たくらみ中" },
+        MascotVerbsWaitingApproval = new[] { "あなた次第", "うなずき待ち", "ねえ、きみ" },
+        MascotVerbsWaitingInput = new[] { "あなたの番", "聞いてるよ", "待ってるよ", "どうぞ" },
+        MascotVerbsCompacting = new[] { "片づけ中", "記憶をたたみ中", "圧縮中", "すき間づくり中" },
+        MascotVerbsIdle = new[] { "お昼寝中", "のんびり中", "空想中", "伸び中" },
+        MascotVerbsEnded = new[] { "完了", "ひと段落", "ノックアウト" }
     };
 
     private static readonly Strings Korean = new()
@@ -621,6 +842,7 @@ public static class Localization
         PosCustom = "사용자 지정 (드래그)",
         Sticky = "고정 (자동으로 닫지 않음)",
         AlwaysOnTop = "항상 위에",
+        ReduceMotion = "동작 줄이기",
         UpdateFrequency = "새로고침 주기",
         Sec30 = "30초",
         Min1 = "1분",
@@ -643,13 +865,18 @@ public static class Localization
         WeekWord = "주간",
         ResetsIn = "재설정까지",
         Resetting = "재설정 중…",
+        RollingHint = "첫 요청부터 5시간 이동 윈도우",
         SpendHeaderFormat = "예상 비용 ({0}일, API 환산)",
         Loading = "로딩 중…",
         UpdatedAt = "업데이트됨",
+        AgoFormat = "{0} 전",
+        StaleLabel = "오래됨",
+        LocalSeal = "자격 증명과 데이터는 이 기기를 벗어나지 않습니다 · 텔레메트리 없음",
         HintClickToHide = "아이콘을 클릭하여 숨기기",
         HintPinnedClose = "고정됨 · ✕ 닫기",
         PreviousDataTip = "⚠ 이전 데이터 (오프라인)",
         PreviousDataFooter = "이전 데이터",
+        QuotaRenewed = "쿼터 갱신됨",
         StateNoCredentials = "로그인 안 됨 — Claude Code에 로그인",
         StateAuthExpired = "세션 만료 — Claude Code 열기",
         StateRateLimited = "요청 제한 — 재시도 중",
@@ -692,7 +919,29 @@ public static class Localization
         UpdatePromptFmt = "현재 버전: v{0}\n최신: {1}\n\n지금 다운로드할까요?",
         UpdateDownloadedFmt = "다운로드 위치:\n{0}\n\nClaudeBar를 닫고 실행 중인 .exe를 이 파일로 교체하세요.",
         UpdateFailed = "업데이트 확인/다운로드에 실패했습니다.",
-        Changelog = "변경 사항"
+        MenuLiveSessions = "실시간 세션",
+        MenuShowMascot = "마스코트 표시",
+        MenuSuppressWhenFocused = "터미널이 포커스일 때 음소거",
+        MenuInstallHooks = "활성화 (훅 설치)…",
+        MenuUninstallHooks = "비활성화 (훅 제거)",
+        NoActiveSessions = "활성 세션 없음",
+        SessionPhaseIdle = "대기 중",
+        SessionPhaseProcessing = "작업 중",
+        SessionPhaseWaitingApproval = "승인 대기",
+        SessionPhaseWaitingInput = "당신 차례",
+        SessionPhaseCompacting = "압축 중",
+        NotifWaitingApprovalFmt = "Claude가 {0}에서 승인을 기다립니다",
+        NotifWaitingInputFmt = "Claude가 {0}에서 완료했습니다",
+        LiveSessionsTitle = "Claude 세션",
+        HooksInstalledFmt = "실시간 세션 켜짐. 백업: {0}",
+        HooksRemoved = "실시간 세션 꺼짐. 훅 제거됨.",
+        Changelog = "변경 사항",
+        MascotVerbsProcessing = new[] { "생각 중", "요리 중", "만지작 중", "골똘히", "꿍꿍이 중" },
+        MascotVerbsWaitingApproval = new[] { "당신 결정", "끄덕임 부탁", "저기요" },
+        MascotVerbsWaitingInput = new[] { "당신 차례", "다 듣고 있어요", "기다리는 중", "어서요" },
+        MascotVerbsCompacting = new[] { "정리 중", "기억 접는 중", "압축 중", "자리 만드는 중" },
+        MascotVerbsIdle = new[] { "낮잠 중", "빈둥대는 중", "공상 중", "기지개 중" },
+        MascotVerbsEnded = new[] { "완료", "마무리됨", "녹다운" }
     };
 
     private static readonly Strings TradChinese = new()
@@ -709,6 +958,7 @@ public static class Localization
         PosCustom = "自訂（拖曳面板）",
         Sticky = "釘選（不自動關閉）",
         AlwaysOnTop = "永遠在最上層",
+        ReduceMotion = "減少動態效果",
         UpdateFrequency = "更新頻率",
         Sec30 = "30 秒",
         Min1 = "1 分鐘",
@@ -731,13 +981,18 @@ public static class Localization
         WeekWord = "每週",
         ResetsIn = "重設於",
         Resetting = "重設中…",
+        RollingHint = "從你第一次請求起算的 5 小時滾動視窗",
         SpendHeaderFormat = "估計花費（{0}天，API 約當）",
         Loading = "載入中…",
         UpdatedAt = "已更新",
+        AgoFormat = "{0}前",
+        StaleLabel = "過期",
+        LocalSeal = "你的憑證與資料絕不離開本機 · 無遙測",
         HintClickToHide = "點擊圖示以隱藏",
         HintPinnedClose = "已釘選 · ✕ 關閉",
         PreviousDataTip = "⚠ 先前資料（離線）",
         PreviousDataFooter = "先前資料",
+        QuotaRenewed = "額度已更新",
         StateNoCredentials = "未登入 — 請登入 Claude Code",
         StateAuthExpired = "工作階段過期 — 開啟 Claude Code",
         StateRateLimited = "請求受限 — 重試中",
@@ -780,6 +1035,28 @@ public static class Localization
         UpdatePromptFmt = "目前版本：v{0}\n最新：{1}\n\n要立即下載嗎？",
         UpdateDownloadedFmt = "已下載到:\n{0}\n\n關閉 ClaudeBar 並用此檔案取代執行中的 .exe。",
         UpdateFailed = "無法檢查／下載更新。",
-        Changelog = "更新內容"
+        MenuLiveSessions = "即時工作階段",
+        MenuShowMascot = "顯示吉祥物",
+        MenuSuppressWhenFocused = "終端機聚焦時靜音",
+        MenuInstallHooks = "啟用（安裝 hooks）…",
+        MenuUninstallHooks = "停用（移除 hooks）",
+        NoActiveSessions = "沒有作用中的工作階段",
+        SessionPhaseIdle = "閒置",
+        SessionPhaseProcessing = "處理中",
+        SessionPhaseWaitingApproval = "等待你的同意",
+        SessionPhaseWaitingInput = "輪到你了",
+        SessionPhaseCompacting = "壓縮中",
+        NotifWaitingApprovalFmt = "Claude 正在 {0} 等待你的同意",
+        NotifWaitingInputFmt = "Claude 已在 {0} 完成",
+        LiveSessionsTitle = "Claude 工作階段",
+        HooksInstalledFmt = "即時工作階段已開啟。備份：{0}",
+        HooksRemoved = "即時工作階段已關閉。已移除 hooks。",
+        Changelog = "更新內容",
+        MascotVerbsProcessing = new[] { "思考中", "烹煮中", "擺弄中", "靈光乍現", "謀劃中" },
+        MascotVerbsWaitingApproval = new[] { "你說了算", "點個頭吧", "欸，是你" },
+        MascotVerbsWaitingInput = new[] { "輪到你了", "洗耳恭聽", "等你呢", "請吧" },
+        MascotVerbsCompacting = new[] { "整理中", "摺疊記憶", "壓縮中", "騰出空間" },
+        MascotVerbsIdle = new[] { "打盹中", "閒晃中", "做白日夢", "伸懶腰" },
+        MascotVerbsEnded = new[] { "完成", "收工", "倒下了" }
     };
 }

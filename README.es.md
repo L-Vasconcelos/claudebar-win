@@ -23,11 +23,30 @@ Las barras de 5h/7d y sus valores se colorean por **ritmo** (pace), la gráfica 
 **Gasto $** (apilado por modelo) y **Cuota %** (utilización real en el tiempo), y el panel se
 auto-ajusta a las secciones que actives.
 
+Todo desplegado a la vez — la **mascota** de sesiones en vivo, las dos barras de cuota, el gasto por
+modelo y la gráfica de uso:
+
+<p align="center"><img src="assets/dashboard-full.png" alt="Dashboard completo con la mascota de sesiones en vivo" width="320"></p>
+
 **Arrástralo donde quieras y ajústale la opacidad** — el panel es un widget movible y semitransparente:
 
 <p align="center">
   <img src="assets/move.gif" alt="Arrastra el panel por la pantalla" width="380">
   <img src="assets/opacity.gif" alt="Opacidad ajustable" width="380">
+</p>
+
+**Microinteracciones** — el panel aparece con un fade y entrada escalonada, los números y las barras
+hacen tween hasta su valor, la mascota parpadea y gira su spinner mientras trabaja, las filas se
+realzan al pasar el cursor, y un reset de cuota recibe un pequeño destello (todo respeta el toggle de
+*reducir movimiento*):
+
+<p align="center">
+  <img src="assets/f3-apertura.gif" alt="Apertura del panel: fade, entrada escalonada, tween de números/barras" width="300">
+  <img src="assets/f3-mascota.gif" alt="Vida de la mascota: parpadeo, spinner braille, verbo juguetón" width="300">
+</p>
+<p align="center">
+  <img src="assets/f3-hover.gif" alt="Realce de hover apareciendo sobre una sección" width="300">
+  <img src="assets/f3-celebracion.gif" alt="Destello de celebración de reset de cuota" width="300">
 </p>
 
 Icono de bandeja, por estado / ritmo:
@@ -55,7 +74,13 @@ Icono de bandeja, por estado / ritmo:
 - **Temas** (Sistema / Oscuro / Claro / CLI + importar `.itermcolors`) y **9 idiomas**
   (Sistema + English, Español, Nederlands, Français, Deutsch, 日本語, 한국어, 繁體中文) — ambos
   por defecto siguen tu configuración de Windows.
-- Todo configurable desde el **menú de click derecho**.
+- **Sesiones en vivo (opt-in)**: una mascota ASCII en el dashboard reacciona a tus sesiones de
+  Claude Code en tiempo real (inactiva / trabajando / esperando aprobación / esperando input /
+  compactando / terminada), mediante hooks de Claude Code por un named pipe local; el icono de
+  bandeja añade un punto ámbar cuando una sesión necesita tu atención. Se activa/desactiva en
+  **Ajustes → Sesiones en vivo** — instala/quita los hooks en `~/.claude/settings.json` (con copia
+  de seguridad y confirmación).
+- Todo configurable desde el **panel de ajustes ⚙** del dashboard.
 
 ## De dónde sale el dato
 
@@ -104,25 +129,25 @@ Arranque automático: click derecho en el icono → **Ajustes → Iniciar con Wi
 - Nada más para ejecutar el build de la release. Para compilar: **.NET SDK 9** (vale user-local
   en `%USERPROFILE%\.dotnet`, sin admin).
 
-## Configuración (todo desde el click derecho)
+## Configuración (panel de ajustes en el dashboard)
+
+Abre el dashboard y pulsa el **⚙** (arriba a la derecha) — **toda la configuración vive ahí**, agrupada:
 
 ```
-Dashboard
-Actualizar ahora
-Ventana del panel ▶   Posición (esquinas · centro · arrastrar) · ☑ Fijado · ☑ Siempre encima · Opacidad ▶
-Frecuencia ▶          30s · 1min · 5min · 15min
-Notificaciones ▶      ☑ Activadas · Avisar al ☑25% ☑50% ☑75% ☑95%
-Umbral de color ▶     70/90 · 80/95 · 60/85
-Ajustes ▶             ☑ Mostrar gasto estimado · ☑ Mostrar estado del servicio · ☑ Gráfica de uso
-                      Modo de icono ▶ % / ▲ / % ▲  ·  ☑ Avisos de ritmo  ·  ☑ Iniciar con Windows
-                      Tema ▶ Sistema/Oscuro/Claro/CLI · Importar .itermcolors…
-                      Idioma ▶ (Sistema + 8) · Editar config… · Abrir carpeta de datos
-Salir
+Secciones         ☑ Gasto estimado · ☑ Estado del servicio · ☑ Gráfica de uso
+Sesiones en vivo  ☑ Mascota · Tamaño (compacta/grande) · ☑ Silenciar si la terminal tiene foco
+                  [ Activar/Desactivar — instala/quita los hooks de Claude Code (con confirmación) ]
+Notificaciones    ☑ Activadas · ☑ Avisos de ritmo · hitos ☑25 ☑50 ☑75 ☑95
+Frecuencia        30s · 1min · 5min · 15min
+Icono             modo % / ▲ / %▲ · umbral de color 70/90 · 80/95 · 60/85
+Apariencia        Tema Sistema/Oscuro/Claro/CLI · Importar .itermcolors… · Posición · Opacidad · ☑ Fijado · ☑ Siempre encima
+Idioma            Sistema + 8
+Sistema           ☑ Iniciar con Windows
 ```
 
-Click derecho en el propio dashboard abre el mismo menú. Los submenús abren hacia la izquierda para
-quedarse en el monitor primario. "Iniciar con Windows" crea/borra un acceso directo en la carpeta de
-Inicio (sin tocar el registro). Ajustes avanzados en `%APPDATA%\ClaudeBarWin\config.json`.
+El **menú de click derecho** (icono o panel) es ahora minimal — *Dashboard · Ajustes · Sesiones en vivo ·
+Buscar actualizaciones · Salir*. "Iniciar con Windows" crea/borra un acceso directo en la carpeta de
+Inicio (sin tocar el registro). Los ajustes se guardan en `%APPDATA%\ClaudeBarWin\config.json`.
 
 ## Compilar desde el código
 
@@ -144,6 +169,7 @@ cd claudebar-win
 | `ClaudeBarWin.exe --report` | Vuelca la cuota + pace a consola/`%TEMP%` (sin GUI) |
 | `ClaudeBarWin.exe --render-test` | Renderiza el dashboard a `%TEMP%\claudebar-render` |
 | `ClaudeBarWin.exe --render-demo` | Renderiza las capturas del README (datos demo) |
+| `ClaudeBarWin.exe --render-gif` | Vuelca las secuencias de fotogramas de los GIF del README (datos demo) a `%TEMP%\claudebar-gif` |
 | `ClaudeBarWin.exe --db-test` | Prueba la base SQLite del histórico |
 | `ClaudeBarWin.exe --dump-menu` | Imprime la estructura del menú |
 

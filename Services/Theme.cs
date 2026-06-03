@@ -15,17 +15,32 @@ public sealed class Theme
     public Color Critical { get; init; }
     public Color Neutral { get; init; }
 
+    // --- Tokens semánticos (Fase 1) ---
+    public Color Accent { get; init; }
+    public Color BgElevated { get; init; }
+    public Color TextMuted { get; init; }
+    public Color Separator { get; init; }
+
+    // Alias semánticos sobre los campos existentes (sin romper consumidores).
+    public Color TextPrimary => Foreground;
+    public Color TextSecondary => Dim;
+    public Color BgBase => Background;
+
     public static readonly Theme Dark = new()
     {
         Id = "dark",
         Background = Color.FromArgb(24, 24, 27),
         Foreground = Color.FromArgb(244, 244, 245),
         Dim = Color.FromArgb(161, 161, 170),
-        Track = Color.FromArgb(63, 63, 70),
+        Track = Color.FromArgb(58, 58, 60),          // #3A3A3C (antes 63,63,70)
         Ok = Color.FromArgb(22, 163, 74),
         Warn = Color.FromArgb(217, 119, 6),
         Critical = Color.FromArgb(220, 38, 38),
-        Neutral = Color.FromArgb(82, 82, 91)
+        Neutral = Color.FromArgb(82, 82, 91),
+        Accent = Color.FromArgb(0xCC, 0x78, 0x5C),    // naranja Claude
+        BgElevated = Color.FromArgb(44, 44, 46),      // #2C2C2E
+        TextMuted = Color.FromArgb(142, 142, 147),    // #8E8E93
+        Separator = Color.FromArgb(56, 56, 58)        // #38383A
     };
 
     public static readonly Theme Light = new()
@@ -38,7 +53,11 @@ public sealed class Theme
         Ok = Color.FromArgb(22, 163, 74),
         Warn = Color.FromArgb(202, 138, 4),
         Critical = Color.FromArgb(220, 38, 38),
-        Neutral = Color.FromArgb(161, 161, 170)
+        Neutral = Color.FromArgb(161, 161, 170),
+        Accent = Color.FromArgb(0xCC, 0x78, 0x5C),
+        BgElevated = Color.FromArgb(255, 255, 255),
+        TextMuted = Color.FromArgb(142, 142, 147),
+        Separator = Color.FromArgb(209, 209, 214)
     };
 
     public static readonly Theme Cli = new()
@@ -51,7 +70,11 @@ public sealed class Theme
         Ok = Color.FromArgb(0, 217, 89),
         Warn = Color.FromArgb(242, 191, 51),
         Critical = Color.FromArgb(242, 64, 64),
-        Neutral = Color.FromArgb(90, 90, 90)
+        Neutral = Color.FromArgb(90, 90, 90),
+        Accent = Color.FromArgb(0, 217, 89),
+        BgElevated = Color.FromArgb(10, 16, 10),
+        TextMuted = Color.FromArgb(0, 110, 44),
+        Separator = Color.FromArgb(0, 50, 20)
     };
 
     public static Color StatusColor(Theme t, UI.UsageStatus s) => s switch
@@ -95,6 +118,27 @@ public static class ThemeResolver
         }
     }
 
+    /// <summary>
+    /// Reads Windows' <b>taskbar</b> theme preference (<c>SystemUsesLightTheme</c>) — distinta de
+    /// <see cref="OsPrefersDark"/>, que lee el tema de las <i>apps</i> (<c>AppsUseLightTheme</c>).
+    /// Determina si la barra de tareas es clara, para que el badge del tray adapte su contraste.
+    /// Con fallback: si no se puede leer el registro, asume barra oscura (false).
+    /// </summary>
+    public static bool TaskbarIsLight()
+    {
+        try
+        {
+            var v = Microsoft.Win32.Registry.GetValue(
+                @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+                "SystemUsesLightTheme", 0);
+            return v is int i && i == 1;
+        }
+        catch
+        {
+            return false; // default to dark taskbar
+        }
+    }
+
     private static Theme FromImported(ImportedThemeColors c) => new()
     {
         Id = "imported",
@@ -105,7 +149,11 @@ public static class ThemeResolver
         Ok = Hex(c.Ok, Theme.Dark.Ok),
         Warn = Hex(c.Warn, Theme.Dark.Warn),
         Critical = Hex(c.Critical, Theme.Dark.Critical),
-        Neutral = Theme.Dark.Neutral
+        Neutral = Theme.Dark.Neutral,
+        Accent = Theme.Dark.Accent,
+        BgElevated = ColorMath.Lerp(Hex(c.Bg, Theme.Dark.Background), Color.White, 0.06),
+        TextMuted = Hex(c.Dim, Theme.Dark.TextMuted),
+        Separator = Hex(c.Track, Theme.Dark.Separator)
     };
 
     private static Color Hex(string? hex, Color fallback)

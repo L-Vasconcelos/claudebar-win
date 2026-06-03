@@ -23,11 +23,29 @@ The 5h/7d bars and their values are coloured by **pace** (burn-rate), the chart 
 **Spend $** (stacked by model) and **Quota %** (real utilisation over time), and the panel auto-sizes
 to whatever sections you enable.
 
+Everything expanded at once — the live-session **mascot**, both quota bars, per-model spend, and the
+usage chart:
+
+<p align="center"><img src="assets/dashboard-full.png" alt="Full dashboard with the live-session mascot" width="320"></p>
+
 **Drag it anywhere, dial in the opacity** — the panel is a movable, see-through widget:
 
 <p align="center">
   <img src="assets/move.gif" alt="Drag the panel anywhere on screen" width="380">
   <img src="assets/opacity.gif" alt="Adjustable window opacity" width="380">
+</p>
+
+**Microinteractions** — the panel fades and staggers in, numbers and bars tween to their targets, the
+mascot blinks and spins while it works, rows light up on hover, and a quota reset gets a little flash
+(all respect a *reduce motion* toggle):
+
+<p align="center">
+  <img src="assets/f3-apertura.gif" alt="Panel open: fade, staggered entry, number/bar tween" width="300">
+  <img src="assets/f3-mascota.gif" alt="Mascot life: blink, braille spinner, playful verb" width="300">
+</p>
+<p align="center">
+  <img src="assets/f3-hover.gif" alt="Hover highlight fading in over a section" width="300">
+  <img src="assets/f3-celebracion.gif" alt="Quota-reset celebration flash" width="300">
 </p>
 
 Tray icon, by status / pace:
@@ -56,7 +74,12 @@ Tray icon, by status / pace:
 - **Themes** (System / Dark / Light / CLI + import `.itermcolors`) and **9 languages**
   (System + English, Español, Nederlands, Français, Deutsch, 日本語, 한국어, 繁體中文) — both
   default to your Windows settings.
-- Everything is configurable from the **right-click menu**.
+- **Live sessions (opt-in)**: an ASCII mascot in the dashboard reacts to your Claude Code sessions
+  in real time (idle / working / waiting for approval / waiting for input / compacting / ended),
+  driven by Claude Code hooks over a local named pipe; the tray icon adds an amber badge when a
+  session needs your attention. Toggle it from **Settings → Live sessions** — it installs/removes
+  the hooks in `~/.claude/settings.json` (with a backup and a confirmation prompt).
+- Everything is configurable from the in-dashboard **⚙ settings panel**.
 
 ## How the data works
 
@@ -107,25 +130,25 @@ Auto-start on login: right-click the tray icon → **Settings → Start with Win
 - Nothing else to run the release build. To build from source: **.NET SDK 9** (a user-local install
   in `%USERPROFILE%\.dotnet` works, no admin).
 
-## Configuration (all from the right-click menu)
+## Configuration (in-dashboard settings panel)
+
+Open the dashboard and click the **⚙** (top-right) — **all settings live there**, grouped:
 
 ```
-Dashboard
-Refresh now
-Panel window ▶        Position (corners · center · drag) · ☑ Pinned · ☑ Always on top · Opacity ▶
-Update frequency ▶    30s · 1min · 5min · 15min
-Notifications ▶       ☑ Enabled · Notify at ☑25% ☑50% ☑75% ☑95%
-Color threshold ▶     70/90 · 80/95 · 60/85
-Settings ▶            ☑ Show estimated spend · ☑ Show service status · ☑ Usage chart
-                      Icon mode ▶ % / ▲ / % ▲  ·  ☑ Pace alerts  ·  ☑ Start with Windows
-                      Theme ▶ System/Dark/Light/CLI · Import .itermcolors…
-                      Language ▶ (System + 8) · Edit config… · Open data folder
-Exit
+Sections          ☑ Estimated spend · ☑ Service status · ☑ Usage chart
+Live sessions     ☑ Mascot · Mascot size (compact/large) · ☑ Suppress when focused
+                  [ Enable/Disable — installs/removes Claude Code hooks (with confirmation) ]
+Notifications     ☑ Enabled · ☑ Pace alerts · milestones ☑25 ☑50 ☑75 ☑95
+Update frequency  30s · 1min · 5min · 15min
+Icon              mode % / ▲ / %▲ · colour threshold 70/90 · 80/95 · 60/85
+Appearance        Theme System/Dark/Light/CLI · Import .itermcolors… · Position · Opacity · ☑ Pinned · ☑ Always on top
+Language          System + 8
+System            ☑ Start with Windows
 ```
 
-Right-click the dashboard itself to open the same menu. Submenus open leftward so they stay on
-the primary monitor. "Start with Windows" creates/removes a shortcut in the Startup folder
-(no registry). Advanced settings live in `%APPDATA%\ClaudeBarWin\config.json`.
+The **right-click menu** (tray icon or panel) is now minimal — *Dashboard · Settings · Live sessions ·
+Check for updates · Exit*. "Start with Windows" creates/removes a shortcut in the Startup folder
+(no registry). Settings persist to `%APPDATA%\ClaudeBarWin\config.json`.
 
 ## Build from source
 
@@ -147,6 +170,7 @@ cd claudebar-win
 | `ClaudeBarWin.exe --report` | Print current quota + pace to console/`%TEMP%` (no GUI) |
 | `ClaudeBarWin.exe --render-test` | Render the dashboard to `%TEMP%\claudebar-render` |
 | `ClaudeBarWin.exe --render-demo` | Render the README screenshots (synthetic data) |
+| `ClaudeBarWin.exe --render-gif` | Dump the README GIF frame sequences (synthetic data) to `%TEMP%\claudebar-gif` |
 | `ClaudeBarWin.exe --db-test` | Smoke-test the SQLite history store |
 | `ClaudeBarWin.exe --dump-menu` | Print the right-click menu structure |
 
