@@ -83,10 +83,19 @@ public static class DashboardHeader
             // su celda. El offset se mide con draw=false como 0 (no se aplica transform), así medir y
             // pintar reservan el MISMO alto (invariante de layout). Hacia arriba = y negativo.
             int bounce = draw ? mascotBounceOffsetY : 0;
+            // try/finally (fix F3 minor, mismo patrón que DashboardDataView.Section): el pop del transform
+            // del bote ocurre siempre, aunque MascotRenderer.Draw lance, para no contaminar frames siguientes.
             if (bounce != 0) g.TranslateTransform(0, -bounce);
-            var sz = MascotRenderer.Draw(g, draw, x, top, live.GlobalPhase,
-                mascotSize, mascot, theme, mono, mascotMood);
-            if (bounce != 0) g.TranslateTransform(0, bounce);
+            Size sz;
+            try
+            {
+                sz = MascotRenderer.Draw(g, draw, x, top, live.GlobalPhase,
+                    mascotSize, mascot, theme, mono, mascotMood);
+            }
+            finally
+            {
+                if (bounce != 0) g.TranslateTransform(0, bounce);
+            }
 
             // Verbo + elipsis (p.ej. "thinking…"). Alto reservado siempre (medir == pintar).
             string verb = MascotAnimator.Verb(s, live.GlobalPhase, mascot.VerbIndex);

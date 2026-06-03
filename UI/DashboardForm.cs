@@ -316,10 +316,21 @@ public sealed class DashboardForm : Form
                          || _hoverIntensity.IsAnimating || mascotAlive
                          || BounceActive() || CelebrationActive();
 
-        // Red de seguridad del footer (fix F3 Tarea 8): congela un "ahora" común y, si el nº de líneas
-        // del footer cambió desde el último pintado (fresh→stale / cruce de wrap del relativo), re-mide el
-        // alto ANTES de invalidar para no recortar el sello. Barato: solo mide texto en repaints lentos.
-        ReconcileFooterHeight();
+        // Footer: congela SIEMPRE el "ahora" común de este repaint (medir/pintar leen el mismo instante)
+        // y deja que el relativo ("hace N min") avance aunque haya una animación larga en curso. Es solo
+        // una asignación, coste cero.
+        _footerNowUtc = DateTime.UtcNow;
+
+        // Red de seguridad del footer (fix F3 Tarea 8): si el nº de líneas del footer cambió desde el
+        // último pintado (fresh→stale / cruce de wrap del relativo), re-mide el alto ANTES de invalidar
+        // para no recortar el sello.
+        // Fix F3 (minor): la MEDICIÓN (CreateGraphics()+MeasureString del footer) corre SOLO en el tick
+        // lento de countdown (animating == false), no en cada fast-tick (~33 ms). El nº de líneas solo
+        // cambia por el reloj de pared (flag stale / wrap del relativo), que muta ~1/min, NUNCA por las
+        // animaciones, así que medirlo 30 veces/seg durante toda la animación era trabajo puro a cambio
+        // de nada. Saltárselo durante animación no pierde la red de seguridad: la transición stale/wrap
+        // dispara Relayout en el siguiente tick lento (1 Hz).
+        if (!animating) ReconcileFooterHeight();
 
         // Repinta si hubo cambio de animación o es un tick de countdown.
         Invalidate();
@@ -468,6 +479,14 @@ public sealed class DashboardForm : Form
         _chartPctWindow = cfg.ChartPctWindow;
         _reduceMotion = ResolveReduceMotion(cfg);
         BackColor = _theme.Background;
+        // Fix F3 (minor): siembra el "ahora" CONGELADO del footer ANTES del primer Relayout()/Show().
+        // Sin esto, en el arranque (antes del primer OnMotionTick) _footerNowUtc seguía en MinValue y
+        // BuildFooterLines caía a DateTime.UtcNow fresco en CADA llamada: medir (Relayout, T_a) y pintar
+        // (OnPaint, T_b) leían dos relojes distintos, y un cruce de wrap del relativo o del flag stale
+        // entre T_a y T_b dejaba la ventana 1 línea corta y recortaba el sello en el primer frame.
+        // Con la semilla, el primer ciclo medir+pintar comparte instante; el primer OnMotionTick lo
+        // refresca como hasta ahora. El render-test usa _renderOverride y no pasa por aquí.
+        _footerNowUtc = DateTime.UtcNow;
         Relayout();
         _appliedPlacement = PlacementKey(cfg);
         _shownAtUtc = DateTime.UtcNow;
@@ -934,12 +953,20 @@ public sealed class DashboardForm : Form
         int hOff = draw && !_reduceMotion
             ? Stagger.OffsetY(Stagger.Alpha(tSinceOpen, 0, Motion.StaggerMs, Motion.StaggerDurMs), Motion.StaggerMaxOffsetPx)
             : 0;
+        // try/finally (fix F3 minor, mismo patrón que DashboardDataView.Section): garantiza que el pop
+        // del transform ocurra aunque DashboardHeader.Draw lance, para no contaminar frames siguientes.
         if (hOff != 0) g.TranslateTransform(0, hOff);
-        y = DashboardHeader.Draw(g, draw, x, y, w,
-            _snap, _liveView, _cfg, _s, _theme, SampleMascot(), MascotMoodCurrent(),
-            labelFont, smallFont, mono, ref _gearRect,
-            _motion, _reduceMotion, MascotBounceOffsetY(), CelebrationText());
-        if (hOff != 0) g.TranslateTransform(0, -hOff);
+        try
+        {
+            y = DashboardHeader.Draw(g, draw, x, y, w,
+                _snap, _liveView, _cfg, _s, _theme, SampleMascot(), MascotMoodCurrent(),
+                labelFont, smallFont, mono, ref _gearRect,
+                _motion, _reduceMotion, MascotBounceOffsetY(), CelebrationText());
+        }
+        finally
+        {
+            if (hOff != 0) g.TranslateTransform(0, -hOff);
+        }
 
         // Secciones de datos (índices 1..n)
         y = DashboardDataView.Draw(g, draw, x, y, w,
