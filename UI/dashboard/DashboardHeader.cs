@@ -70,14 +70,18 @@ public static class DashboardHeader
             }
         }
 
-        // 2) mascota a la izquierda (si ShowMascot y LiveSessionsEnabled): sprite (frame del animador)
-        //    + verbo localizado JUGUETÓN con elipsis bajo la mascota. El verbo reserva su alto en AMBAS
-        //    pasadas (medir/pintar) para no romper el invariante de layout.
+        // 2) mascota a la izquierda (si ShowMascot): sprite (frame del animador) + verbo localizado
+        //    JUGUETÓN con elipsis bajo la mascota. El verbo reserva su alto en AMBAS pasadas
+        //    (medir/pintar) para no romper el invariante de layout.
+        //    T0: la visibilidad se DESACOPLA de LiveSessionsEnabled (antes `live && mascota`, el bug):
+        //    con ShowMascot on y live off se ve un gato Idle estático (ambiente). Las puertas de
+        //    ANIMACIÓN siguen exigiendo live on (bote en SyncBounce, fast-tick/mascotAlive en
+        //    DashboardForm; aquí el bounce llega ya gateado y, con draw=false, se fuerza a 0).
         int top = y + 18;
         var mascotSize = MascotSprite.ParseSize(cfg.MascotSize);
         int textX = x;
         int mascotH = 0;
-        if (cfg.LiveSessionsEnabled && cfg.ShowMascot)
+        if (cfg.ShowMascot)
         {
             // Bote de atención: desplaza SOLO el dibujo de la mascota hacia arriba (px ≥ 0) dentro de
             // su celda. El offset se mide con draw=false como 0 (no se aplica transform), así medir y
