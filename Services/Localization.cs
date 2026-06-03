@@ -102,6 +102,14 @@ public sealed class Strings
     public string MascotSizeCompact { get; init; } = "compact";
     public string MascotSizeLarge { get; init; } = "large";
 
+    // Mascot as a single 3-state control (P2 #1): "Mascot: Hidden · Compact · Large".
+    // Unifies the redundant "Show mascot" toggle + separate size segmented into ONE decision.
+    // "Hidden" = ShowMascot off; "Compact/Large" = ShowMascot on + MascotSize.
+    public string MascotLabel { get; init; } = "Mascot";
+    public string MascotHidden { get; init; } = "Hidden";
+    public string MascotCompact { get; init; } = "Compact";
+    public string MascotLarge { get; init; } = "Large";
+
     // Chart & misc
     public string UsageChart { get; init; } = "Usage chart";
     public string NoData { get; init; } = "No data in this range";
@@ -123,7 +131,9 @@ public sealed class Strings
 
     // Menu groups + updates
     public string MenuAppearance { get; init; } = "Appearance";
-    public string MenuSections { get; init; } = "Sections";
+    /// <summary>Cabecera de la sección que agrupa qué se muestra en el panel (gasto/estado/gráfica).
+    /// Renombrada de la vaga "Sections" a "Panel content" (P2 #3): el título dice de qué va el grupo.</summary>
+    public string MenuSections { get; init; } = "Panel content";
     public string MenuIcon { get; init; } = "Icon";
     public string MenuAdvanced { get; init; } = "Advanced";
     /// <summary>Título de la sección SISTEMA del panel (T8): deja de estar hardcodeado.</summary>
@@ -333,6 +343,10 @@ public static class Localization
         MascotSizeLabel = "Tamaño mascota",
         MascotSizeCompact = "compacta",
         MascotSizeLarge = "grande",
+        MascotLabel = "Mascota",
+        MascotHidden = "Oculta",
+        MascotCompact = "Compacta",
+        MascotLarge = "Grande",
         UsageChart = "Gráfica de uso",
         NoData = "Sin datos en este rango",
         OpenBilling = "Abrir facturación…",
@@ -348,7 +362,7 @@ public static class Localization
         PaceAlertTitle = "⚠ Ritmo de cuota",
         PaceAlertBodyFmt = "A este ritmo te quedas sin cuota {0} el {1}, antes del reset",
         MenuAppearance = "Apariencia",
-        MenuSections = "Secciones",
+        MenuSections = "Contenido del panel",
         MenuIcon = "Icono",
         MenuAdvanced = "Avanzado",
         MenuSystem = "Sistema",
@@ -471,7 +485,7 @@ public static class Localization
         PaceAlertTitle = "⚠ Quotatempo",
         PaceAlertBodyFmt = "Met dit tempo is je {0}-quota op rond {1}, vóór de reset",
         MenuAppearance = "Weergave",
-        MenuSections = "Secties",
+        MenuSections = "Paneelinhoud",
         MenuIcon = "Pictogram",
         MenuAdvanced = "Geavanceerd",
         MenuSystem = "Systeem",
@@ -487,6 +501,10 @@ public static class Localization
         MenuLiveSessions = "Live sessies",
         LiveSessionsSubtitle = "Installeert/verwijdert hooks in ~/.claude/settings.json",
         MenuShowMascot = "Mascotte tonen",
+        MascotLabel = "Mascotte",
+        MascotHidden = "Verborgen",
+        MascotCompact = "Compact",
+        MascotLarge = "Groot",
         MenuSuppressWhenFocused = "Dempen als terminal focus heeft",
         MenuInstallHooks = "Inschakelen (hooks installeren)…",
         MenuUninstallHooks = "Uitschakelen (hooks verwijderen)",
@@ -594,7 +612,7 @@ public static class Localization
         PaceAlertTitle = "⚠ Rythme de quota",
         PaceAlertBodyFmt = "À ce rythme, tu épuises le quota {0} vers {1}, avant la réinitialisation",
         MenuAppearance = "Apparence",
-        MenuSections = "Sections",
+        MenuSections = "Contenu du panneau",
         MenuIcon = "Icône",
         MenuAdvanced = "Avancé",
         MenuSystem = "Système",
@@ -610,6 +628,10 @@ public static class Localization
         MenuLiveSessions = "Sessions en direct",
         LiveSessionsSubtitle = "Installe/retire les hooks dans ~/.claude/settings.json",
         MenuShowMascot = "Afficher la mascotte",
+        MascotLabel = "Mascotte",
+        MascotHidden = "Masquée",
+        MascotCompact = "Compacte",
+        MascotLarge = "Grande",
         MenuSuppressWhenFocused = "Muet si le terminal a le focus",
         MenuInstallHooks = "Activer (installer les hooks)…",
         MenuUninstallHooks = "Désactiver (retirer les hooks)",
@@ -717,7 +739,7 @@ public static class Localization
         PaceAlertTitle = "⚠ Kontingent-Tempo",
         PaceAlertBodyFmt = "In diesem Tempo ist dein {0}-Kontingent um {1} aufgebraucht, vor dem Reset",
         MenuAppearance = "Darstellung",
-        MenuSections = "Abschnitte",
+        MenuSections = "Panel-Inhalt",
         MenuIcon = "Symbol",
         MenuAdvanced = "Erweitert",
         MenuSystem = "System",
@@ -733,6 +755,10 @@ public static class Localization
         MenuLiveSessions = "Live-Sitzungen",
         LiveSessionsSubtitle = "Installiert/entfernt Hooks in ~/.claude/settings.json",
         MenuShowMascot = "Maskottchen anzeigen",
+        MascotLabel = "Maskottchen",
+        MascotHidden = "Aus",
+        MascotCompact = "Kompakt",
+        MascotLarge = "Groß",
         MenuSuppressWhenFocused = "Stumm, wenn Terminal im Fokus",
         MenuInstallHooks = "Aktivieren (Hooks installieren)…",
         MenuUninstallHooks = "Deaktivieren (Hooks entfernen)",
@@ -840,7 +866,7 @@ public static class Localization
         PaceAlertTitle = "⚠ クォータのペース",
         PaceAlertBodyFmt = "このペースだと{0}のクォータは{1}頃に尽きます（リセット前）",
         MenuAppearance = "外観",
-        MenuSections = "セクション",
+        MenuSections = "パネルの内容",
         MenuIcon = "アイコン",
         MenuAdvanced = "詳細",
         MenuSystem = "システム",
@@ -856,6 +882,10 @@ public static class Localization
         MenuLiveSessions = "ライブセッション",
         LiveSessionsSubtitle = "~/.claude/settings.json にフックを追加/削除",
         MenuShowMascot = "マスコットを表示",
+        MascotLabel = "マスコット",
+        MascotHidden = "非表示",
+        MascotCompact = "小",
+        MascotLarge = "大",
         MenuSuppressWhenFocused = "ターミナルがフォーカス中はミュート",
         MenuInstallHooks = "有効化（フックをインストール）…",
         MenuUninstallHooks = "無効化（フックを削除）",
@@ -963,7 +993,7 @@ public static class Localization
         PaceAlertTitle = "⚠ 할당량 페이스",
         PaceAlertBodyFmt = "이 페이스면 {0} 할당량이 {1}경 소진됩니다 (리셋 전)",
         MenuAppearance = "모양",
-        MenuSections = "섹션",
+        MenuSections = "패널 내용",
         MenuIcon = "아이콘",
         MenuAdvanced = "고급",
         MenuSystem = "시스템",
@@ -979,6 +1009,10 @@ public static class Localization
         MenuLiveSessions = "실시간 세션",
         LiveSessionsSubtitle = "~/.claude/settings.json에 훅 설치/제거",
         MenuShowMascot = "마스코트 표시",
+        MascotLabel = "마스코트",
+        MascotHidden = "숨김",
+        MascotCompact = "작게",
+        MascotLarge = "크게",
         MenuSuppressWhenFocused = "터미널이 포커스일 때 음소거",
         MenuInstallHooks = "활성화 (훅 설치)…",
         MenuUninstallHooks = "비활성화 (훅 제거)",
@@ -1086,7 +1120,7 @@ public static class Localization
         PaceAlertTitle = "⚠ 配額速度",
         PaceAlertBodyFmt = "照這個速度，你的{0}配額會在 {1} 用完（重設前）",
         MenuAppearance = "外觀",
-        MenuSections = "區段",
+        MenuSections = "面板內容",
         MenuIcon = "圖示",
         MenuAdvanced = "進階",
         MenuSystem = "系統",
@@ -1102,6 +1136,10 @@ public static class Localization
         MenuLiveSessions = "即時工作階段",
         LiveSessionsSubtitle = "在 ~/.claude/settings.json 安裝／移除 hooks",
         MenuShowMascot = "顯示吉祥物",
+        MascotLabel = "吉祥物",
+        MascotHidden = "隱藏",
+        MascotCompact = "精簡",
+        MascotLarge = "大型",
         MenuSuppressWhenFocused = "終端機聚焦時靜音",
         MenuInstallHooks = "啟用（安裝 hooks）…",
         MenuUninstallHooks = "停用（移除 hooks）",

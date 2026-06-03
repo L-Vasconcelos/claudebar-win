@@ -193,8 +193,8 @@ public static class DashboardDataView
         // Aire entre la línea de pace y el desglose por modelo (Opus/Sonnet): antes iban pegados y se
         // leían como una sola fila apretada (auditoría visual, T9). Constante en ambas pasadas (medir==pintar).
         y += Spacing.Sm;
-        y = DrawModelLine(g, draw, "Opus 7d", usage.SevenDayOpus, x, y, w, smallFont, fg, dim);
-        y = DrawModelLine(g, draw, "Sonnet 7d", usage.SevenDaySonnet, x, y, w, smallFont, fg, dim);
+        y = DrawModelLine(g, draw, "Opus 7d", usage.SevenDayOpus, x, y, w, smallFont, fg, dim, theme, cfg);
+        y = DrawModelLine(g, draw, "Sonnet 7d", usage.SevenDaySonnet, x, y, w, smallFont, fg, dim, theme, cfg);
 
         // Explicación honesta del rolling: la ventana de 5h corre desde tu 1ª petición, no a hora fija.
         // theme.TextMuted / Typography.Caption; suma su alto en ambas ramas (medir/pintar).
@@ -204,6 +204,9 @@ public static class DashboardDataView
             g.DrawString(s.RollingHint, Typography.Caption, muted, x, y);
         }
         y += 16;
+        // Aire extra al cierre de la sección Cuota: despega el bloque de modelos/hint del ACORDEÓN de abajo
+        // (la mini-fila Sonnet 7d ya no queda pegada a la siguiente cabecera plegable). P2 #4.
+        y += Spacing.Sm;
         return y;
     }
 
@@ -268,8 +271,20 @@ public static class DashboardDataView
         return y + 18;
     }
 
+    // Mini-fila de modelo (Opus/Sonnet 7d): alto de la línea de texto + barrita de referencia + su gap.
+    private const int ModelLineTextH = 16;   // alto de la línea etiqueta/%
+    private const int ModelBarH = 4;         // barrita de referencia fina (mini-cuota)
+    private const int ModelBarRadius = 2;
+
+    /// <summary>
+    /// Mini-fila de cuota por modelo (Opus/Sonnet 7d): etiqueta a la izquierda + % a la derecha y, debajo,
+    /// una <b>barrita de referencia</b> fina (track + relleno por <see cref="ColorMath.RiskColor"/>). Antes
+    /// el % iba SUELTO sin barra (se leía como un número huérfano flotando entre "Semana (7d)" y el
+    /// acordeón, P2 #4); la barrita lo ancla como una mini-cuota coherente con las barras de arriba.
+    /// Mide==pinta: el alto reservado (texto + barra + gap) NO depende de <paramref name="draw"/>.
+    /// </summary>
     internal static int DrawModelLine(Graphics g, bool draw, string label, UsageWindow? win, int x, int y, int w,
-        Font smallFont, Brush fg, Brush dim)
+        Font smallFont, Brush fg, Brush dim, Theme theme, AppConfig cfg)
     {
         if (win is null) return y;
         if (draw)
@@ -278,8 +293,22 @@ public static class DashboardDataView
             string val = $"{win.UtilizationPct:0.#}%";
             var sz = g.MeasureString(val, Typography.Mono);
             g.DrawString(val, Typography.Mono, fg, x + w - sz.Width, y);
+
+            // Barrita de referencia (mini-cuota): track + relleno proporcional al %, color por riesgo —
+            // mismo criterio que las barras de cuota, para que la mini-fila se lea como una de ellas.
+            int by = y + ModelLineTextH;
+            using (var track = new SolidBrush(theme.Track))
+                Shapes.FillRounded(g, track, new Rectangle(x, by, w, ModelBarH), ModelBarRadius);
+            double clamped = Math.Min(Math.Max(win.UtilizationPct, 0) / 100.0, 1.0);
+            int fw = (int)Math.Round(w * clamped);
+            if (fw > 1)
+            {
+                Color c = ColorMath.RiskColor(win.UtilizationPct, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
+                using var fill = new SolidBrush(c);
+                Shapes.FillRounded(g, fill, new Rectangle(x, by, fw, ModelBarH), ModelBarRadius);
+            }
         }
-        return y + 16;
+        return y + ModelLineTextH + ModelBarH + Spacing.Sm;   // texto + barra + gap entre mini-filas
     }
 
     // Cuerpo de DrawLiveSessions SIN su propia cabecera (la pone Section). Solo lista de instancias:

@@ -136,7 +136,7 @@ public static class DashboardSettingsView
             case "toggle:ShowSpend": return c => c.ShowSpendEstimate = !c.ShowSpendEstimate;
             case "toggle:ShowHealth": return c => c.ShowHealth = !c.ShowHealth;
             case "toggle:ShowChart": return c => c.ShowChart = !c.ShowChart;
-            case "toggle:ShowMascot": return c => c.ShowMascot = !c.ShowMascot;
+            // (ShowMascot ya no es un toggle suelto: vive en el control de 3 estados "mascot:*", abajo.)
             case "toggle:Suppress": return c => c.SuppressWhenFocused = !c.SuppressWhenFocused;
             case "toggle:Notifications": return c => c.NotificationsEnabled = !c.NotificationsEnabled;
             case "toggle:PaceAlerts": return c => c.PaceAlerts = !c.PaceAlerts;
@@ -145,8 +145,11 @@ public static class DashboardSettingsView
             case "toggle:ReduceMotion": return c => c.ReduceMotion = !c.ReduceMotion;
             case "toggle:Startup": return _ => StartupManager.Toggle();
 
-            case "mascotsize:compact": return c => c.MascotSize = "compact";
-            case "mascotsize:large": return c => c.MascotSize = "large";
+            // Mascota como UN control de 3 estados (P2 #1): "Oculta" apaga ShowMascot;
+            // "Compacta"/"Grande" lo encienden y fijan el tamaño.
+            case "mascot:hidden": return c => c.ShowMascot = false;
+            case "mascot:compact": return c => { c.ShowMascot = true; c.MascotSize = "compact"; };
+            case "mascot:large": return c => { c.ShowMascot = true; c.MascotSize = "large"; };
 
             case "theme:system": return c => c.Theme = "system";
             case "theme:dark": return c => c.Theme = "dark";
@@ -225,13 +228,22 @@ public static class DashboardSettingsView
 
     // ---------------- helpers de dibujo (simetría medir/pintar; registran rects con clave) ----------------
 
-    // -------- ritmo vertical sobre rejilla 8pt (sin literales mágicos) --------
-    // Alto de contenido de una fila estándar de 1 línea; el avance suma Spacing.Sm entre filas.
+    // -------- ritmo vertical sobre rejilla 8pt: DOS tokens uniformes (P2 #2) --------
+    // sectionGap = aire ARRIBA de cada cabecera de sección (separa un grupo del anterior).
+    // rowGap     = separación entre filas del MISMO grupo.
+    // Antes los avances eran +Md arriba de la cabecera y +Sm entre filas (ritmo plano, poco "Apple").
+    // Ahora la cabecera respira Xl arriba y las filas Md entre sí: agrupación perceptible y consistente.
+    internal const int SectionGap = Spacing.Xl;   // 24 — aire sobre cada cabecera
+    internal const int RowGap = Spacing.Md;       // 12 — separación entre filas
+    // Alto de contenido de una fila estándar de 1 línea; el avance suma RowGap entre filas.
     private const int RowContentHeight = 18;
-    private static int RowAdvance => RowContentHeight + Spacing.Sm;   // fila estándar = alto + Sm
+    private static int RowAdvance => RowContentHeight + RowGap;       // fila estándar = alto + rowGap
     // Alto de un bloque de segmentos (coincide con DashboardDataView.DrawSegments: h=18).
     private const int SegmentHeight = 18;
-    private static int SegmentRowAdvance => SegmentHeight + Spacing.Sm;
+    private static int SegmentRowAdvance => SegmentHeight + RowGap;   // fila de segmentos = alto + rowGap
+    // Separación vertical entre las dos hileras cuando una fila de segmentos ENVUELVE (intra-control,
+    // más apretada que rowGap: las 2 hileras son el MISMO control).
+    private const int SegmentWrapGap = Spacing.Sm;
 
     // -------- TogglePill: cápsula+knob dibujada (sustituye ☑/☐) sobre rejilla 8pt --------
     // Track de 36×20 (múltiplos de 4) con knob circular ligeramente menor que el alto del track.
@@ -247,7 +259,7 @@ public static class DashboardSettingsView
     /// </summary>
     internal static int SectionHeader(Graphics g, bool draw, string title, int x, int y, int w, Theme theme, Font f)
     {
-        y += Spacing.Md; // aire arriba (separa del grupo anterior)
+        y += SectionGap; // aire arriba (separa del grupo anterior): sectionGap (~Xl), ritmo "Apple"
         int textH = (int)Math.Ceiling(g.MeasureString(title, f).Height);
         if (draw)
         {
@@ -470,7 +482,7 @@ public static class DashboardSettingsView
                 using (var sb = new SolidBrush(theme.TextMuted))
                     foreach (var line in subLines) { g.DrawString(line, smallFont, sb, x, ly); ly += subLineH; }
         }
-        return y + contentH + Spacing.Sm;
+        return y + contentH + RowGap;
     }
 
     /// <summary>
@@ -503,20 +515,34 @@ public static class DashboardSettingsView
             s.Enabled, s.LiveSessionsSubtitle, hooksInstalled,
             x, y, w, theme, labelFont, smallFont, rects);
         // Dependientes: atenuados + inertes mientras no haya hooks (la mascota Idle solo cobra vida con hooks).
-        y = DrawDependent(hooksInstalled, x, y, w, theme, rects,
-            (ix, iw, th) => ToggleRow(g, draw, "toggle:ShowMascot", s.MenuShowMascot, null, cfg.ShowMascot,
-                ix, y, iw, th, labelFont, smallFont, rects));
-        int sizeY = y;
-        y = DrawDependent(hooksInstalled, x, sizeY, w, theme, rects,
-            (ix, iw, th) => SegmentedRow(g, draw, "mascotsize", s.MascotSizeLabel,
-                new[] { ("compact", s.MascotSizeCompact), ("large", s.MascotSizeLarge) }, cfg.MascotSize,
-                ix, sizeY, iw, th, smallFont, rects));
+        // MASCOTA = UN solo control de 3 estados "Mascota: Oculta · Compacta · Grande" (P2 #1). Fusiona el
+        // antiguo toggle "Mostrar mascota" + el segmented de tamaño (eran 2 controles para 1 decisión):
+        //   "Oculta"   → ShowMascot off
+        //   "Compacta" → ShowMascot on + MascotSize=compact
+        //   "Grande"   → ShowMascot on + MascotSize=large
+        // El segmented (single-select) ya mide el ancho real de cada pill y las separa con SegGap fijo
+        // (Spacing.Sm), cada una con su rect redondeado → sin pills solapando texto (artefacto resuelto).
+        int mascotY = y;
+        y = DrawDependent(hooksInstalled, x, mascotY, w, theme, rects,
+            (ix, iw, th) => SegmentedRow(g, draw, "mascot", s.MascotLabel,
+                new[] { ("hidden", s.MascotHidden), ("compact", s.MascotCompact), ("large", s.MascotLarge) },
+                MascotState(cfg), ix, mascotY, iw, th, smallFont, rects));
         int supY = y;
         y = DrawDependent(hooksInstalled, x, supY, w, theme, rects,
             (ix, iw, th) => ToggleRow(g, draw, "toggle:Suppress", s.MenuSuppressWhenFocused, null,
                 cfg.SuppressWhenFocused, ix, supY, iw, th, labelFont, smallFont, rects));
         return y;
     }
+
+    /// <summary>
+    /// Estado activo del control de 3 estados de la mascota a partir de <see cref="AppConfig"/>: "hidden"
+    /// cuando <c>ShowMascot</c> está off; si no, el tamaño actual ("compact"/"large"). PURO (sin dibujo)
+    /// para test e implementación: empareja con las claves <c>mascot:hidden|compact|large</c> que
+    /// <see cref="ActionFor"/> traduce a la mutación correspondiente.
+    /// </summary>
+    internal static string MascotState(AppConfig cfg)
+        => !cfg.ShowMascot ? "hidden"
+         : string.Equals(cfg.MascotSize, "large", StringComparison.OrdinalIgnoreCase) ? "large" : "compact";
 
     /// <summary>
     /// Fila MAESTRA con toggle-pill (P1 #1): título (<c>labelFont</c>/<c>TextPrimary</c>) + subtítulo gris
@@ -564,7 +590,7 @@ public static class DashboardSettingsView
                     foreach (var line in subLines) { g.DrawString(line, smallFont, sb, x, ly); ly += subLineH; }
             TogglePill(g, draw: true, on, x + w, y, contentH, theme);
         }
-        return y + contentH + Spacing.Sm;
+        return y + contentH + RowGap;
     }
 
     /// <summary>
@@ -592,7 +618,7 @@ public static class DashboardSettingsView
                     g.DrawString(subtitle!, smallFont, sb, x, y + titleH);
             TogglePill(g, draw: true, on, x + w, y, contentH, theme);
         }
-        return y + contentH + Spacing.Sm;
+        return y + contentH + RowGap;
     }
 
     /// <summary>Fila de acción simple (etiqueta clicable, sin estado on/off). Registra rects[key].</summary>
@@ -686,7 +712,7 @@ public static class DashboardSettingsView
             using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
             g.DrawString(label, f, tb, r, sf);
         }
-        return y + h + Spacing.Sm;
+        return y + h + RowGap;
     }
 
     /// <summary>
@@ -728,11 +754,14 @@ public static class DashboardSettingsView
             int vy = y + lineH;
             foreach (var line in valueLines) { g.DrawString(line, f, dimb, x, vy); vy += lineH; } // valor completo
         }
-        return y + contentH + Spacing.Sm;
+        return y + contentH + RowGap;
     }
 
-    // Geometría de los chips de segmento — MISMA que DashboardDataView.DrawSegments (un solo estilo).
-    private const int SegGap = 3, SegPadX = 7;
+    // Geometría de los chips de segmento. El RELLENO/borde es el MISMO lenguaje que
+    // DashboardDataView.DrawSegments (Accent activo + Contrast / BgElevated + borde Separator), pero la
+    // SEPARACIÓN entre opciones sube a Spacing.Sm (más aire que el 3px de las tabs del chart) — P2 #2: las
+    // afordancias del panel (segmented de Tema/Frecuencia/Icono/Mascota) comparten geometría y respiran.
+    private const int SegGap = Spacing.Sm, SegPadX = 7;
 
     /// <summary>Ancho total (incl. gaps) de una fila de segmentos con las etiquetas dadas.</summary>
     private static int SegmentsTotalWidth(Graphics g, Font f, IReadOnlyList<string> labels)
@@ -748,13 +777,16 @@ public static class DashboardSettingsView
     internal static int SegmentRowAdvanceForTest => SegmentRowAdvance;
 
     /// <summary>
-    /// Fila con etiqueta opcional + segmentos a la derecha (mismo look &amp; hit-test que
-    /// <see cref="DashboardDataView.DrawSegments"/>: activo en Accent + texto Contrast). ANTI-TRUNCAMIENTO:
-    /// mide el ancho total en draw=false; si los segmentos NO caben en el espacio útil
-    /// (<c>[labelRight+gutter, x+w-Spacing.Sm]</c>) <b>envuelve a 2 filas</b> alineadas a
-    /// <c>contentLeft</c>; si caben, se anclan a la derecha dejando margen ≥ <c>Spacing.Sm</c>. Ningún chip
-    /// se pinta con <c>x &lt; contentLeft</c>. La decisión (1 fila vs 2) es idéntica en medir/pintar →
-    /// mismo <c>y</c> de salida. Cada segmento registra rects[$"{key}:{val}"].
+    /// Fila con etiqueta opcional + segmentos a la derecha (mismo lenguaje de pill que el resto del panel:
+    /// activo en Accent + texto Contrast, inactivo BgElevated + borde Separator). A diferencia del antiguo
+    /// delegado a <see cref="DashboardDataView.DrawSegments"/> (gap 3px de las tabs del chart), aquí los
+    /// chips se miden y pintan con el MISMO <see cref="SegGap"/> (=Spacing.Sm) → más aire entre opciones
+    /// (P2 #2) y, sobre todo, la medición de "cabe/no cabe" usa exactamente la misma separación que el
+    /// pintado (sin desajuste medir/pintar). ANTI-TRUNCAMIENTO: mide el ancho total en draw=false; si los
+    /// segmentos NO caben en el espacio útil (<c>[labelRight+gutter, x+w-Spacing.Sm]</c>) <b>envuelve a 2
+    /// filas</b> alineadas a <c>contentLeft</c>; si caben, se anclan a la derecha dejando margen ≥
+    /// <c>Spacing.Sm</c>. Ningún chip se pinta con <c>x &lt; contentLeft</c>. La decisión (1 fila vs 2) es
+    /// idéntica en medir/pintar → mismo <c>y</c> de salida. Cada segmento registra rects[$"{key}:{val}"].
     /// </summary>
     internal static int SegmentedRow(Graphics g, bool draw, string key, string label,
         (string val, string txt)[] segs, string active, int x, int y, int w, Theme theme, Font f,
@@ -766,8 +798,6 @@ public static class DashboardSettingsView
             g.DrawString(label, f, b, x, y);
         }
 
-        var keyed = segs.Select(seg => (seg.txt, $"{key}:{seg.val}")).ToArray();
-        string activeKey = $"{key}:{active}";
         int labelRight = string.IsNullOrEmpty(label)
             ? x
             : x + (int)Math.Ceiling(g.MeasureString(label, f).Width) + Spacing.Md;
@@ -779,23 +809,62 @@ public static class DashboardSettingsView
         if (total <= avail)
         {
             // Cabe en un renglón: anclar a la derecha (deja margen ≥ Sm; primer chip ≥ labelRight ≥ x).
-            DashboardDataView.DrawSegments(g, draw, f, theme, keyed, activeKey,
-                rightEdge, y, rightAlign: true, rects);
+            DrawSelectChips(g, draw, key, segs, active, rightEdge - total, y, theme, f, rects);
             return y + SegmentRowAdvance;
         }
 
-        // No cabe → envolver a 2 filas, alineadas a contentLeft (ningún chip a la izquierda de x).
-        // Reparto: tantos segmentos como quepan en el ancho útil de una fila (desde x), resto a la 2ª.
-        int rowWidth = x + w - x; // ancho útil del renglón empezando en contentLeft
+        // No cabe junto a la etiqueta. Si HAY etiqueta, los chips bajan a su PROPIO renglón (bajo la
+        // etiqueta) → NUNCA se solapan con su texto (regresión que aparecía al dar más aire entre opciones:
+        // "Umbral de color" + 3 chips dejaban de caber a la derecha y se pisaban). Mismo patrón que
+        // MultiSegmentRow. medir==pintar (misma decisión determinista en ambas pasadas).
+        bool hasLabel = !string.IsNullOrEmpty(label);
+        int chipsY = hasLabel ? y + SegmentHeight + SegmentWrapGap : y;
+        int rowWidth = w; // ancho útil del renglón empezando en contentLeft
+        if (total <= rowWidth - Spacing.Sm)
+        {
+            // Caben todos en un renglón propio anclados a la izquierda.
+            DrawSelectChips(g, draw, key, segs, active, x, chipsY, theme, f, rects);
+            return chipsY + SegmentRowAdvance;
+        }
+        // Ni en un renglón completo: repartir en 2 filas alineadas a contentLeft.
         int split = SplitIndexForWrap(g, f, segs.Select(s => s.txt).ToList(), rowWidth);
-        var first = keyed.Take(split).ToArray();
-        var second = keyed.Skip(split).ToArray();
+        DrawSelectChips(g, draw, key, segs.Take(split).ToArray(), active, x, chipsY, theme, f, rects);
+        DrawSelectChips(g, draw, key, segs.Skip(split).ToArray(), active, x,
+            chipsY + SegmentHeight + SegmentWrapGap, theme, f, rects);
+        return chipsY + SegmentHeight * 2 + SegmentWrapGap + RowGap;
+    }
 
-        DashboardDataView.DrawSegments(g, draw, f, theme, first, activeKey,
-            x, y, rightAlign: false, rects);
-        DashboardDataView.DrawSegments(g, draw, f, theme, second, activeKey,
-            x, y + SegmentHeight + Spacing.Sm, rightAlign: false, rects);
-        return y + (SegmentHeight + Spacing.Sm) * 2;
+    /// <summary>
+    /// Pinta y registra una hilera de chips de selección ÚNICA (single-select) empezando en
+    /// <paramref name="startX"/>: el chip cuyo <c>val == active</c> va en Accent + <see cref="ColorMath.Contrast"/>,
+    /// el resto en BgElevated + borde <see cref="Theme.Separator"/>. Geometría idéntica a
+    /// <see cref="DrawMultiChips"/>/<see cref="SegmentsTotalWidth"/> (<see cref="SegGap"/>/<see cref="SegPadX"/>/
+    /// <see cref="SegmentHeight"/>), de modo que medir==pintar y todo el panel comparte UN solo estilo de
+    /// pill con la MISMA separación entre opciones. Cada chip registra <c>rects[$"{key}:{val}"]</c>.
+    /// </summary>
+    private static void DrawSelectChips(Graphics g, bool draw, string key, (string val, string txt)[] segs,
+        string active, int startX, int y, Theme theme, Font f, Dictionary<string, Rectangle> rects)
+    {
+        int sx = startX;
+        foreach (var (val, txt) in segs)
+        {
+            int chipW = (int)g.MeasureString(txt, f).Width + SegPadX * 2;
+            var rect = new Rectangle(sx, y, chipW, SegmentHeight);
+            bool on = val == active;
+            if (draw)
+            {
+                using var bg = new SolidBrush(on ? theme.Accent : theme.BgElevated);
+                Shapes.FillRounded(g, bg, rect, 4);
+                if (!on)
+                    using (var bd = new Pen(theme.Separator))
+                        Shapes.DrawRounded(g, bd, rect, 4);
+                using var tb = new SolidBrush(on ? ColorMath.Contrast(theme.Accent) : theme.TextPrimary);
+                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                g.DrawString(txt, f, tb, rect, sf);
+            }
+            rects[$"{key}:{val}"] = rect;
+            sx += chipW + SegGap;
+        }
     }
 
     /// <summary>
@@ -864,7 +933,7 @@ public static class DashboardSettingsView
         // ancho de contenido tampoco basta, se reparten en 2 filas (split). Ningún chip a la izquierda de x
         // ni más allá de rightEdge. medir==pintar (misma decisión determinista en ambas pasadas).
         bool hasLabel = !string.IsNullOrEmpty(label);
-        int chipsY = hasLabel ? y + SegmentHeight + Spacing.Sm : y; // 1ª fila de chips bajo la etiqueta
+        int chipsY = hasLabel ? y + SegmentHeight + SegmentWrapGap : y; // 1ª fila de chips bajo la etiqueta
         if (total <= w - Spacing.Sm)
         {
             // Caben todos en un renglón propio anclados a la izquierda.
@@ -875,8 +944,8 @@ public static class DashboardSettingsView
         int split = SplitIndexForWrap(g, f, segs.Select(s => s.txt).ToList(), w);
         DrawMultiChips(g, draw, key, segs.Take(split).ToArray(), activeSet, x, chipsY, theme, f, rects);
         DrawMultiChips(g, draw, key, segs.Skip(split).ToArray(), activeSet, x,
-            chipsY + SegmentHeight + Spacing.Sm, theme, f, rects);
-        return chipsY + (SegmentHeight + Spacing.Sm) * 2;
+            chipsY + SegmentHeight + SegmentWrapGap, theme, f, rects);
+        return chipsY + SegmentHeight * 2 + SegmentWrapGap + RowGap;
     }
 
     /// <summary>

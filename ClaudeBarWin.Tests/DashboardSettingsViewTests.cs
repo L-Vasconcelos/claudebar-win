@@ -58,7 +58,8 @@ public class DashboardSettingsViewTests
         int after = DashboardSettingsView.SectionHeader(g, draw: false, "NOTIFICACIONES", X, y0, W, Theme.Dark, Typography.Caption);
 
         int textH = (int)Math.Ceiling(g.MeasureString("NOTIFICACIONES", Typography.Caption).Height);
-        Assert.Equal(y0 + Spacing.Md + textH + Spacing.Sm, after);
+        // Ritmo P2 #2: aire ARRIBA = sectionGap (~Xl), aire abajo = Spacing.Sm (la cabecera abraza su 1ª fila).
+        Assert.Equal(y0 + DashboardSettingsView.SectionGap + textH + Spacing.Sm, after);
     }
 
     [Fact]
@@ -71,7 +72,7 @@ public class DashboardSettingsViewTests
         int after = DashboardSettingsView.SectionHeader(g, draw: true, "PANEL", X, y0, W, Theme.Dark, Typography.Caption);
 
         int textH = (int)Math.Ceiling(g.MeasureString("PANEL", Typography.Caption).Height);
-        Assert.Equal(y0 + Spacing.Md + textH + Spacing.Sm, after);
+        Assert.Equal(y0 + DashboardSettingsView.SectionGap + textH + Spacing.Sm, after);
     }
 
     [Fact]
@@ -95,7 +96,7 @@ public class DashboardSettingsViewTests
         }
         // Busca la fila del divisor en la banda inferior del header.
         int textH = (int)Math.Ceiling(g.MeasureString("PANEL", Typography.Caption).Height);
-        int bandTop = y0 + Spacing.Md + textH, bandBot = bandTop + Spacing.Sm;
+        int bandTop = y0 + DashboardSettingsView.SectionGap + textH, bandBot = bandTop + Spacing.Sm;
         int midX = x + w / 2;
         int divY = -1;
         for (int py = bandTop; py <= bandBot && divY < 0; py++)
@@ -1161,13 +1162,17 @@ public class DashboardSettingsViewTests
             X, 100, W, cfg, s, Theme.Dark, Typography.Body, Typography.Caption, rects);
 
         Assert.True(rects.ContainsKey("special:hooktoggle"), "la fila maestra siempre responde");
-        foreach (var key in new[] { "toggle:ShowMascot", "toggle:Suppress" })
+        Assert.True(rects.TryGetValue("toggle:Suppress", out var sup), "falta dependiente toggle:Suppress con hooks instalados");
+        Assert.True(sup.X >= X + Spacing.Lg, $"toggle:Suppress debe ir sangrado Lg (x={sup.X})");
+        // P2 #1: la mascota es UN control de 3 estados (mascot:hidden|compact|large), no un toggle + segmented.
+        foreach (var v in new[] { "hidden", "compact", "large" })
         {
-            Assert.True(rects.TryGetValue(key, out var r), $"falta dependiente {key} con hooks instalados");
-            Assert.True(r.X >= X + Spacing.Lg, $"{key} debe ir sangrado Lg (x={r.X})");
+            Assert.True(rects.TryGetValue($"mascot:{v}", out var m), $"falta el segmento mascot:{v} con hooks on");
+            Assert.True(m.X >= X + Spacing.Lg, $"mascot:{v} debe ir sangrado Lg (x={m.X})");
         }
-        Assert.True(rects.TryGetValue("mascotsize:compact", out var ms), "falta el segmento de tamaño con hooks on");
-        Assert.True(ms.X >= X + Spacing.Lg, $"mascotsize debe ir sangrado Lg (x={ms.X})");
+        // Ya NO existe el toggle suelto ni el segmented de tamaño antiguos (sin cosas dobles).
+        Assert.False(rects.ContainsKey("toggle:ShowMascot"), "el toggle suelto de mascota ya no existe");
+        Assert.False(rects.ContainsKey("mascotsize:compact"), "el segmented de tamaño separado ya no existe");
     }
 
     [Fact]
@@ -1185,10 +1190,10 @@ public class DashboardSettingsViewTests
             X, 100, W, cfg, s, Theme.Dark, Typography.Body, Typography.Caption, rects);
 
         Assert.True(rects.ContainsKey("special:hooktoggle"), "la fila maestra responde para poder instalar");
-        Assert.False(rects.ContainsKey("toggle:ShowMascot"), "ShowMascot inerte sin hooks");
         Assert.False(rects.ContainsKey("toggle:Suppress"), "Suppress inerte sin hooks");
-        foreach (var v in new[] { "compact", "large" })
-            Assert.False(rects.ContainsKey($"mascotsize:{v}"), $"mascotsize:{v} inerte sin hooks");
+        // P2 #1: el control de 3 estados de la mascota queda INERTE sin hooks (sus 3 segmentos no se registran).
+        foreach (var v in new[] { "hidden", "compact", "large" })
+            Assert.False(rects.ContainsKey($"mascot:{v}"), $"mascot:{v} inerte sin hooks");
     }
 
     [Fact]
@@ -1351,8 +1356,9 @@ public class DashboardSettingsViewTests
     [Fact]
     public void Draw_mascot_row_is_dependent_below_hook_master()
     {
-        // SIN DUPLICADOS: "Mostrar mascota" ya NO es una fila suelta por ENCIMA del botón de hooks; es un
-        // dependiente sangrado Lg y se dibuja DESPUÉS (más abajo en y) que la fila maestra de hooks.
+        // SIN DUPLICADOS: la mascota ya NO es una fila suelta por ENCIMA del botón de hooks; es un control
+        // dependiente sangrado Lg y se dibuja DESPUÉS (más abajo en y) que la fila maestra de hooks. P2 #1:
+        // es UN segmented de 3 estados (mascot:*), no un toggle + un segmented de tamaño.
         using var bmp = NewBmp();
         using var g = Graphics.FromImage(bmp);
         var cfg = Cfg();
@@ -1364,10 +1370,10 @@ public class DashboardSettingsViewTests
 
         Assert.True(rects.TryGetValue("special:hooktoggle", out var master), "falta la fila maestra de hooks");
         // Si la mascota es dependiente (rect registrado solo con hooks instalados), debe ir DEBAJO y sangrada.
-        if (rects.TryGetValue("toggle:ShowMascot", out var mascot))
+        if (rects.TryGetValue("mascot:hidden", out var mascot))
         {
-            Assert.True(mascot.Y > master.Y, "la mascota dependiente va DEBAJO de la fila maestra de hooks");
-            Assert.True(mascot.X >= X + Spacing.Lg, "la mascota dependiente va sangrada Lg");
+            Assert.True(mascot.Y > master.Y, "el control de mascota dependiente va DEBAJO de la fila maestra de hooks");
+            Assert.True(mascot.X >= X + Spacing.Lg, "el control de mascota dependiente va sangrado Lg");
         }
     }
 
@@ -1879,5 +1885,230 @@ public class DashboardSettingsViewTests
         Assert.True(pos.X >= X && pos.Right <= X + W, "la fila de posición no rebasa el contenido");
         // El valor completo "Personalizada (arrastra el panel)" no es elidible aquí: se conserva entero.
         Assert.DoesNotContain("…", s.PosCustom);
+    }
+
+    // ================= v0.3.5 P2 #1: mascota como UN control de 3 estados =================
+
+    [Fact]
+    public void MascotState_maps_config_to_active_segment()
+    {
+        // El estado activo del segmented de 3 estados sale de la config: ShowMascot off → "hidden";
+        // on + tamaño → "compact"/"large". Empareja con las claves mascot:hidden|compact|large.
+        Assert.Equal("hidden", DashboardSettingsView.MascotState(new AppConfig { ShowMascot = false, MascotSize = "compact" }));
+        Assert.Equal("hidden", DashboardSettingsView.MascotState(new AppConfig { ShowMascot = false, MascotSize = "large" }));
+        Assert.Equal("compact", DashboardSettingsView.MascotState(new AppConfig { ShowMascot = true, MascotSize = "compact" }));
+        Assert.Equal("large", DashboardSettingsView.MascotState(new AppConfig { ShowMascot = true, MascotSize = "large" }));
+        // Tolerante a mayúsculas y a tamaño desconocido (cae a compact).
+        Assert.Equal("large", DashboardSettingsView.MascotState(new AppConfig { ShowMascot = true, MascotSize = "LARGE" }));
+        Assert.Equal("compact", DashboardSettingsView.MascotState(new AppConfig { ShowMascot = true, MascotSize = "weird" }));
+    }
+
+    [Fact]
+    public void Mascot_action_routes_each_of_the_three_states()
+    {
+        // ActionFor traduce cada estado a su mutación: "hidden" apaga ShowMascot; "compact"/"large" lo
+        // encienden y fijan el tamaño. Un solo control = una sola decisión (sin toggle + segmented dobles).
+        var c = new AppConfig { ShowMascot = true, MascotSize = "compact" };
+
+        DashboardSettingsView.ActionFor("mascot:hidden")!(c);
+        Assert.False(c.ShowMascot);
+
+        DashboardSettingsView.ActionFor("mascot:large")!(c);
+        Assert.True(c.ShowMascot);
+        Assert.Equal("large", c.MascotSize);
+
+        DashboardSettingsView.ActionFor("mascot:compact")!(c);
+        Assert.True(c.ShowMascot);
+        Assert.Equal("compact", c.MascotSize);
+
+        // Las claves viejas de tamaño ya no existen como mutación (un solo control, sin dobles).
+        Assert.Null(DashboardSettingsView.ActionFor("mascotsize:compact"));
+        Assert.Null(DashboardSettingsView.ActionFor("mascotsize:large"));
+    }
+
+    [Fact]
+    public void Mascot_control_round_trips_active_state_through_action()
+    {
+        // Pintar el segmento activo y aplicar su acción es idempotente: el segmento marcado vuelve a serlo.
+        foreach (var state in new[] { "hidden", "compact", "large" })
+        {
+            var c = new AppConfig();
+            DashboardSettingsView.ActionFor($"mascot:{state}")!(c);
+            Assert.Equal(state, DashboardSettingsView.MascotState(c));
+        }
+    }
+
+    [Fact]
+    public void Mascot_three_state_segments_have_no_decorative_ellipsis_in_all_languages()
+    {
+        // CERO textos cortados (invariante): ni la etiqueta ni los 3 estados llevan elipsis decorativa.
+        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
+        {
+            var s = Localization.Get(lang);
+            foreach (var t in new[] { s.MascotLabel, s.MascotHidden, s.MascotCompact, s.MascotLarge })
+            {
+                Assert.False(string.IsNullOrWhiteSpace(t), $"[{lang}] etiqueta de mascota vacía");
+                Assert.DoesNotContain("…", t);
+            }
+        }
+        // El español es exactamente "Oculta · Compacta · Grande" (copy pedido).
+        var es = Localization.Get("es");
+        Assert.Equal("Oculta", es.MascotHidden);
+        Assert.Equal("Compacta", es.MascotCompact);
+        Assert.Equal("Grande", es.MascotLarge);
+    }
+
+    [Fact]
+    public void Mascot_three_state_pills_do_not_overlap_each_other_and_fit_in_all_languages()
+    {
+        // P2 #1 (artefacto de pills solapando texto): cada pill mide su ancho real y se separa de la
+        // siguiente con un gap fijo (≥ Spacing.Sm) — los 3 rects NUNCA se solapan, ninguno empieza a la
+        // izquierda del contenido sangrado ni rebasa el borde, y la decisión cabe/envuelve es medir==pintar.
+        const int x = 16, y = 100;
+        int w = 308 - Spacing.Lg; // ancho del dependiente (sangría real de la sección En vivo)
+        using var bmp = new Bitmap(x + w + 80, 200);
+        using var g = Graphics.FromImage(bmp);
+        var segs = new[] { ("hidden", "X"), ("compact", "X"), ("large", "X") };
+
+        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
+        {
+            var s = Localization.Get(lang);
+            var localSegs = new[] { ("hidden", s.MascotHidden), ("compact", s.MascotCompact), ("large", s.MascotLarge) };
+            var rects = new Dictionary<string, Rectangle>();
+            int measured = DashboardSettingsView.SegmentedRow(g, draw: false, "mascot", s.MascotLabel,
+                localSegs, "compact", x, y, w, Theme.Dark, Typography.Caption, rects);
+            rects.Clear();
+            int painted = DashboardSettingsView.SegmentedRow(g, draw: true, "mascot", s.MascotLabel,
+                localSegs, "compact", x, y, w, Theme.Dark, Typography.Caption, rects);
+            Assert.Equal(measured, painted);
+
+            var got = new List<Rectangle>();
+            foreach (var (val, _) in localSegs)
+            {
+                Assert.True(rects.TryGetValue($"mascot:{val}", out var r), $"[{lang}] falta mascot:{val}");
+                Assert.True(r.X >= x, $"[{lang}] mascot:{val} a la izquierda del contenido (x={r.X})");
+                Assert.True(r.Right <= x + w, $"[{lang}] mascot:{val} rebasa el borde derecho (right={r.Right})");
+                got.Add(r);
+            }
+            // Ninguna pareja de pills en la MISMA fila se solapa (separación real entre chips).
+            for (int i = 0; i < got.Count; i++)
+                for (int j = i + 1; j < got.Count; j++)
+                    if (got[i].Y == got[j].Y)
+                        Assert.False(got[i].IntersectsWith(got[j]),
+                            $"[{lang}] pills de la mascota solapadas: {got[i]} ∩ {got[j]}");
+        }
+    }
+
+    [Fact]
+    public void Mascot_active_segment_painted_with_accent_in_full_draw()
+    {
+        // El estado activo (según la config) se pinta con Accent (un solo lenguaje de pill), igual que el
+        // resto de segmenteds del panel. Verificado por píxel en el centro-izquierda del chip activo.
+        const int x = 16, w = 308;
+        var cfg = Cfg();
+        cfg.ShowMascot = true; cfg.MascotSize = "large"; // activo esperado = "large"
+        var s = Localization.Get("es");
+        using var bmp = new Bitmap(x + w + 40, 1200);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, x, 0, w, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.TryGetValue("mascot:large", out var active), "falta el segmento activo mascot:large");
+        var acc = Theme.Dark.Accent;
+        var c = bmp.GetPixel(active.X + 2, active.Y + active.Height / 2);
+        Assert.True(Math.Abs(c.R - acc.R) <= 10 && Math.Abs(c.G - acc.G) <= 10 && Math.Abs(c.B - acc.B) <= 10,
+            $"el estado activo de la mascota debe pintarse con Accent, fue #{c.R:X2}{c.G:X2}{c.B:X2}");
+    }
+
+    // ================= v0.3.5 P2 #2: afordancias estandarizadas + ritmo vertical =================
+
+    [Fact]
+    public void Rhythm_tokens_are_xl_section_gap_and_md_row_gap()
+    {
+        // Dos tokens uniformes: sectionGap (~Xl) sobre cada cabecera, rowGap (~Md) entre filas.
+        Assert.Equal(Spacing.Xl, DashboardSettingsView.SectionGap);
+        Assert.Equal(Spacing.Md, DashboardSettingsView.RowGap);
+    }
+
+    [Fact]
+    public void Segmented_options_have_more_air_than_chart_tabs()
+    {
+        // P2 #2: las opciones de un segmented del PANEL respiran más que las tabs apretadas del chart
+        // (gap 3px). Con dos chips, la separación entre el fin del 1º y el inicio del 2º es ≥ Spacing.Sm.
+        const int x = 16, w = 308, y = 100;
+        using var bmp = new Bitmap(x + w + 40, 160);
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+        var segs = new[] { ("a", "AA"), ("b", "BB") };
+
+        DashboardSettingsView.SegmentedRow(g, draw: true, "k", "", segs, "a",
+            x, y, w, Theme.Dark, Typography.Caption, rects);
+
+        var ra = rects["k:a"]; var rb = rects["k:b"];
+        int gap = rb.X - ra.Right;
+        Assert.True(gap >= Spacing.Sm - 1, $"la separación entre opciones debe ser ≥ Spacing.Sm (fue {gap})");
+    }
+
+    [Fact]
+    public void Labeled_segmented_that_does_not_fit_drops_chips_below_label_without_overlap()
+    {
+        // REGRESIÓN (P2 #2): al dar más aire entre opciones, un segmented con ETIQUETA cuyos chips ya no
+        // caben a la derecha NO debe pintarlos en la misma fila pisando el texto de la etiqueta (era el caso
+        // "Umbral de color" + 70/90·80/95·60/85). Deben BAJAR a su propio renglón, bajo la etiqueta. Con un
+        // ancho estrecho a propósito forzamos el wrap y comprobamos que ningún chip se solapa con la etiqueta.
+        const int x = 16, w = 150, y = 100; // estrecho: la etiqueta + chips no caben en 1 fila
+        using var bmp = new Bitmap(x + w + 60, 160);
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+        var segs = new[] { ("a", "70/90"), ("b", "80/95"), ("c", "60/85") };
+        const string label = "Umbral de color";
+
+        int measured = DashboardSettingsView.SegmentedRow(g, draw: false, "threshold", label, segs, "a",
+            x, y, w, Theme.Dark, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.SegmentedRow(g, draw: true, "threshold", label, segs, "a",
+            x, y, w, Theme.Dark, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted); // medir==pintar con el wrap bajo la etiqueta
+        int labelH = (int)Math.Ceiling(g.MeasureString(label, Typography.Caption).Height);
+        int labelBottom = y + Math.Min(labelH, 18);
+        foreach (var (val, _) in segs)
+        {
+            Assert.True(rects.TryGetValue($"threshold:{val}", out var r), $"falta threshold:{val}");
+            Assert.True(r.X >= x, $"threshold:{val} a la izquierda del contenido (x={r.X})");
+            Assert.True(r.Right <= x + w, $"threshold:{val} rebasa el borde (right={r.Right})");
+            // Los chips quedan por DEBAJO de la línea de la etiqueta (no la pisan).
+            Assert.True(r.Y >= labelBottom - 1, $"threshold:{val} se solapa con la etiqueta (y={r.Y} < {labelBottom})");
+        }
+    }
+
+    [Fact]
+    public void Icon_mode_segmented_matches_theme_and_freq_geometry_and_right_aligns()
+    {
+        // P2 #2: "Modo de icono" (%, ▲, %▲) comparte alto y alineación derecha con Tema/Frecuencia (todos
+        // van por SegmentedRow). Mismo alto de chip, mismo margen derecho de seguridad (≥ Spacing.Sm).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        // Alturas iguales (mismo helper) entre icon/theme/freq.
+        int hIcon = rects["icon:percent"].Height;
+        Assert.Equal(hIcon, rects["theme:dark"].Height);
+        Assert.Equal(hIcon, rects["freq:60"].Height);
+        // Alineación derecha: el chip más a la derecha de cada uno deja margen ≥ Spacing.Sm (no toca el borde).
+        foreach (var grp in new[] { "icon", "theme", "freq" })
+        {
+            int rightmost = rects.Where(kv => kv.Key.StartsWith(grp + ":")).Max(kv => kv.Value.Right);
+            Assert.True(rightmost <= X + W - Spacing.Sm + 1,
+                $"{grp}: el chip más a la derecha no respeta el margen de seguridad (right={rightmost})");
+        }
     }
 }
