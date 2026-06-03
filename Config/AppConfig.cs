@@ -66,8 +66,8 @@ public sealed class AppConfig
     public string MascotKind { get; set; } = "cat";
 
     // Dashboard layout (v0.3)
-    /// <summary>Tamaño de la mascota en la cabecera: "compact" (6×6) o "large" (8×8).</summary>
-    public string MascotSize { get; set; } = "compact";
+    // (MascotSize se retiró en v0.3.7: solo queda la mascota compacta. Valores viejos en
+    //  config.json se ignoran al deserializar.)
     /// <summary>Sección Cuota plegada en el dashboard.</summary>
     public bool CollapsedQuota { get; set; } = false;
     /// <summary>Sección Sesiones plegada.</summary>

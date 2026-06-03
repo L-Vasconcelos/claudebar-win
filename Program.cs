@@ -396,12 +396,12 @@ internal static class Program
         var pct = DemoPct(now);
         var plan = new PlanInfo("max", "default_claude_max_5x");
 
-        // Config de marketing: tema oscuro, mascota grande viva, Spend+Chart desplegados (panel lleno).
+        // Config de marketing: tema oscuro, mascota viva, Spend+Chart desplegados (panel lleno).
         AppConfig Cfg() => new()
         {
             Theme = "dark", ChartMode = "spend", ChartPctWindow = "7d", Language = "en",
             ShowSpendEstimate = true, ShowHealth = true, ShowChart = true,
-            LiveSessionsEnabled = true, ShowMascot = true, MascotSize = "large",
+            LiveSessionsEnabled = true, ShowMascot = true,
             CollapsedSpend = false, CollapsedChart = false,
         };
 
@@ -561,16 +561,15 @@ internal static class Program
             bmpS.Save(Path.Combine(dir, "settings.png"));
         }
 
-        // Mascota grande: sesiones en vivo ON + tamaño "large" para verla en la cabecera.
+        // Mascota: sesiones en vivo ON para verla en la cabecera.
         cfg.LiveSessionsEnabled = true;
         cfg.ShowMascot = true;
-        cfg.MascotSize = "large";
         using (var formL = new DashboardForm())
         {
             formL.PrepareForRender(snap, cfg, plan, buckets, pct, ChartRange.Hours5);
             using var bmpL = new Bitmap(formL.Width, formL.Height);
             formL.DrawToBitmap(bmpL, new Rectangle(0, 0, formL.Width, formL.Height));
-            bmpL.Save(Path.Combine(dir, "mascot-large.png"));
+            bmpL.Save(Path.Combine(dir, "mascot.png"));
         }
 
         // ---- Microinteracciones congeladas (Tarea 8): fade+stagger+tween a 0/90/200 ms, hover sobre
@@ -637,7 +636,7 @@ internal static class Program
             strip.Save(Path.Combine(dir, "tray-badges.png"));
         }
 
-        Console.WriteLine("rendered data.png + settings.png + mascot-large.png + tray-badges.png");
+        Console.WriteLine("rendered data.png + settings.png + mascot.png + tray-badges.png");
         Console.WriteLine("       + motion-0/90/200.png + hover.png + mascot-*.png + celebration.png + reduce-motion.png");
         Console.WriteLine(dir);
     }
@@ -656,7 +655,7 @@ internal static class Program
         {
             Theme = "dark", ChartMode = "spend", ChartPctWindow = "7d", Language = "en",
             ShowSpendEstimate = true, ShowHealth = true, ShowChart = true,
-            LiveSessionsEnabled = true, ShowMascot = true, MascotSize = "large"
+            LiveSessionsEnabled = true, ShowMascot = true
         };
 
         void Shot(string file, AppConfig cfg, DashboardForm.RenderMotionOverride? mo, LiveSessionsView? live)

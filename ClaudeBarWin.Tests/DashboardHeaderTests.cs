@@ -24,7 +24,6 @@ public class DashboardHeaderTests
         ShowMascot = showMascot,
         LiveSessionsEnabled = liveEnabled,
         ShowHealth = true,
-        MascotSize = "compact",
     };
 
     // Header con snapshot vacío: la columna derecha apenas aporta alto, así que el bloque de la

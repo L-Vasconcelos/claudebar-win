@@ -98,17 +98,8 @@ public sealed class Strings
 
     // Settings panel (v0.3)
     public string Back { get; init; } = "Back";
-    public string MascotSizeLabel { get; init; } = "Mascot size";
-    public string MascotSizeCompact { get; init; } = "compact";
-    public string MascotSizeLarge { get; init; } = "large";
-
-    // Mascot as a single 3-state control (P2 #1): "Mascot: Hidden · Compact · Large".
-    // Unifies the redundant "Show mascot" toggle + separate size segmented into ONE decision.
-    // "Hidden" = ShowMascot off; "Compact/Large" = ShowMascot on + MascotSize.
-    public string MascotLabel { get; init; } = "Mascot";
-    public string MascotHidden { get; init; } = "Hidden";
-    public string MascotCompact { get; init; } = "Compact";
-    public string MascotLarge { get; init; } = "Large";
+    // (Las strings del tamaño de la mascota — MascotSize*/MascotLabel/Hidden/Compact/Large — se
+    //  retiraron en v0.3.7: la mascota es un toggle simple que reutiliza MenuShowMascot.)
 
     // Chart & misc
     public string UsageChart { get; init; } = "Usage chart";
@@ -340,13 +331,6 @@ public static class Localization
         SectionSpend = "Gasto",
         SectionChart = "Gráfica",
         Back = "Volver",
-        MascotSizeLabel = "Tamaño mascota",
-        MascotSizeCompact = "compacta",
-        MascotSizeLarge = "grande",
-        MascotLabel = "Mascota",
-        MascotHidden = "Oculta",
-        MascotCompact = "Compacta",
-        MascotLarge = "Grande",
         UsageChart = "Gráfica de uso",
         NoData = "Sin datos en este rango",
         OpenBilling = "Abrir facturación…",
@@ -501,10 +485,6 @@ public static class Localization
         MenuLiveSessions = "Live sessies",
         LiveSessionsSubtitle = "Installeert/verwijdert hooks in ~/.claude/settings.json",
         MenuShowMascot = "Mascotte tonen",
-        MascotLabel = "Mascotte",
-        MascotHidden = "Verborgen",
-        MascotCompact = "Compact",
-        MascotLarge = "Groot",
         MenuSuppressWhenFocused = "Dempen als terminal focus heeft",
         MenuInstallHooks = "Inschakelen (hooks installeren)…",
         MenuUninstallHooks = "Uitschakelen (hooks verwijderen)",
@@ -628,10 +608,6 @@ public static class Localization
         MenuLiveSessions = "Sessions en direct",
         LiveSessionsSubtitle = "Installe/retire les hooks dans ~/.claude/settings.json",
         MenuShowMascot = "Afficher la mascotte",
-        MascotLabel = "Mascotte",
-        MascotHidden = "Masquée",
-        MascotCompact = "Compacte",
-        MascotLarge = "Grande",
         MenuSuppressWhenFocused = "Muet si le terminal a le focus",
         MenuInstallHooks = "Activer (installer les hooks)…",
         MenuUninstallHooks = "Désactiver (retirer les hooks)",
@@ -755,10 +731,6 @@ public static class Localization
         MenuLiveSessions = "Live-Sitzungen",
         LiveSessionsSubtitle = "Installiert/entfernt Hooks in ~/.claude/settings.json",
         MenuShowMascot = "Maskottchen anzeigen",
-        MascotLabel = "Maskottchen",
-        MascotHidden = "Aus",
-        MascotCompact = "Kompakt",
-        MascotLarge = "Groß",
         MenuSuppressWhenFocused = "Stumm, wenn Terminal im Fokus",
         MenuInstallHooks = "Aktivieren (Hooks installieren)…",
         MenuUninstallHooks = "Deaktivieren (Hooks entfernen)",
@@ -882,10 +854,6 @@ public static class Localization
         MenuLiveSessions = "ライブセッション",
         LiveSessionsSubtitle = "~/.claude/settings.json にフックを追加/削除",
         MenuShowMascot = "マスコットを表示",
-        MascotLabel = "マスコット",
-        MascotHidden = "非表示",
-        MascotCompact = "小",
-        MascotLarge = "大",
         MenuSuppressWhenFocused = "ターミナルがフォーカス中はミュート",
         MenuInstallHooks = "有効化（フックをインストール）…",
         MenuUninstallHooks = "無効化（フックを削除）",
@@ -1009,10 +977,6 @@ public static class Localization
         MenuLiveSessions = "실시간 세션",
         LiveSessionsSubtitle = "~/.claude/settings.json에 훅 설치/제거",
         MenuShowMascot = "마스코트 표시",
-        MascotLabel = "마스코트",
-        MascotHidden = "숨김",
-        MascotCompact = "작게",
-        MascotLarge = "크게",
         MenuSuppressWhenFocused = "터미널이 포커스일 때 음소거",
         MenuInstallHooks = "활성화 (훅 설치)…",
         MenuUninstallHooks = "비활성화 (훅 제거)",
@@ -1136,10 +1100,6 @@ public static class Localization
         MenuLiveSessions = "即時工作階段",
         LiveSessionsSubtitle = "在 ~/.claude/settings.json 安裝／移除 hooks",
         MenuShowMascot = "顯示吉祥物",
-        MascotLabel = "吉祥物",
-        MascotHidden = "隱藏",
-        MascotCompact = "精簡",
-        MascotLarge = "大型",
         MenuSuppressWhenFocused = "終端機聚焦時靜音",
         MenuInstallHooks = "啟用（安裝 hooks）…",
         MenuUninstallHooks = "停用（移除 hooks）",

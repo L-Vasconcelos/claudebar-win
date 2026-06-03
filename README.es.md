@@ -158,7 +158,7 @@ en [Sesiones en vivo y hooks](#sesiones-en-vivo-y-hooks); la versión corta:
   `te toca…`), un **parpadeo natural** (con jitter, no metronómico), un **spinner braille**
   mientras trabaja, un **rebote de atención** cuando una sesión te necesita, y una **celebración de
   reset** cuando tu cuota se renueva.
-- Tres tamaños: **Oculta · Compacta · Grande**.
+- Se enciende/apaga con **Mostrar mascota** (un gatito compacto de 4 líneas, por diseño).
 
 <p align="center">
   <img src="assets/f3-mascota.gif" alt="Vida de la mascota: parpadeo, spinner braille, verbo juguetón, reacciones por fase" width="300">
@@ -348,7 +348,7 @@ mascota/silenciar se atenúan.
 | Grupo | Qué contiene |
 |---|---|
 | **Contenido del panel** | Gasto estimado · Estado del servicio · Gráfica de uso |
-| **Sesiones en vivo** | *maestra* Activadas (instala/quita los hooks de Claude Code) → Mascota **Oculta / Compacta / Grande** · Silenciar si la terminal tiene foco |
+| **Sesiones en vivo** | *maestra* Activadas (instala/quita los hooks de Claude Code) → **Mostrar mascota** · Silenciar si la terminal tiene foco |
 | **Notificaciones** | *maestra* Activadas → Avisos de ritmo · Hitos 25 / 50 / 75 / 95 |
 | **Frecuencia de actualización** | 30s · 1m · 5m · 15m |
 | **Icono** | Modo `%` / `▲` / `%▲` · Umbral de color 70/90 · 80/95 · 60/85 |
@@ -389,17 +389,13 @@ de trabajo de cada sesión; las sesiones se podan tras 10 minutos de silencio.
 | **Compactando** | `@.@` | mareado, comprimiendo memoria, el spinner gira |
 | **Terminada** | `x.x` | KO, estático |
 
-El gato es ASCII dibujado a mano (clean-room), en **Grande** (7 líneas) y **Compacta** (4 líneas):
+El gato es ASCII dibujado a mano (clean-room), un gatito compacto de 4 líneas:
 
 ```
-   /\_/\          /\_/\
-  ( o.o )        ( o.o )
-   > ^ <          > ^ <
-  /     \        (")_(")
- (       )
-  \_____/        Compacta
-  (")_(")
-   Grande
+  /\_/\
+ ( o.o )
+  > ^ <
+ (")_(")
 ```
 
 Por dentro la mascota es más quisquillosa de lo que parece: **parpadeo con jitter** (lento en reposo
@@ -463,7 +459,7 @@ real.
 | `.\run.ps1 publish` | `publish\ClaudeBarWin.exe` autocontenido de un solo fichero |
 | `ClaudeBarWin.exe --report` | Imprime la cuota + ritmo + gasto actuales a consola y a `%TEMP%\claudebar-report.txt` (sin GUI) |
 | `ClaudeBarWin.exe --render-demo` | Renderiza las capturas de los temas (`dashboard-dark` / `-light` / `-cli`, `tray-icons`) |
-| `ClaudeBarWin.exe --render-test` | Renderiza `data` / `settings` / `mascot-large` / `tray-badges` + fotogramas de microinteracciones |
+| `ClaudeBarWin.exe --render-test` | Renderiza `data` / `settings` / `mascot` / `tray-badges` + fotogramas de microinteracciones |
 | `ClaudeBarWin.exe --render-gif` | Vuelca las secuencias de fotogramas de los GIF del README a `%TEMP%\claudebar-gif`, luego se ensamblan con ffmpeg (ver [Montar los GIF](#montar-los-gif)). El fotograma "hold" estabilizado de la secuencia `apertura/` es el panel completo expandido que se usa para el hero `dashboard-full`. |
 | `ClaudeBarWin.exe --notify-demo` | Dispara los cuatro toasts de hitos 🟢🟡🟠🔴 en secuencia, luego sale |
 | `ClaudeBarWin.exe --db-test` | Prueba de humo del store SQLite del histórico |

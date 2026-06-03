@@ -15,17 +15,20 @@ public class DashboardConfigTests
         Assert.False(c.CollapsedSessions);
         Assert.True(c.CollapsedSpend);
         Assert.True(c.CollapsedChart);
-        Assert.Equal("compact", c.MascotSize);
     }
 
     [Fact]
-    public void Collapsed_and_mascotsize_roundtrip_json()
+    public void Collapsed_roundtrip_json_and_old_mascotsize_key_is_ignored()
     {
-        var c = new AppConfig { CollapsedQuota = true, CollapsedChart = false, MascotSize = "large" };
+        var c = new AppConfig { CollapsedQuota = true, CollapsedChart = false };
         var back = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(c))!;
         Assert.True(back.CollapsedQuota);
         Assert.False(back.CollapsedChart);
-        Assert.Equal("large", back.MascotSize);
+
+        // Migración v0.3.7: un config.json viejo con "MascotSize" no rompe la deserialización
+        // (la clave desconocida se ignora; solo queda la mascota compacta).
+        var legacy = JsonSerializer.Deserialize<AppConfig>("""{"MascotSize":"large","ShowMascot":true}""")!;
+        Assert.True(legacy.ShowMascot);
     }
 
     // ---- Panel de ajustes: ActionFor traduce claves a mutaciones de config ----

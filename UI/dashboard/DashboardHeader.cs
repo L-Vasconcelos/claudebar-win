@@ -84,7 +84,6 @@ public static class DashboardHeader
         // Margen superior del bloque (T9/§3.4): el contenido arrancaba en y+18 y se solapaba con la fila
         // del ⚙/✕ (24px). Ahora baja a `gearSize + Spacing.Xs` para despegarlo de los botones.
         int top = y + gearSize + Spacing.Xs;
-        var mascotSize = MascotSprite.ParseSize(cfg.MascotSize);
         // El bloque de estado usa el ancho COMPLETO: la mascota ya no comparte su fila (banda propia).
         int textX = x;
         if (cfg.ShowMascot)
@@ -100,7 +99,7 @@ public static class DashboardHeader
             try
             {
                 sz = MascotRenderer.Draw(g, draw, x, top, live.GlobalPhase,
-                    mascotSize, mascot, theme, mono, mascotMood);
+                    mascot, theme, mono, mascotMood);
             }
             finally
             {

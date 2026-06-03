@@ -136,7 +136,7 @@ public static class DashboardSettingsView
             case "toggle:ShowSpend": return c => c.ShowSpendEstimate = !c.ShowSpendEstimate;
             case "toggle:ShowHealth": return c => c.ShowHealth = !c.ShowHealth;
             case "toggle:ShowChart": return c => c.ShowChart = !c.ShowChart;
-            // (ShowMascot ya no es un toggle suelto: vive en el control de 3 estados "mascot:*", abajo.)
+            case "toggle:ShowMascot": return c => c.ShowMascot = !c.ShowMascot;
             case "toggle:Suppress": return c => c.SuppressWhenFocused = !c.SuppressWhenFocused;
             case "toggle:Notifications": return c => c.NotificationsEnabled = !c.NotificationsEnabled;
             case "toggle:PaceAlerts": return c => c.PaceAlerts = !c.PaceAlerts;
@@ -144,12 +144,6 @@ public static class DashboardSettingsView
             case "toggle:OnTop": return c => c.DashboardAlwaysOnTop = !c.DashboardAlwaysOnTop;
             case "toggle:ReduceMotion": return c => c.ReduceMotion = !c.ReduceMotion;
             case "toggle:Startup": return _ => StartupManager.Toggle();
-
-            // Mascota como UN control de 3 estados (P2 #1): "Oculta" apaga ShowMascot;
-            // "Compacta"/"Grande" lo encienden y fijan el tamaño.
-            case "mascot:hidden": return c => c.ShowMascot = false;
-            case "mascot:compact": return c => { c.ShowMascot = true; c.MascotSize = "compact"; };
-            case "mascot:large": return c => { c.ShowMascot = true; c.MascotSize = "large"; };
 
             case "theme:system": return c => c.Theme = "system";
             case "theme:dark": return c => c.Theme = "dark";
@@ -515,34 +509,18 @@ public static class DashboardSettingsView
             s.Enabled, s.LiveSessionsSubtitle, hooksInstalled,
             x, y, w, theme, labelFont, smallFont, rects);
         // Dependientes: atenuados + inertes mientras no haya hooks (la mascota Idle solo cobra vida con hooks).
-        // MASCOTA = UN solo control de 3 estados "Mascota: Oculta · Compacta · Grande" (P2 #1). Fusiona el
-        // antiguo toggle "Mostrar mascota" + el segmented de tamaño (eran 2 controles para 1 decisión):
-        //   "Oculta"   → ShowMascot off
-        //   "Compacta" → ShowMascot on + MascotSize=compact
-        //   "Grande"   → ShowMascot on + MascotSize=large
-        // El segmented (single-select) ya mide el ancho real de cada pill y las separa con SegGap fijo
-        // (Spacing.Sm), cada una con su rect redondeado → sin pills solapando texto (artefacto resuelto).
+        // MASCOTA = toggle simple "Mostrar mascota" (v0.3.7): la talla grande se retiró, así que la
+        // decisión vuelve a ser binaria (oculta / gatito compacto) y el control de 3 estados sobra.
         int mascotY = y;
         y = DrawDependent(hooksInstalled, x, mascotY, w, theme, rects,
-            (ix, iw, th) => SegmentedRow(g, draw, "mascot", s.MascotLabel,
-                new[] { ("hidden", s.MascotHidden), ("compact", s.MascotCompact), ("large", s.MascotLarge) },
-                MascotState(cfg), ix, mascotY, iw, th, smallFont, rects));
+            (ix, iw, th) => ToggleRow(g, draw, "toggle:ShowMascot", s.MenuShowMascot, null,
+                cfg.ShowMascot, ix, mascotY, iw, th, labelFont, smallFont, rects));
         int supY = y;
         y = DrawDependent(hooksInstalled, x, supY, w, theme, rects,
             (ix, iw, th) => ToggleRow(g, draw, "toggle:Suppress", s.MenuSuppressWhenFocused, null,
                 cfg.SuppressWhenFocused, ix, supY, iw, th, labelFont, smallFont, rects));
         return y;
     }
-
-    /// <summary>
-    /// Estado activo del control de 3 estados de la mascota a partir de <see cref="AppConfig"/>: "hidden"
-    /// cuando <c>ShowMascot</c> está off; si no, el tamaño actual ("compact"/"large"). PURO (sin dibujo)
-    /// para test e implementación: empareja con las claves <c>mascot:hidden|compact|large</c> que
-    /// <see cref="ActionFor"/> traduce a la mutación correspondiente.
-    /// </summary>
-    internal static string MascotState(AppConfig cfg)
-        => !cfg.ShowMascot ? "hidden"
-         : string.Equals(cfg.MascotSize, "large", StringComparison.OrdinalIgnoreCase) ? "large" : "compact";
 
     /// <summary>
     /// Fila MAESTRA con toggle-pill (P1 #1): título (<c>labelFont</c>/<c>TextPrimary</c>) + subtítulo gris

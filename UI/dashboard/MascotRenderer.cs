@@ -5,7 +5,7 @@ using ClaudeBarWin.Services.Mascot;
 
 namespace ClaudeBarWin.UI;
 
-/// <summary>Dibuja la mascota ASCII (tamaño + color por fase/humor) + spinner de trabajo. Sin estado.</summary>
+/// <summary>Dibuja la mascota ASCII (color por fase/humor) + spinner de trabajo. Sin estado.</summary>
 public static class MascotRenderer
 {
     /// <summary>
@@ -15,10 +15,10 @@ public static class MascotRenderer
     /// <paramref name="mood"/> lo tiña (Alert/Happy/Focused). El spinner se pinta a la derecha de la
     /// 1ª línea y NO cambia el tamaño reservado (cabe en el ancho de la mascota o se ignora en la medida).
     /// </summary>
-    public static Size Draw(Graphics g, bool draw, int x, int y, SessionPhase phase, MascotSize size,
+    public static Size Draw(Graphics g, bool draw, int x, int y, SessionPhase phase,
                             MascotState state, Theme theme, Font mono, Mood mood = Mood.Neutral)
     {
-        var frames = MascotSprite.Frames(phase, size);
+        var frames = MascotSprite.Frames(phase);
         var frame = frames[state.FrameIndex % frames.Count];
         float lineH = mono.GetHeight(g);
         float maxW = 0;

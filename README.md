@@ -152,7 +152,7 @@ through a little **ASCII cat** that lives in the panel header. Full mechanics in
   a **natural blink** (jittered, not metronomic), a **braille spinner** while it works, an
   **attention bounce** when a session needs you, and a **reset celebration** when your quota
   renews.
-- Three sizes: **Hidden · Compact · Large**.
+- Toggle it on/off with **Show mascot** (a compact 4-line kitty, by design).
 
 <p align="center">
   <img src="assets/f3-mascota.gif" alt="Mascot life: blink, braille spinner, playful verb, phase reactions" width="300">
@@ -334,7 +334,7 @@ out; turn **Live sessions** off and the mascot/suppress controls grey out.
 | Group | What's in it |
 |---|---|
 | **Panel content** | Estimated spend · Service status · Usage chart |
-| **Live sessions** | *master* Enabled (installs/removes Claude Code hooks) → Mascot **Hidden / Compact / Large** · Suppress when focused |
+| **Live sessions** | *master* Enabled (installs/removes Claude Code hooks) → **Show mascot** · Suppress when focused |
 | **Notifications** | *master* Enabled → Pace alerts · Milestones 25 / 50 / 75 / 95 |
 | **Update frequency** | 30s · 1min · 5min · 15min |
 | **Icon** | Mode `%` / `▲` / `%▲` · Color threshold 70/90 · 80/95 · 60/85 |
@@ -375,17 +375,13 @@ session's working directory; sessions prune after 10 minutes of silence.
 | **Compacting** | `@.@` | dizzy, compressing memory, spinner spins |
 | **Ended** | `x.x` | KO, static |
 
-The cat is hand-drawn ASCII (clean-room), in **Large** (7 lines) and **Compact** (4 lines):
+The cat is hand-drawn ASCII (clean-room), a compact 4-line kitty:
 
 ```
-   /\_/\          /\_/\
-  ( o.o )        ( o.o )
-   > ^ <          > ^ <
-  /     \        (")_(")
- (       )
-  \_____/        Compact
-  (")_(")
-   Large
+  /\_/\
+ ( o.o )
+  > ^ <
+ (")_(")
 ```
 
 Under the hood the mascot is fussier than it looks: **jittered blink** (slow when idle ~2.6s,
@@ -446,7 +442,7 @@ real quota.
 | `.\run.ps1 publish` | Self-contained single-file `publish\ClaudeBarWin.exe` |
 | `ClaudeBarWin.exe --report` | Print current quota + pace + spend to console and `%TEMP%\claudebar-report.txt` (no GUI) |
 | `ClaudeBarWin.exe --render-demo` | Render the theme screenshots (`dashboard-dark` / `-light` / `-cli`, `tray-icons`) |
-| `ClaudeBarWin.exe --render-test` | Render `data` / `settings` / `mascot-large` / `tray-badges` + microinteraction frames |
+| `ClaudeBarWin.exe --render-test` | Render `data` / `settings` / `mascot` / `tray-badges` + microinteraction frames |
 | `ClaudeBarWin.exe --render-gif` | Dump README GIF frame sequences to `%TEMP%\claudebar-gif`, then assemble with ffmpeg (see [Building the GIFs](#building-the-gifs)). The settled "hold" frame of the `apertura/` sequence is the full expanded panel used for the `dashboard-full` hero. |
 | `ClaudeBarWin.exe --notify-demo` | Fire the four milestone toasts 🟢🟡🟠🔴 in sequence, then exit |
 | `ClaudeBarWin.exe --db-test` | Smoke-test the SQLite history store |

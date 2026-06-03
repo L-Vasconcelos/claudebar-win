@@ -59,7 +59,7 @@ public static class MascotAnimator
         if (reduceMotion) return StaticState;
         if (elapsedMs < 0) elapsedMs = 0;
 
-        int frameCount = MascotSprite.Frames(phase, MascotSize.Large).Count;
+        int frameCount = MascotSprite.Frames(phase).Count;
         bool blinking = ComputeBlink(phase, elapsedMs, seed);
 
         // Frame: estáticas (1 frame) → 0; animadas → alternan según el parpadeo/pulso.

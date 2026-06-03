@@ -28,7 +28,6 @@ public class DashboardSettingsViewTests
         ShowSpendEstimate = true,
         NotificationsEnabled = true,
         NotifyMilestones = new[] { 25, 50, 75, 95 },
-        MascotSize = "compact",
         Theme = "dark",
         DashboardPosition = "BottomRight",
         Language = "es",
@@ -1164,14 +1163,12 @@ public class DashboardSettingsViewTests
         Assert.True(rects.ContainsKey("special:hooktoggle"), "la fila maestra siempre responde");
         Assert.True(rects.TryGetValue("toggle:Suppress", out var sup), "falta dependiente toggle:Suppress con hooks instalados");
         Assert.True(sup.X >= X + Spacing.Lg, $"toggle:Suppress debe ir sangrado Lg (x={sup.X})");
-        // P2 #1: la mascota es UN control de 3 estados (mascot:hidden|compact|large), no un toggle + segmented.
+        // v0.3.7: la mascota es un toggle simple sangrado (la talla grande y su segmented se retiraron).
+        Assert.True(rects.TryGetValue("toggle:ShowMascot", out var m), "falta el toggle de la mascota con hooks on");
+        Assert.True(m.X >= X + Spacing.Lg, $"toggle:ShowMascot debe ir sangrado Lg (x={m.X})");
+        // Ya NO existe el control de 3 estados ni el segmented de tamaño antiguos.
         foreach (var v in new[] { "hidden", "compact", "large" })
-        {
-            Assert.True(rects.TryGetValue($"mascot:{v}", out var m), $"falta el segmento mascot:{v} con hooks on");
-            Assert.True(m.X >= X + Spacing.Lg, $"mascot:{v} debe ir sangrado Lg (x={m.X})");
-        }
-        // Ya NO existe el toggle suelto ni el segmented de tamaño antiguos (sin cosas dobles).
-        Assert.False(rects.ContainsKey("toggle:ShowMascot"), "el toggle suelto de mascota ya no existe");
+            Assert.False(rects.ContainsKey($"mascot:{v}"), $"el segmento mascot:{v} ya no existe");
         Assert.False(rects.ContainsKey("mascotsize:compact"), "el segmented de tamaño separado ya no existe");
     }
 
@@ -1191,9 +1188,8 @@ public class DashboardSettingsViewTests
 
         Assert.True(rects.ContainsKey("special:hooktoggle"), "la fila maestra responde para poder instalar");
         Assert.False(rects.ContainsKey("toggle:Suppress"), "Suppress inerte sin hooks");
-        // P2 #1: el control de 3 estados de la mascota queda INERTE sin hooks (sus 3 segmentos no se registran).
-        foreach (var v in new[] { "hidden", "compact", "large" })
-            Assert.False(rects.ContainsKey($"mascot:{v}"), $"mascot:{v} inerte sin hooks");
+        // v0.3.7: el toggle de la mascota queda INERTE sin hooks (su rect no se registra).
+        Assert.False(rects.ContainsKey("toggle:ShowMascot"), "toggle:ShowMascot inerte sin hooks");
     }
 
     [Fact]
@@ -1783,7 +1779,7 @@ public class DashboardSettingsViewTests
         var sLoc = Localization.Get("es");
 
         int Run(bool showMascot) => DashboardHeader.Draw(g, draw: false, X, 0, W, snap: null, live,
-            new AppConfig { ShowMascot = showMascot, LiveSessionsEnabled = false, ShowHealth = true, MascotSize = "compact" },
+            new AppConfig { ShowMascot = showMascot, LiveSessionsEnabled = false, ShowHealth = true },
             sLoc, Theme.Dark, MascotAnimator.StaticState, Mood.Neutral,
             Typography.Body, Typography.Caption, Typography.Mono, ref gear,
             motion: null, reduceMotion: false, mascotBounceOffsetY: 0, celebration: null);
@@ -1887,140 +1883,65 @@ public class DashboardSettingsViewTests
         Assert.DoesNotContain("…", s.PosCustom);
     }
 
-    // ================= v0.3.5 P2 #1: mascota como UN control de 3 estados =================
+    // ================= v0.3.7: mascota como toggle simple (la talla grande se retiró) =================
 
     [Fact]
-    public void MascotState_maps_config_to_active_segment()
+    public void Mascot_toggle_flips_show_mascot_and_old_segmented_keys_are_gone()
     {
-        // El estado activo del segmented de 3 estados sale de la config: ShowMascot off → "hidden";
-        // on + tamaño → "compact"/"large". Empareja con las claves mascot:hidden|compact|large.
-        Assert.Equal("hidden", DashboardSettingsView.MascotState(new AppConfig { ShowMascot = false, MascotSize = "compact" }));
-        Assert.Equal("hidden", DashboardSettingsView.MascotState(new AppConfig { ShowMascot = false, MascotSize = "large" }));
-        Assert.Equal("compact", DashboardSettingsView.MascotState(new AppConfig { ShowMascot = true, MascotSize = "compact" }));
-        Assert.Equal("large", DashboardSettingsView.MascotState(new AppConfig { ShowMascot = true, MascotSize = "large" }));
-        // Tolerante a mayúsculas y a tamaño desconocido (cae a compact).
-        Assert.Equal("large", DashboardSettingsView.MascotState(new AppConfig { ShowMascot = true, MascotSize = "LARGE" }));
-        Assert.Equal("compact", DashboardSettingsView.MascotState(new AppConfig { ShowMascot = true, MascotSize = "weird" }));
-    }
-
-    [Fact]
-    public void Mascot_action_routes_each_of_the_three_states()
-    {
-        // ActionFor traduce cada estado a su mutación: "hidden" apaga ShowMascot; "compact"/"large" lo
-        // encienden y fijan el tamaño. Un solo control = una sola decisión (sin toggle + segmented dobles).
-        var c = new AppConfig { ShowMascot = true, MascotSize = "compact" };
-
-        DashboardSettingsView.ActionFor("mascot:hidden")!(c);
+        // El toggle alterna ShowMascot; las claves del antiguo control de 3 estados (y las aún más
+        // viejas de tamaño) ya no mutan nada.
+        var c = new AppConfig { ShowMascot = true };
+        DashboardSettingsView.ActionFor("toggle:ShowMascot")!(c);
         Assert.False(c.ShowMascot);
-
-        DashboardSettingsView.ActionFor("mascot:large")!(c);
+        DashboardSettingsView.ActionFor("toggle:ShowMascot")!(c);
         Assert.True(c.ShowMascot);
-        Assert.Equal("large", c.MascotSize);
 
-        DashboardSettingsView.ActionFor("mascot:compact")!(c);
-        Assert.True(c.ShowMascot);
-        Assert.Equal("compact", c.MascotSize);
-
-        // Las claves viejas de tamaño ya no existen como mutación (un solo control, sin dobles).
+        Assert.Null(DashboardSettingsView.ActionFor("mascot:hidden"));
+        Assert.Null(DashboardSettingsView.ActionFor("mascot:compact"));
+        Assert.Null(DashboardSettingsView.ActionFor("mascot:large"));
         Assert.Null(DashboardSettingsView.ActionFor("mascotsize:compact"));
         Assert.Null(DashboardSettingsView.ActionFor("mascotsize:large"));
     }
 
     [Fact]
-    public void Mascot_control_round_trips_active_state_through_action()
+    public void Mascot_toggle_label_localized_without_ellipsis_in_all_languages()
     {
-        // Pintar el segmento activo y aplicar su acción es idempotente: el segmento marcado vuelve a serlo.
-        foreach (var state in new[] { "hidden", "compact", "large" })
-        {
-            var c = new AppConfig();
-            DashboardSettingsView.ActionFor($"mascot:{state}")!(c);
-            Assert.Equal(state, DashboardSettingsView.MascotState(c));
-        }
-    }
-
-    [Fact]
-    public void Mascot_three_state_segments_have_no_decorative_ellipsis_in_all_languages()
-    {
-        // CERO textos cortados (invariante): ni la etiqueta ni los 3 estados llevan elipsis decorativa.
+        // CERO textos cortados (invariante): la etiqueta del toggle existe en todos los idiomas y no
+        // lleva elipsis decorativa.
         foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
         {
             var s = Localization.Get(lang);
-            foreach (var t in new[] { s.MascotLabel, s.MascotHidden, s.MascotCompact, s.MascotLarge })
-            {
-                Assert.False(string.IsNullOrWhiteSpace(t), $"[{lang}] etiqueta de mascota vacía");
-                Assert.DoesNotContain("…", t);
-            }
+            Assert.False(string.IsNullOrWhiteSpace(s.MenuShowMascot), $"[{lang}] MenuShowMascot vacía");
+            Assert.DoesNotContain("…", s.MenuShowMascot);
         }
-        // El español es exactamente "Oculta · Compacta · Grande" (copy pedido).
-        var es = Localization.Get("es");
-        Assert.Equal("Oculta", es.MascotHidden);
-        Assert.Equal("Compacta", es.MascotCompact);
-        Assert.Equal("Grande", es.MascotLarge);
+        Assert.Equal("Mostrar mascota", Localization.Get("es").MenuShowMascot);
     }
 
     [Fact]
-    public void Mascot_three_state_pills_do_not_overlap_each_other_and_fit_in_all_languages()
+    public void Mascot_toggle_row_is_dependent_of_hooks_master()
     {
-        // P2 #1 (artefacto de pills solapando texto): cada pill mide su ancho real y se separa de la
-        // siguiente con un gap fijo (≥ Spacing.Sm) — los 3 rects NUNCA se solapan, ninguno empieza a la
-        // izquierda del contenido sangrado ni rebasa el borde, y la decisión cabe/envuelve es medir==pintar.
-        const int x = 16, y = 100;
-        int w = 308 - Spacing.Lg; // ancho del dependiente (sangría real de la sección En vivo)
-        using var bmp = new Bitmap(x + w + 80, 200);
+        // Con hooks instalados la fila del toggle de la mascota existe y es clicable; con el master off
+        // queda inerte (DrawDependent retira sus rects). En ningún caso queda rastro del viejo segmented.
+        using var bmp = NewBmp();
         using var g = Graphics.FromImage(bmp);
-        var segs = new[] { ("hidden", "X"), ("compact", "X"), ("large", "X") };
-
-        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
-        {
-            var s = Localization.Get(lang);
-            var localSegs = new[] { ("hidden", s.MascotHidden), ("compact", s.MascotCompact), ("large", s.MascotLarge) };
-            var rects = new Dictionary<string, Rectangle>();
-            int measured = DashboardSettingsView.SegmentedRow(g, draw: false, "mascot", s.MascotLabel,
-                localSegs, "compact", x, y, w, Theme.Dark, Typography.Caption, rects);
-            rects.Clear();
-            int painted = DashboardSettingsView.SegmentedRow(g, draw: true, "mascot", s.MascotLabel,
-                localSegs, "compact", x, y, w, Theme.Dark, Typography.Caption, rects);
-            Assert.Equal(measured, painted);
-
-            var got = new List<Rectangle>();
-            foreach (var (val, _) in localSegs)
-            {
-                Assert.True(rects.TryGetValue($"mascot:{val}", out var r), $"[{lang}] falta mascot:{val}");
-                Assert.True(r.X >= x, $"[{lang}] mascot:{val} a la izquierda del contenido (x={r.X})");
-                Assert.True(r.Right <= x + w, $"[{lang}] mascot:{val} rebasa el borde derecho (right={r.Right})");
-                got.Add(r);
-            }
-            // Ninguna pareja de pills en la MISMA fila se solapa (separación real entre chips).
-            for (int i = 0; i < got.Count; i++)
-                for (int j = i + 1; j < got.Count; j++)
-                    if (got[i].Y == got[j].Y)
-                        Assert.False(got[i].IntersectsWith(got[j]),
-                            $"[{lang}] pills de la mascota solapadas: {got[i]} ∩ {got[j]}");
-        }
-    }
-
-    [Fact]
-    public void Mascot_active_segment_painted_with_accent_in_full_draw()
-    {
-        // El estado activo (según la config) se pinta con Accent (un solo lenguaje de pill), igual que el
-        // resto de segmenteds del panel. Verificado por píxel en el centro-izquierda del chip activo.
-        const int x = 16, w = 308;
         var cfg = Cfg();
-        cfg.ShowMascot = true; cfg.MascotSize = "large"; // activo esperado = "large"
         var s = Localization.Get("es");
-        using var bmp = new Bitmap(x + w + 40, 1200);
-        using var g = Graphics.FromImage(bmp);
-        g.Clear(Theme.Dark.Background);
-        var rects = new Dictionary<string, Rectangle>();
 
-        DashboardSettingsView.Draw(g, draw: true, x, 0, w, cfg, s, Theme.Dark,
-            Typography.Body, Typography.Caption, rects);
+        Dictionary<string, Rectangle> Run(bool hooks)
+        {
+            var rects = new Dictionary<string, Rectangle>();
+            DashboardSettingsView.LiveSessionsSection(g, draw: true, hooks, X, 0, W, cfg, s, Theme.Dark,
+                Typography.Body, Typography.Caption, rects);
+            return rects;
+        }
 
-        Assert.True(rects.TryGetValue("mascot:large", out var active), "falta el segmento activo mascot:large");
-        var acc = Theme.Dark.Accent;
-        var c = bmp.GetPixel(active.X + 2, active.Y + active.Height / 2);
-        Assert.True(Math.Abs(c.R - acc.R) <= 10 && Math.Abs(c.G - acc.G) <= 10 && Math.Abs(c.B - acc.B) <= 10,
-            $"el estado activo de la mascota debe pintarse con Accent, fue #{c.R:X2}{c.G:X2}{c.B:X2}");
+        var withHooks = Run(true);
+        Assert.True(withHooks.ContainsKey("toggle:ShowMascot"), "falta la fila del toggle de la mascota");
+        Assert.DoesNotContain(withHooks.Keys, k => k.StartsWith("mascot:"));
+
+        var withoutHooks = Run(false);
+        Assert.False(withoutHooks.ContainsKey("toggle:ShowMascot"),
+            "con el master off, el toggle de la mascota debe ser inerte (sin rect)");
     }
 
     // ================= v0.3.5 P2 #2: afordancias estandarizadas + ritmo vertical =================

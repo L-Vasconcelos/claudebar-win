@@ -24,7 +24,7 @@ public class MascotAnimatorTests
     {
         foreach (SessionPhase p in Enum.GetValues<SessionPhase>())
         {
-            int count = MascotSprite.Frames(p, MascotSize.Large).Count;
+            int count = MascotSprite.Frames(p).Count;
             for (double t = 0; t <= 6000; t += 37)
             {
                 var st = Sample(p, t, seed: 3);

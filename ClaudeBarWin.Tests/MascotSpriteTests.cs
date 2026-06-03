@@ -6,13 +6,18 @@ namespace ClaudeBarWin.Tests;
 public class MascotSpriteTests
 {
     [Fact]
-    public void Every_phase_has_at_least_one_frame()
+    public void Every_phase_has_at_least_one_multiline_frame()
     {
         foreach (SessionPhase p in Enum.GetValues<SessionPhase>())
         {
             var frames = MascotSprite.Frames(p);
             Assert.NotEmpty(frames);
-            Assert.All(frames, f => Assert.False(string.IsNullOrEmpty(f)));
+            // Cada frame es un array de líneas no vacío y todas sus líneas tienen contenido.
+            Assert.All(frames, f =>
+            {
+                Assert.NotEmpty(f);
+                Assert.All(f, line => Assert.False(string.IsNullOrWhiteSpace(line)));
+            });
         }
     }
 
