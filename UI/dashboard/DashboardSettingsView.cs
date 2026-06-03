@@ -431,31 +431,41 @@ public static class DashboardSettingsView
         string badgeText, Color badgeColor, int x, int y, int w, Theme theme, Font labelFont, Font smallFont,
         Dictionary<string, Rectangle> rects)
     {
-        int titleH = (int)Math.Ceiling(g.MeasureString(label, labelFont).Height);
+        // El badge se ancla a la derecha; su geometría se decide igual en ambas pasadas (medir==pintar).
+        // Lo medimos PRIMERO (sin dibujar todavía) para conocer el borde izquierdo del badge: la columna de
+        // texto envuelve dentro de [x, badge.X - Spacing.Md], NUNCA por debajo del badge.
+        var badge = StatusBadge(g, draw: false, badgeText, badgeColor, x, x + w, y, BadgeHeight, theme, smallFont);
+        // ANTI-CORTE (P0 #2): el texto NO se elide. La columna de texto izquierda mide su ancho útil hasta
+        // el borde izquierdo del badge (gutter Spacing.Md) y, si no cabe en 1 línea, ENVUELVE a varias líneas
+        // (WordBreak), sumando su alto en AMBAS pasadas → medir==pintar. Yovan quiere el TEXTO COMPLETO.
+        int textColW = (badge.Width > 0 ? badge.X : x + w) - Spacing.Md - x;
+        if (textColW <= 0) textColW = Math.Max(1, x + w - x); // defensa: nunca ≤ 0
+
+        var labelLines = TextWrap.WordWrap(label, textColW, t => g.MeasureString(t, labelFont).Width);
+        int titleLineH = (int)Math.Ceiling(g.MeasureString(label, labelFont).Height);
+        int titleH = labelLines.Count * titleLineH;
+
         bool hasSub = !string.IsNullOrEmpty(subtitle);
-        int subH = hasSub ? (int)Math.Ceiling(g.MeasureString(subtitle, smallFont).Height) : 0;
+        var subLines = hasSub
+            ? TextWrap.WordWrap(subtitle!, textColW, t => g.MeasureString(t, smallFont).Width)
+            : new List<string>();
+        int subLineH = hasSub ? (int)Math.Ceiling(g.MeasureString(subtitle!, smallFont).Height) : 0;
+        int subH = subLines.Count * subLineH;
+
         int contentH = Math.Max(BadgeHeight, titleH + subH);
 
         var r = new Rectangle(x, y, w, contentH);
         rects[key] = r;
-        // El badge se ancla a la derecha; su geometría se decide igual en ambas pasadas (medir==pintar).
-        var badge = StatusBadge(g, draw, badgeText, badgeColor, x, x + w, y, contentH, theme, smallFont);
-        // ANTI-TRUNCAMIENTO: la columna de texto izquierda no debe invadir el badge. Mide el ancho útil
-        // hasta el borde izquierdo del badge con gutter Spacing.Md y elide título/subtítulo (elipsis medida,
-        // misma decisión en draw=false/true → medir==pintar). Si no hay badge, usa todo el ancho.
-        int textColW = (badge.Width > 0 ? badge.X : x + w) - Spacing.Md - x;
-        if (textColW <= 0) textColW = Math.Max(0, x + w - x); // defensa: nunca negativo
         if (draw)
         {
-            string shownLabel = TextWrap.Ellipsize(label, textColW, t => g.MeasureString(t, labelFont).Width);
+            // Re-emite el badge en la pasada de pintado (mismo rect que el medido → idéntico).
+            StatusBadge(g, draw: true, badgeText, badgeColor, x, x + w, y, contentH, theme, smallFont);
+            int ly = y;
             using (var b = new SolidBrush(theme.TextPrimary))
-                g.DrawString(shownLabel, labelFont, b, x, y);
+                foreach (var line in labelLines) { g.DrawString(line, labelFont, b, x, ly); ly += titleLineH; }
             if (hasSub)
-            {
-                string shownSub = TextWrap.Ellipsize(subtitle!, textColW, t => g.MeasureString(t, smallFont).Width);
-                using var sb = new SolidBrush(theme.TextMuted);
-                g.DrawString(shownSub, smallFont, sb, x, y + titleH);
-            }
+                using (var sb = new SolidBrush(theme.TextMuted))
+                    foreach (var line in subLines) { g.DrawString(line, smallFont, sb, x, ly); ly += subLineH; }
         }
         return y + contentH + Spacing.Sm;
     }
@@ -621,74 +631,46 @@ public static class DashboardSettingsView
         return y + h + Spacing.Sm;
     }
 
-    // Sufijo del valor de un CycleRow (chevron). El valor a su izquierda es lo que se elide.
-    private const string CycleChevron = "  ›";
-
     /// <summary>
-    /// Geometría medida de un <see cref="CycleRow"/>: posición/ancho de la etiqueta izquierda y del
-    /// valor derecho (YA elidido si no cabía). PURO (sin dibujo) para test e implementación: garantiza
-    /// que etiqueta y valor no se solapan (gutter ≥ <c>Spacing.Md</c>) y que el valor deja margen
-    /// derecho ≥ <c>Spacing.Sm</c>. Devuelve (labelX, labelW, valueX, valueW).
+    /// Número de líneas (≥1) que el VALOR de un <see cref="CycleRow"/> ocupa al envolverse (WordBreak)
+    /// dentro del ancho útil <c>[x, x+w-Spacing.Sm]</c>. PURO y determinista (misma medición en
+    /// draw=false/true → mismo recuento, clave para medir==pintar). Sin elipsis: el valor SIEMPRE se
+    /// muestra completo, partido en tantas líneas como haga falta.
     /// </summary>
-    internal static (int lx, int lw, int rx, int rw) CycleRowLayout(Graphics g, string label, string current,
-        int x, int w, Font f)
+    internal static int CycleRowValueLineCount(Graphics g, string current, int x, int w, Font f)
     {
-        int labelW = (int)Math.Ceiling(g.MeasureString(label, f).Width);
-        int rightEdge = x + w - Spacing.Sm;            // margen derecho de seguridad
-        // El valor (con chevron) puede ocupar como mucho desde labelRight+gutter hasta rightEdge.
-        int valueLeftBound = x + labelW + Spacing.Md;
-        int maxValueW = rightEdge - valueLeftBound;
-        string shown = ShownCycleValue(g, label, current, x, w, f);
-        int valueW = (int)Math.Ceiling(g.MeasureString(shown, f).Width);
-        if (valueW > maxValueW) valueW = Math.Max(0, maxValueW); // defensa: nunca exceder
-        int valueX = rightEdge - valueW;               // anclado a la derecha con margen
-        if (valueX < valueLeftBound) valueX = valueLeftBound;
-        return (x, labelW, valueX, valueW);
+        int valueW = Math.Max(1, w - Spacing.Sm); // ancho útil del valor (deja margen derecho ≥ Sm)
+        return TextWrap.WordWrap(current ?? string.Empty, valueW, t => g.MeasureString(t, f).Width).Count;
     }
 
     /// <summary>
-    /// Texto del valor que un <see cref="CycleRow"/> muestra realmente: el valor actual + chevron,
-    /// elidido con elipsis MEDIDA si la suma etiqueta+gutter+valor+margen excede <paramref name="w"/>.
-    /// PURO y determinista (misma medición en draw=false/true → mismo resultado, clave para medir==pintar).
-    /// </summary>
-    internal static string CycleRowShownValue(Graphics g, string label, string current, int x, int w, Font f)
-        => ShownCycleValue(g, label, current, x, w, f);
-
-    private static string ShownCycleValue(Graphics g, string label, string current, int x, int w, Font f)
-    {
-        int labelW = (int)Math.Ceiling(g.MeasureString(label, f).Width);
-        int rightEdge = x + w - Spacing.Sm;
-        int valueLeftBound = x + labelW + Spacing.Md;
-        int maxValueW = rightEdge - valueLeftBound;
-        string full = current + CycleChevron;
-        if ((int)Math.Ceiling(g.MeasureString(full, f).Width) <= maxValueW) return full;
-        // No cabe → elidir SOLO el valor, conservando el chevron a la derecha del valor recortado.
-        double chevronW = g.MeasureString(CycleChevron, f).Width;
-        string clipped = TextWrap.Ellipsize(current, maxValueW - chevronW, x2 => g.MeasureString(x2, f).Width);
-        return clipped.Length == 0 ? TextWrap.Ellipsis : clipped + CycleChevron;
-    }
-
-    /// <summary>
-    /// Fila que cicla: "Etiqueta" a la izquierda + "&lt;valor actual&gt; ›" a la derecha (elidido si no
-    /// cabe; nunca solapa la etiqueta ni rebasa el margen derecho). Un clic en cualquier punto de la fila
-    /// cicla al siguiente valor (la mutación la pone <see cref="ActionFor"/>). Mide==pinta: la decisión de
-    /// elidir es la misma en ambas pasadas, así que el rect y el <c>y</c> de salida son idénticos.
+    /// Fila apilada: "Etiqueta" arriba (<c>TextPrimary</c>) + VALOR completo debajo en gris
+    /// (<c>TextSecondary</c>), envuelto a 2+ líneas con WordBreak si no cabe — <b>NUNCA elidido ni
+    /// recortado</b> (P0 #3: "Personalizada (arrastra el panel)" sale entero). SIN chevron ‹›: la
+    /// afordancia de ciclar es el clic en toda la fila (rect completo). Un clic cicla al siguiente valor
+    /// (la mutación la pone <see cref="ActionFor"/> con la misma clave <c>cycle:*</c>). Mide==pinta: el
+    /// recuento de líneas del valor es idéntico en ambas pasadas, así que el rect y el <c>y</c> de salida
+    /// coinciden. Devuelve el nuevo <c>y</c>.
     /// </summary>
     internal static int CycleRow(Graphics g, bool draw, string key, string label, string current,
         int x, int y, int w, Theme theme, Font f, Dictionary<string, Rectangle> rects)
     {
-        var r = new Rectangle(x, y, w, RowContentHeight);
+        int lineH = (int)Math.Ceiling(g.MeasureString(label, f).Height);
+        int valueW = Math.Max(1, w - Spacing.Sm);
+        var valueLines = TextWrap.WordWrap(current ?? string.Empty, valueW, t => g.MeasureString(t, f).Width);
+        int contentH = lineH + valueLines.Count * lineH; // etiqueta + N líneas de valor
+
+        var r = new Rectangle(x, y, w, contentH);
         rects[key] = r;
         if (draw)
         {
-            var (_, _, rx, _) = CycleRowLayout(g, label, current, x, w, f);
             using var fgb = new SolidBrush(theme.TextPrimary);
             using var dimb = new SolidBrush(theme.TextSecondary);
-            g.DrawString(label, f, dimb, x, y);
-            string right = ShownCycleValue(g, label, current, x, w, f);
-            g.DrawString(right, f, fgb, rx, y);
+            g.DrawString(label, f, fgb, x, y);                 // etiqueta arriba
+            int vy = y + lineH;
+            foreach (var line in valueLines) { g.DrawString(line, f, dimb, x, vy); vy += lineH; } // valor completo
         }
-        return y + RowAdvance;
+        return y + contentH + Spacing.Sm;
     }
 
     // Geometría de los chips de segmento — MISMA que DashboardDataView.DrawSegments (un solo estilo).

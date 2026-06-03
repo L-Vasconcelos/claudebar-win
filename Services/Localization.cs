@@ -32,7 +32,7 @@ public sealed class Strings
     public string Min15 { get; init; } = "15m";
     public string Notifications { get; init; } = "Notifications";
     public string Enabled { get; init; } = "Enabled";
-    public string NotifyWhenReaching { get; init; } = "Notify when reaching…";
+    public string NotifyWhenReaching { get; init; } = "Alert threshold";
     public string ColorThreshold { get; init; } = "Color threshold";
     public string DefaultTag { get; init; } = "(default)";
     public string Settings { get; init; } = "Settings";
@@ -145,8 +145,9 @@ public sealed class Strings
 
     // Live sessions / Mascot
     public string MenuLiveSessions { get; init; } = "Live sessions";
-    /// <summary>Subtítulo de la fila maestra de hooks (T7): explica qué activan las sesiones en vivo.</summary>
-    public string LiveSessionsSubtitle { get; init; } = "Get the status of your Claude Code sessions";
+    /// <summary>Subtítulo de la fila maestra de hooks (T7): explica qué activan las sesiones en vivo.
+    /// Acortado (v0.3.5) para caber en UNA línea junto al badge sin recortarse (P0 #2).</summary>
+    public string LiveSessionsSubtitle { get; init; } = "Live status of your sessions";
     public string MenuShowMascot { get; init; } = "Show mascot";
     public string MenuSuppressWhenFocused { get; init; } = "Mute when terminal focused";
     public string MenuInstallHooks { get; init; } = "Enable (install hooks)…";
@@ -278,7 +279,7 @@ public static class Localization
         Min15 = "15m",
         Notifications = "Notificaciones",
         Enabled = "Activadas",
-        NotifyWhenReaching = "Avisar al llegar a…",
+        NotifyWhenReaching = "Umbral de aviso",
         ColorThreshold = "Umbral de color",
         DefaultTag = "(def.)",
         Settings = "Ajustes",
@@ -359,7 +360,7 @@ public static class Localization
         UpdateDownloadedFmt = "Descargado en:\n{0}\n\nCierra ClaudeBar y reemplaza el .exe en uso por este archivo.",
         UpdateFailed = "No se pudo comprobar/descargar la actualización.",
         MenuLiveSessions = "Sesiones en vivo",
-        LiveSessionsSubtitle = "Recibe el estado de tus sesiones de Claude Code",
+        LiveSessionsSubtitle = "Estado de tus sesiones en vivo",
         MenuShowMascot = "Mostrar mascota",
         MenuSuppressWhenFocused = "Silenciar si la terminal tiene foco",
         MenuInstallHooks = "Activar (instalar hooks)…",
@@ -409,7 +410,7 @@ public static class Localization
         Min15 = "15m",
         Notifications = "Meldingen",
         Enabled = "Ingeschakeld",
-        NotifyWhenReaching = "Melden bij het bereiken van…",
+        NotifyWhenReaching = "Meldingsdrempel",
         ColorThreshold = "Kleurdrempel",
         DefaultTag = "(standaard)",
         Settings = "Instellingen",
@@ -482,7 +483,7 @@ public static class Localization
         UpdateDownloadedFmt = "Gedownload naar:\n{0}\n\nSluit ClaudeBar en vervang de actieve .exe door dit bestand.",
         UpdateFailed = "Kan de update niet controleren/downloaden.",
         MenuLiveSessions = "Live sessies",
-        LiveSessionsSubtitle = "Krijg de status van je Claude Code-sessies",
+        LiveSessionsSubtitle = "Live status van je sessies",
         MenuShowMascot = "Mascotte tonen",
         MenuSuppressWhenFocused = "Dempen als terminal focus heeft",
         MenuInstallHooks = "Inschakelen (hooks installeren)…",
@@ -532,7 +533,7 @@ public static class Localization
         Min15 = "15m",
         Notifications = "Notifications",
         Enabled = "Activées",
-        NotifyWhenReaching = "Alerter à…",
+        NotifyWhenReaching = "Seuil d'alerte",
         ColorThreshold = "Seuil de couleur",
         DefaultTag = "(déf.)",
         Settings = "Paramètres",
@@ -605,7 +606,7 @@ public static class Localization
         UpdateDownloadedFmt = "Téléchargé dans :\n{0}\n\nFerme ClaudeBar et remplace le .exe en cours par ce fichier.",
         UpdateFailed = "Impossible de vérifier/télécharger la mise à jour.",
         MenuLiveSessions = "Sessions en direct",
-        LiveSessionsSubtitle = "Reçois l'état de tes sessions Claude Code",
+        LiveSessionsSubtitle = "État de tes sessions en direct",
         MenuShowMascot = "Afficher la mascotte",
         MenuSuppressWhenFocused = "Muet si le terminal a le focus",
         MenuInstallHooks = "Activer (installer les hooks)…",
@@ -655,7 +656,7 @@ public static class Localization
         Min15 = "15m",
         Notifications = "Benachrichtigungen",
         Enabled = "Aktiviert",
-        NotifyWhenReaching = "Benachrichtigen bei…",
+        NotifyWhenReaching = "Hinweis-Schwelle",
         ColorThreshold = "Farbschwelle",
         DefaultTag = "(Std.)",
         Settings = "Einstellungen",
@@ -728,7 +729,7 @@ public static class Localization
         UpdateDownloadedFmt = "Heruntergeladen nach:\n{0}\n\nSchließe ClaudeBar und ersetze die laufende .exe durch diese Datei.",
         UpdateFailed = "Update konnte nicht geprüft/geladen werden.",
         MenuLiveSessions = "Live-Sitzungen",
-        LiveSessionsSubtitle = "Erhalte den Status deiner Claude-Code-Sitzungen",
+        LiveSessionsSubtitle = "Live-Status deiner Sitzungen",
         MenuShowMascot = "Maskottchen anzeigen",
         MenuSuppressWhenFocused = "Stumm, wenn Terminal im Fokus",
         MenuInstallHooks = "Aktivieren (Hooks installieren)…",
@@ -778,7 +779,7 @@ public static class Localization
         Min15 = "15分",
         Notifications = "通知",
         Enabled = "有効",
-        NotifyWhenReaching = "到達時に通知…",
+        NotifyWhenReaching = "通知のしきい値",
         ColorThreshold = "色のしきい値",
         DefaultTag = "(既定)",
         Settings = "設定",
@@ -851,7 +852,7 @@ public static class Localization
         UpdateDownloadedFmt = "ダウンロード先:\n{0}\n\nClaudeBar を閉じて、実行中の .exe をこのファイルに置き換えてください。",
         UpdateFailed = "更新の確認/ダウンロードに失敗しました。",
         MenuLiveSessions = "ライブセッション",
-        LiveSessionsSubtitle = "Claude Code セッションの状態を受け取る",
+        LiveSessionsSubtitle = "セッションのライブ状態",
         MenuShowMascot = "マスコットを表示",
         MenuSuppressWhenFocused = "ターミナルがフォーカス中はミュート",
         MenuInstallHooks = "有効化（フックをインストール）…",
@@ -901,7 +902,7 @@ public static class Localization
         Min15 = "15분",
         Notifications = "알림",
         Enabled = "사용",
-        NotifyWhenReaching = "도달 시 알림…",
+        NotifyWhenReaching = "알림 기준값",
         ColorThreshold = "색상 임계값",
         DefaultTag = "(기본)",
         Settings = "설정",
@@ -974,7 +975,7 @@ public static class Localization
         UpdateDownloadedFmt = "다운로드 위치:\n{0}\n\nClaudeBar를 닫고 실행 중인 .exe를 이 파일로 교체하세요.",
         UpdateFailed = "업데이트 확인/다운로드에 실패했습니다.",
         MenuLiveSessions = "실시간 세션",
-        LiveSessionsSubtitle = "Claude Code 세션 상태를 받습니다",
+        LiveSessionsSubtitle = "세션의 실시간 상태",
         MenuShowMascot = "마스코트 표시",
         MenuSuppressWhenFocused = "터미널이 포커스일 때 음소거",
         MenuInstallHooks = "활성화 (훅 설치)…",
@@ -1024,7 +1025,7 @@ public static class Localization
         Min15 = "15分鐘",
         Notifications = "通知",
         Enabled = "已啟用",
-        NotifyWhenReaching = "達到時通知…",
+        NotifyWhenReaching = "提醒門檻",
         ColorThreshold = "顏色門檻",
         DefaultTag = "(預設)",
         Settings = "設定",
@@ -1097,7 +1098,7 @@ public static class Localization
         UpdateDownloadedFmt = "已下載到:\n{0}\n\n關閉 ClaudeBar 並用此檔案取代執行中的 .exe。",
         UpdateFailed = "無法檢查／下載更新。",
         MenuLiveSessions = "即時工作階段",
-        LiveSessionsSubtitle = "接收你的 Claude Code 工作階段狀態",
+        LiveSessionsSubtitle = "工作階段的即時狀態",
         MenuShowMascot = "顯示吉祥物",
         MenuSuppressWhenFocused = "終端機聚焦時靜音",
         MenuInstallHooks = "啟用（安裝 hooks）…",

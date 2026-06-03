@@ -140,6 +140,97 @@ public class DashboardHeaderTests
         }
     }
 
+    // --- v0.3.5 P0 #4: el header NO duplica la "Sesión (5h)" (barra+reset+pace) de la sección "Cuota" ---
+
+    // Snapshot completo (usage 5h/7d + pace con ETA que agota antes del reset) para ejercitar el glance.
+    private static AppSnapshot FullSnap(DateTime now)
+    {
+        var usage = new RealUsage
+        {
+            FiveHour = new UsageWindow(62, new DateTimeOffset(now.AddHours(1).AddMinutes(40), TimeSpan.Zero)),
+            SevenDay = new UsageWindow(84, new DateTimeOffset(now.AddDays(2).AddHours(6), TimeSpan.Zero)),
+        };
+        var paceFive = new PaceResult("5h", 62, 1.30, 47.7,
+            new DateTimeOffset(now.AddHours(1).AddMinutes(10), TimeSpan.Zero),
+            new DateTimeOffset(now.AddHours(1).AddMinutes(40), TimeSpan.Zero), true, PaceStatus.Critical);
+        var paceSeven = new PaceResult("7d", 84, 0.95, 88.4, null,
+            new DateTimeOffset(now.AddDays(2).AddHours(6), TimeSpan.Zero), false, PaceStatus.Ok);
+        return new AppSnapshot
+        {
+            Usage = usage, LatestState = UsageFetchState.Ok, UsageAtUtc = now,
+            Health = new HealthStatus(HealthLevel.Operational, "All Systems Operational"),
+            PaceFive = paceFive, PaceSeven = paceSeven
+        };
+    }
+
+    private static int RunHeaderSnap(Graphics g, bool draw, AppConfig cfg, AppSnapshot? snap)
+    {
+        Rectangle gear = Rectangle.Empty;
+        var live = new LiveSessionsView();
+        var s = Localization.Get("es");
+        return DashboardHeader.Draw(g, draw, X, Y, W, snap, live, cfg, s, Theme.Dark,
+            MascotAnimator.StaticState, Mood.Neutral, Typography.Body, Typography.Caption, Typography.Mono,
+            ref gear, motion: null, reduceMotion: false, mascotBounceOffsetY: 0, celebration: null);
+    }
+
+    [Fact]
+    public void Header_measure_equals_paint_with_full_usage_and_pace()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg(showMascot: false, liveEnabled: false);
+        var snap = FullSnap(DateTime.UtcNow);
+
+        Assert.Equal(RunHeaderSnap(g, draw: false, cfg, snap), RunHeaderSnap(g, draw: true, cfg, snap));
+    }
+
+    [Fact]
+    public void Header_height_does_not_reserve_quota_bar_reset_and_pace()
+    {
+        // P0 #4: el header ya NO pinta la barra de cuota (etiqueta+%+barra+reset) ni la línea de pace,
+        // que duplicaban la primera fila de "Cuota". Con usage presente el header solo añade UN glance de
+        // una línea (~16px) respecto a sin usage: jamás el bloque de barra+reset+pace (~60px). Si se hubiera
+        // dejado la barra duplicada, la diferencia sería mucho mayor.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg(showMascot: false, liveEnabled: false);
+
+        int withUsage = RunHeaderSnap(g, draw: false, cfg, FullSnap(DateTime.UtcNow));
+        int noUsage = RunHeaderSnap(g, draw: false, cfg, new AppSnapshot
+        {
+            Health = new HealthStatus(HealthLevel.Operational, "All Systems Operational"),
+            LatestState = UsageFetchState.Ok, UsageAtUtc = DateTime.UtcNow
+        });
+
+        int delta = withUsage - noUsage;
+        Assert.True(delta > 0, "con usage debe aparecer el glance de una línea");
+        Assert.True(delta <= 20, $"el header solo añade UN glance (~16px), no la barra+reset+pace duplicada (delta={delta})");
+    }
+
+    [Fact]
+    public void Header_height_independent_of_pace_eta()
+    {
+        // Como el header ya NO pinta el pace, su alto es idéntico tenga o no el pace una ETA de
+        // "agotamiento antes del reset" (lo que antes añadía/movía la línea de pace recortada "⚠ vie 1…").
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg(showMascot: false, liveEnabled: false);
+        var now = DateTime.UtcNow;
+
+        var withEta = FullSnap(now); // PaceFive.ExhaustsBeforeReset = true (ETA presente)
+        var noEta = new AppSnapshot
+        {
+            Usage = withEta.Usage,
+            Health = withEta.Health,
+            LatestState = UsageFetchState.Ok, UsageAtUtc = now,
+            PaceFive = new PaceResult("5h", 62, 0.80, 47.7, null,
+                new DateTimeOffset(now.AddHours(1).AddMinutes(40), TimeSpan.Zero), false, PaceStatus.Ok),
+            PaceSeven = withEta.PaceSeven
+        };
+
+        Assert.Equal(RunHeaderSnap(g, draw: false, cfg, withEta), RunHeaderSnap(g, draw: false, cfg, noEta));
+    }
+
     [Fact]
     public void Header_measure_equals_paint_with_mascot_and_health_on_narrow_panel()
     {

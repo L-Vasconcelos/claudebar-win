@@ -315,7 +315,7 @@ public class DashboardSettingsViewTests
 
     // ================= T3: anti-truncamiento en CycleRow y SegmentedRow =================
 
-    // -------- CycleRow: medir==pintar + valor elidido sin solapar la etiqueta --------
+    // -------- CycleRow: APILADA (etiqueta arriba / valor completo debajo), SIN elipsis ni chevron --------
 
     [Fact]
     public void CycleRow_measure_equals_paint_short_value()
@@ -335,8 +335,8 @@ public class DashboardSettingsViewTests
     [Fact]
     public void CycleRow_measure_equals_paint_overflowing_value()
     {
-        // El caso PosCustom: valor muy largo que obliga a elidir. La decisión debe ser idéntica
-        // en medir y pintar → mismo y de salida.
+        // El caso PosCustom: valor muy largo que se ENVUELVE (no se elide). La decisión de cuántas
+        // líneas ocupa el valor debe ser idéntica en medir y pintar → mismo y de salida.
         using var bmp = NewBmp();
         using var g = Graphics.FromImage(bmp);
         var rects = new Dictionary<string, Rectangle>();
@@ -351,51 +351,70 @@ public class DashboardSettingsViewTests
     }
 
     [Fact]
-    public void CycleRow_long_value_does_not_overlap_label_and_keeps_right_margin()
+    public void CycleRow_long_value_wraps_and_grows_row_without_ellipsis()
     {
-        // La etiqueta se pinta a la izquierda y el valor (elidido) a la derecha; nunca se solapan
-        // y el valor deja margen derecho ≥ Spacing.Sm.
-        const int x = 16, w = 200, y = 40; // ancho estrecho a propósito para forzar elipsis
-        using var bmp = new Bitmap(x + w + 60, 120);
+        // P0 #3: el valor largo "Personalizada (arrastra el panel)" sale COMPLETO, partido en 2+ líneas
+        // (WordBreak) debajo de la etiqueta — NUNCA elidido. En un ancho estrecho la fila CRECE (más alto
+        // que la misma fila con un valor corto que cabe en 1 línea) y el rect clicable cubre toda la fila.
+        const int x = 16, w = 160, y = 40; // ancho estrecho a propósito para forzar wrap
+        using var bmp = new Bitmap(x + w + 60, 160);
         using var g = Graphics.FromImage(bmp);
         g.Clear(Theme.Dark.Background);
         var rects = new Dictionary<string, Rectangle>();
         const string longVal = "Personalizada (arrastra el panel)";
 
-        DashboardSettingsView.CycleRow(g, draw: true, "cycle:position", "Posición", longVal,
+        int afterLong = DashboardSettingsView.CycleRow(g, draw: true, "cycle:position", "Posición", longVal,
+            x, y, w, Theme.Dark, Typography.Caption, rects);
+        var longRect = rects["cycle:position"];
+        rects.Clear();
+        int afterShort = DashboardSettingsView.CycleRow(g, draw: false, "cycle:position", "Posición", "Centro",
             x, y, w, Theme.Dark, Typography.Caption, rects);
 
-        // Geometría medida: la etiqueta termina antes de donde empieza el valor (sin solape),
-        // y el valor no rebasa x+w-Spacing.Sm.
-        var (lx, lw, rx, rw) = DashboardSettingsView.CycleRowLayout(g, "Posición", longVal, x, w, Typography.Caption);
-        Assert.True(lx + lw + Spacing.Md <= rx, "la etiqueta y el valor no deben solaparse (gutter ≥ Md)");
-        Assert.True(rx + rw <= x + w - Spacing.Sm, "el valor debe dejar margen derecho ≥ Sm");
-        Assert.True(rx >= x, "el valor no empieza a la izquierda del contenido");
+        // El valor largo envuelve a ≥2 líneas → la fila ocupa más alto que un valor corto de 1 línea.
+        Assert.True(DashboardSettingsView.CycleRowValueLineCount(g, longVal, x, w, Typography.Caption) >= 2,
+            "el valor largo debe envolver a 2+ líneas (no elidirse)");
+        Assert.True(afterLong > afterShort, "la fila con valor largo (envuelto) debe ser más alta");
+        // El rect clicable cubre toda la fila apilada y no rebasa por la derecha.
+        Assert.Equal(x, longRect.X);
+        Assert.Equal(w, longRect.Width);
+        Assert.True(longRect.Right <= x + w, "el rect no rebasa el borde derecho");
     }
 
     [Fact]
-    public void CycleRow_short_value_is_not_ellipsized()
+    public void CycleRow_value_is_never_ellipsized_and_has_no_chevron()
     {
-        // Un valor corto que cabe NO debe llevar elipsis (no se toca lo que entra). El texto mostrado
-        // es valor + chevron; lo relevante es que NO contiene la elipsis.
+        // El valor completo se reparte en líneas con WordWrap (sin elipsis y sin el chevron "›" suelto).
         using var bmp = NewBmp();
         using var g = Graphics.FromImage(bmp);
-        string shown = DashboardSettingsView.CycleRowShownValue(g, "Idioma", "Español", X, W, Typography.Caption);
-        Assert.StartsWith("Español", shown);
-        Assert.DoesNotContain("…", shown);
+
+        // Corto: cabe en 1 línea, intacto.
+        var shortLines = TextWrap.WordWrap("Español", W - Spacing.Sm, t => g.MeasureString(t, Typography.Caption).Width);
+        Assert.Single(shortLines);
+        Assert.Equal("Español", shortLines[0]);
+        Assert.DoesNotContain("…", string.Concat(shortLines));
+        Assert.DoesNotContain("›", string.Concat(shortLines));
+
+        // Largo en ancho estrecho: se reparte en varias líneas, SIN perder texto ni añadir elipsis/chevron.
+        const string longVal = "Personalizada (arrastra el panel)";
+        var longLines = TextWrap.WordWrap(longVal, 160 - Spacing.Sm, t => g.MeasureString(t, Typography.Caption).Width);
+        string joined = string.Join(" ", longLines);
+        Assert.Equal(longVal, joined);                 // el texto completo se conserva (solo se parte)
+        Assert.DoesNotContain("…", joined);
+        Assert.DoesNotContain("›", joined);
     }
 
     [Fact]
-    public void CycleRow_overflowing_value_is_ellipsized()
+    public void CycleRow_value_line_count_is_deterministic_measure_equals_paint()
     {
-        // Valor que no cabe en un ancho estrecho → se muestra con elipsis (no el texto completo).
+        // El recuento de líneas del valor (clave de medir==pintar) es determinista: misma entrada,
+        // mismo número de líneas en ambas pasadas.
         using var bmp = NewBmp();
         using var g = Graphics.FromImage(bmp);
         const string longVal = "Personalizada (arrastra el panel)";
-        string shown = DashboardSettingsView.CycleRowShownValue(g, "Posición", longVal, 16, 200, Typography.Caption);
-        Assert.NotEqual(longVal, shown);
-        Assert.DoesNotContain("Personalizada (arrastra", shown); // se recortó el valor
-        Assert.Contains("…", shown);                              // con elipsis medida
+        int a = DashboardSettingsView.CycleRowValueLineCount(g, longVal, 16, 160, Typography.Caption);
+        int b = DashboardSettingsView.CycleRowValueLineCount(g, longVal, 16, 160, Typography.Caption);
+        Assert.Equal(a, b);
+        Assert.True(a >= 1);
     }
 
     // -------- SegmentedRow: medir==pintar + sin chip fuera de contentLeft + margen derecho --------
@@ -1599,5 +1618,100 @@ public class DashboardSettingsViewTests
 
         Assert.True(Run(true) > Run(false),
             "con live OFF, ShowMascot=on debe reservar alto para la mascota Idle (mascota visible)");
+    }
+
+    // ================= v0.3.5 P0: cortes de texto a CERO (sin elipsis) =================
+
+    [Fact]
+    public void Copy_subtitles_and_labels_have_no_decorative_ellipsis_in_all_languages()
+    {
+        // P0 #1: ningún copy de subtítulo/etiqueta de longitud variable lleva una elipsis decorativa
+        // (la antigua "Avisar al llegar a…" pasó a "Umbral de aviso"). Yovan quiere el TEXTO COMPLETO.
+        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
+        {
+            var s = Localization.Get(lang);
+            Assert.DoesNotContain("…", s.NotifyWhenReaching);
+            Assert.DoesNotContain("…", s.LiveSessionsSubtitle);
+            Assert.DoesNotContain("…", s.ShowSpendSubtitle);
+            Assert.DoesNotContain("…", s.ReduceMotionSubtitle);
+        }
+        // El nuevo copy ES exacto del umbral de aviso (sin elipsis).
+        Assert.Equal("Umbral de aviso", Localization.Get("es").NotifyWhenReaching);
+    }
+
+    [Fact]
+    public void MasterRowWithBadge_subtitle_is_not_ellipsized_when_it_fits()
+    {
+        // P0 #2: el subtítulo de hooks ("Estado de tus sesiones en vivo") sale COMPLETO al lado del badge,
+        // sin elipsis. Verificamos que el texto pintado (medido) no se recorta: en el ancho real del panel
+        // el subtítulo cabe en 1 línea (con el badge restando ancho) y no contiene "…".
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        // Mide el ancho de la columna de texto igual que MasterRowWithBadge (hasta el borde izq del badge).
+        var badge = DashboardSettingsView.StatusBadge(g, draw: false, s.BadgeInstall, Theme.Dark.Warn,
+            X, X + W, 100, 18, Theme.Dark, Typography.Caption);
+        int textColW = badge.X - Spacing.Md - X;
+        var subLines = TextWrap.WordWrap(s.LiveSessionsSubtitle, textColW,
+            t => g.MeasureString(t, Typography.Caption).Width);
+
+        Assert.DoesNotContain("…", string.Concat(subLines));
+        // El subtítulo completo se conserva (solo podría partirse, nunca recortarse).
+        Assert.Equal(s.LiveSessionsSubtitle, string.Join(" ", subLines));
+    }
+
+    [Fact]
+    public void MasterRowWithBadge_long_label_and_subtitle_wrap_not_ellipsize()
+    {
+        // En un ancho MUY estrecho, etiqueta y subtítulo se ENVUELVEN a 2+ líneas (la fila crece), nunca
+        // se recortan con "…". El rect clicable cubre toda la fila y medir==pintar se mantiene.
+        const int x = 16, w = 150, y = 0;
+        using var bmp = new Bitmap(x + w + 80, 260);
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+        const string label = "Desactivar (quitar hooks de settings.json)";
+        const string sub = "Estado de tus sesiones de Claude Code en vivo";
+
+        int measured = DashboardSettingsView.MasterRowWithBadge(g, draw: false, "special:hooktoggle",
+            label, sub, "Activas", Theme.Dark.Ok, x, y, w, Theme.Dark, Typography.Body, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.MasterRowWithBadge(g, draw: true, "special:hooktoggle",
+            label, sub, "Activas", Theme.Dark.Ok, x, y, w, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+        // La fila creció por el wrap (más alta que una fila de 1 línea de badge).
+        Assert.True(rects.TryGetValue("special:hooktoggle", out var r));
+        Assert.True(r.Height > 18, "etiqueta+subtítulo largos deben envolver y crecer la fila");
+        Assert.Equal(x, r.X);
+        Assert.Equal(w, r.Width);
+    }
+
+    [Fact]
+    public void Draw_position_value_shown_in_full_without_ellipsis_or_chevron()
+    {
+        // P0 #3 end-to-end: en el Draw real, la fila "Posición" con el valor largo
+        // "Personalizada (arrastra el panel)" se apila (etiqueta arriba / valor completo debajo) SIN
+        // elipsis ni chevron. La fila de posición es más alta que una fila de toggle simple (porque el
+        // valor envuelve), su rect cubre el ancho y no rebasa el borde.
+        using var bmp = new Bitmap(W + X * 2, 1400);
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        cfg.DashboardPosition = "Custom"; // fuerza el valor largo PosCustom
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.Draw(g, draw: false, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted); // medir==pintar con el valor envuelto
+        Assert.True(rects.TryGetValue("cycle:position", out var pos), "falta la fila de posición");
+        Assert.True(pos.X >= X && pos.Right <= X + W, "la fila de posición no rebasa el contenido");
+        // El valor completo "Personalizada (arrastra el panel)" no es elidible aquí: se conserva entero.
+        Assert.DoesNotContain("…", s.PosCustom);
     }
 }

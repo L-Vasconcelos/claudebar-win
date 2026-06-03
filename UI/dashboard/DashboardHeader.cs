@@ -121,7 +121,14 @@ public static class DashboardHeader
             mascotH = sz.Height + (verbH > 0 ? verbH + 2 : 0);
         }
 
-        // 3) a la derecha: estado servicio + cuota crítica + pace
+        // 3) a la derecha: estado de servicio + UN glance de cuota (sin barra/reset/pace).
+        // P0 #4: el header YA NO pinta la barra crítica completa (barra+reset+pace), que DUPLICABA la
+        // primera fila de la sección "Cuota" (misma sesión y su pace pintados dos veces) y cuyo pace se
+        // cortaba ("⚠ vie 1…") porque la columna de la mascota roba ancho. La "Sesión (5h)" completa vive
+        // SOLO bajo "Cuota" (340px, pace entero). Aquí el header es: estado de servicio + un glance de UNA
+        // línea (nombre de ventana + forma + %), SIN barra, reset ni pace. Así desaparece el duplicado y el
+        // corte de un golpe, manteniendo el invariante medir==pintar (no hay nada dependiente de draw en el y).
+        int rightX = x + w;
         int ty = top;
         if (cfg.ShowHealth && snap?.Health is { } h)
         {
@@ -137,34 +144,54 @@ public static class DashboardHeader
                 using var dot = new SolidBrush(hc);
                 g.FillEllipse(dot, textX, ty + 4, 8, 8);
                 using var b = new SolidBrush(theme.TextSecondary);
-                // Anti-corte (T9/§1.3): con la mascota robando ancho, "⚠ mié 13:40" se cortaba en el borde.
-                // Se elide con elipsis medido dejando margen derecho ≥ Spacing.Md. Determinista (medir==pintar).
+                // Estado de servicio ("Operativo"). Anti-corte: se envuelve/encoge dentro del ancho útil
+                // (texto corto; FitHeaderLine deja margen derecho ≥ Spacing.Md). Determinista (medir==pintar).
                 int hlX = textX + 12;
-                string hlShown = FitHeaderLine(hl, hlX, x + w, Spacing.Md, t => g.MeasureString(t, smallFont).Width);
+                string hlShown = FitHeaderLine(hl, hlX, rightX, Spacing.Md, t => g.MeasureString(t, smallFont).Width);
                 g.DrawString(hlShown, smallFont, b, hlX, ty);
             }
         }
         ty += 16;
 
-        // cuota crítica = la de mayor utilización entre 5h/7d
+        // Glance de cuota crítica = ventana de mayor utilización entre 5h/7d, en UNA línea:
+        // "Sesión (5h)" a la izquierda + "◆ 87%" a la derecha (forma + % en color de estado), SIN barra,
+        // SIN línea de reset y SIN pace (esos viven enteros en la sección "Cuota"). El % usa el valor eased
+        // si hay motion, pero el alto reservado NO depende de draw → medir==pintar.
         var w5 = snap?.Usage?.FiveHour; var w7 = snap?.Usage?.SevenDay;
         var crit = PickCritical(w5, w7);
         if (crit is not null)
         {
-            // ventana elegida → etiqueta + pace para colorear la barra igual que el dashboard.
             bool isFive = ReferenceEquals(crit, w5);
             var critPace = isFive ? snap?.PaceFive : snap?.PaceSeven;
-            string critLabel = isFive ? $"{s.SessionWord} (5h)" : $"{s.WeekWord} (7d)";
-            // Delegar en la barra unificada; la cabecera construye sus pinceles fg/muted como antes.
-            using var fg = new SolidBrush(theme.TextPrimary);
-            using var muted = new SolidBrush(theme.TextMuted);
-            // Override eased del %/ancho de la barra crítica (color por objetivo). null si no hay motion.
-            double? dCrit = motion is not null ? motion.Display("num:crit", crit.UtilizationPct, reduceMotion) : (double?)null;
-            ty = QuotaBar.Draw(g, draw, critLabel, crit, critPace, textX, ty, w - (textX - x), cfg, s, theme, labelFont, smallFont, fg, muted, dCrit);
+            string glanceLabel = isFive ? $"{s.SessionWord} (5h)" : $"{s.WeekWord} (7d)";
+            if (draw)
+            {
+                // Color de estado: por pace si lo hay, si no por umbral de riesgo (igual criterio que la barra).
+                UsageStatus status = critPace is { } pst
+                    ? (pst.Status == PaceStatus.Critical ? UsageStatus.Critical
+                       : pst.Status == PaceStatus.Over ? UsageStatus.Warn : UsageStatus.Ok)
+                    : crit.UtilizationPct >= cfg.CriticalThresholdPct ? UsageStatus.Critical
+                      : crit.UtilizationPct >= cfg.WarnThresholdPct ? UsageStatus.Warn : UsageStatus.Ok;
+                Color c = critPace is { } ps2
+                    ? (ps2.Status == PaceStatus.Critical ? theme.Critical : ps2.Status == PaceStatus.Over ? theme.Warn : theme.Ok)
+                    : ColorMath.RiskColor(crit.UtilizationPct, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
+                double shownPct = motion is not null ? motion.Display("num:crit", crit.UtilizationPct, reduceMotion) : crit.UtilizationPct;
+                string glyph = Tray.ShapeGlyph(Tray.ShapeFor(status));
+                string right = $"{glyph} {shownPct:0.#}%";
+                // Etiqueta a la izquierda (anti-corte: deja sitio al valor con gutter Spacing.Md).
+                int valW = (int)Math.Ceiling(g.MeasureString(right, Typography.Mono).Width);
+                int valX = rightX - valW;
+                using (var fg = new SolidBrush(theme.TextPrimary))
+                {
+                    string labelShown = FitHeaderLine(glanceLabel, textX, valX, Spacing.Md,
+                        t => g.MeasureString(t, smallFont).Width);
+                    g.DrawString(labelShown, smallFont, fg, textX, ty);
+                }
+                using var valBrush = new SolidBrush(c);
+                g.DrawString(right, Typography.Mono, valBrush, valX, ty);
+            }
+            ty += 16; // glance de UNA línea
         }
-
-        // pace: línea "↗ 5h X% · 7d Y% ⚠ETA" reusando lo de DrawPace
-        ty = DrawPaceLine(g, draw, snap, textX, ty, w - (textX - x), theme, smallFont);
 
         int bottom = Math.Max(ty, top + mascotH);
         // separador
@@ -177,37 +204,6 @@ public static class DashboardHeader
         if (a is null) return b;
         if (b is null) return a;
         return a.UtilizationPct >= b.UtilizationPct ? a : b;
-    }
-
-    // Cuerpo de DrawPace de DashboardForm.cs adaptado a recibir snap/theme/font por parámetro.
-    private static int DrawPaceLine(Graphics g, bool draw, AppSnapshot? snap, int x, int y, int w,
-                                    Theme theme, Font smallFont)
-    {
-        var pf = snap?.PaceFive;
-        var ps = snap?.PaceSeven;
-        if (pf is null && ps is null) return y;
-        if (!draw) return y + 18;
-
-        var worst = (PaceStatus)Math.Max((int)(pf?.Status ?? PaceStatus.Ok), (int)(ps?.Status ?? PaceStatus.Ok));
-        Color c = worst == PaceStatus.Critical ? theme.Critical
-                : worst == PaceStatus.Over ? theme.Warn : theme.Ok;
-
-        string text = "↗ ";
-        if (pf is not null) text += $"5h {pf.PaceRatio * 100:0}%";
-        if (ps is not null) text += (pf is not null ? " · " : "") + $"7d {ps.PaceRatio * 100:0}%";
-
-        var exa = new[] { pf, ps }
-            .Where(p => p is { ExhaustsBeforeReset: true, EtaUtc: not null })
-            .OrderBy(p => p!.EtaUtc).FirstOrDefault();
-        if (exa is not null)
-            text += $"   ⚠ {exa.EtaUtc!.Value.ToLocalTime():ddd HH:mm}";
-
-        using var br = new SolidBrush(c);
-        // Anti-corte (T9/§1.3): la ETA "⚠ ddd HH:mm" se cortaba ("mié 13:4") cuando la mascota estrecha
-        // la columna. Elipsis medido con margen derecho ≥ Spacing.Md. Solo se pinta (draw=true ya filtrado).
-        string shown = FitHeaderLine(text, x, x + w, Spacing.Md, t => g.MeasureString(t, smallFont).Width);
-        g.DrawString(shown, smallFont, br, x, y);
-        return y + 18;
     }
 
     /// <summary>
