@@ -803,9 +803,53 @@ public static class DashboardSettingsView
             : x + (int)Math.Ceiling(g.MeasureString(label, f).Width) + Spacing.Md;
         int rightEdge = x + w - Spacing.Sm;            // margen derecho de seguridad
 
-        // Anclado a la derecha (deja margen ≥ Sm; primer chip ≥ max(labelRight, x) ≥ contentLeft).
+        // ANTI-TRUNCAMIENTO (igual que SegmentedRow): mide el ancho total; si los chips NO caben en el
+        // espacio útil a la derecha de la etiqueta ([labelRight, rightEdge]) → ENVUELVE a 2 filas
+        // alineadas a contentLeft (ningún chip a la izquierda de x ni más allá de rightEdge). La decisión
+        // (1 fila vs 2) es idéntica en medir/pintar → mismo y de salida.
         int total = SegmentsTotalWidth(g, f, segs.Select(s => s.txt).ToList());
-        int sx = Math.Max(rightEdge - total, Math.Max(labelRight, x));
+        int avail = rightEdge - Math.Max(labelRight, x);
+
+        if (total <= avail)
+        {
+            // Cabe en un renglón junto a la etiqueta: anclar a la derecha (deja margen ≥ Sm; primer chip
+            // ≥ max(labelRight, x) ≥ contentLeft).
+            DrawMultiChips(g, draw, key, segs, activeSet, Math.Max(rightEdge - total, Math.Max(labelRight, x)),
+                y, theme, f, rects);
+            return y + SegmentRowAdvance;
+        }
+
+        // No cabe junto a la etiqueta. Los chips bajan a su PROPIO renglón (bajo la etiqueta, si la hay),
+        // alineados a contentLeft → nunca se solapan con la etiqueta ni con el borde. Desde ahí, si TODO el
+        // ancho de contenido tampoco basta, se reparten en 2 filas (split). Ningún chip a la izquierda de x
+        // ni más allá de rightEdge. medir==pintar (misma decisión determinista en ambas pasadas).
+        bool hasLabel = !string.IsNullOrEmpty(label);
+        int chipsY = hasLabel ? y + SegmentHeight + Spacing.Sm : y; // 1ª fila de chips bajo la etiqueta
+        if (total <= w - Spacing.Sm)
+        {
+            // Caben todos en un renglón propio anclados a la izquierda.
+            DrawMultiChips(g, draw, key, segs, activeSet, x, chipsY, theme, f, rects);
+            return chipsY + SegmentRowAdvance;
+        }
+        // Ni en un renglón completo: repartir en 2 filas alineadas a contentLeft.
+        int split = SplitIndexForWrap(g, f, segs.Select(s => s.txt).ToList(), w);
+        DrawMultiChips(g, draw, key, segs.Take(split).ToArray(), activeSet, x, chipsY, theme, f, rects);
+        DrawMultiChips(g, draw, key, segs.Skip(split).ToArray(), activeSet, x,
+            chipsY + SegmentHeight + Spacing.Sm, theme, f, rects);
+        return chipsY + (SegmentHeight + Spacing.Sm) * 2;
+    }
+
+    /// <summary>
+    /// Pinta y registra una hilera de chips multi-activo (Accent si está en <paramref name="activeSet"/>,
+    /// BgElevated si no) empezando en <paramref name="startX"/>. Geometría idéntica a
+    /// <c>DrawSegments</c>/<see cref="SegmentsTotalWidth"/> (<c>SegGap</c>/<c>SegPadX</c>/<c>SegmentHeight</c>).
+    /// Reutilizado por la rama de 1 fila y por cada renglón del wrap, de modo que medir==pintar y el estilo
+    /// de pill es único. Cada chip registra <c>rects[$"{key}:{val}"]</c>.
+    /// </summary>
+    private static void DrawMultiChips(Graphics g, bool draw, string key, (string val, string txt)[] segs,
+        HashSet<string> activeSet, int startX, int y, Theme theme, Font f, Dictionary<string, Rectangle> rects)
+    {
+        int sx = startX;
         foreach (var (val, txt) in segs)
         {
             int chipW = (int)g.MeasureString(txt, f).Width + SegPadX * 2;
@@ -822,6 +866,5 @@ public static class DashboardSettingsView
             rects[$"{key}:{val}"] = rect;
             sx += chipW + SegGap;
         }
-        return y + SegmentRowAdvance;
     }
 }

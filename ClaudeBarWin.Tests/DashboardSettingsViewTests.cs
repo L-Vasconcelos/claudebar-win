@@ -1,5 +1,7 @@
 using ClaudeBarWin.Config;
+using ClaudeBarWin.Models;
 using ClaudeBarWin.Services;
+using ClaudeBarWin.Services.Mascot;
 using ClaudeBarWin.UI;
 
 namespace ClaudeBarWin.Tests;
@@ -1414,5 +1416,188 @@ public class DashboardSettingsViewTests
         Assert.Equal(X, lx);
         Assert.True(rx + rw <= X + W - Spacing.Sm, "el valor respeta el margen derecho ≥ Spacing.Sm");
         Assert.True(rx >= X, "el valor nunca empieza a la izquierda de contentLeft");
+    }
+
+    // ================= T10: verificación end-to-end de la vista única (sin cortes, sin tabs, mascota) =================
+
+    // -------- MultiSegmentRow con etiqueta: anti-truncamiento (envolver, NO cortar) --------
+
+    [Fact]
+    public void MultiSegmentRow_with_label_does_not_cut_segments_at_right_edge()
+    {
+        // REGRESIÓN (render T10): en el Draw real el MultiSegmentRow de hitos lleva ETIQUETA
+        // ("Avisar al llegar a…") y va dentro de un dependiente (ancho reducido Spacing.Lg). Con
+        // etiqueta + 4 chips el bloque NO cabía y el chip 95% se salía por el borde derecho (se veía
+        // un "9" cortado). Como SegmentedRow, debe medir y, si no cabe en un renglón, envolver a 2
+        // filas alineadas a contentLeft — nunca pintar un chip más allá de x+w-Spacing.Sm.
+        const int x = 16, y = 100;
+        int w = 308 - Spacing.Lg; // ancho ya reducido por el indent del dependiente (caso real)
+        using var bmp = new Bitmap(x + w + 80, 200);
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.MultiSegmentRow(g, draw: true, "milestone", "Avisar al llegar a…",
+            MilestoneSegs, new[] { 25, 50, 75, 95 }, x, y, w, Theme.Dark, Typography.Caption, rects);
+
+        foreach (var seg in MilestoneSegs)
+        {
+            Assert.True(rects.TryGetValue($"milestone:{seg.val}", out var r), $"falta milestone:{seg.val}");
+            Assert.True(r.X >= x, $"milestone:{seg.val} a la izquierda de contentLeft (x={r.X})");
+            Assert.True(r.Right <= x + w - Spacing.Sm,
+                $"milestone:{seg.val} cortado por el borde derecho (right={r.Right} > {x + w - Spacing.Sm})");
+        }
+    }
+
+    [Fact]
+    public void MultiSegmentRow_with_label_measure_equals_paint_when_wrapping()
+    {
+        // La decisión de envolver (1 fila vs 2) es idéntica en medir y pintar → mismo y de salida.
+        const int x = 16, y = 0;
+        int w = 308 - Spacing.Lg;
+        using var bmp = new Bitmap(x + w + 80, 240);
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.MultiSegmentRow(g, draw: false, "milestone", "Avisar al llegar a…",
+            MilestoneSegs, new[] { 25, 50, 75, 95 }, x, y, w, Theme.Dark, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.MultiSegmentRow(g, draw: true, "milestone", "Avisar al llegar a…",
+            MilestoneSegs, new[] { 25, 50, 75, 95 }, x, y, w, Theme.Dark, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void MultiSegmentRow_with_label_still_marks_active_after_wrap()
+    {
+        // Tras envolver, los valores activos siguen pintándose con Accent (no se pierde el estilo de pill).
+        const int x = 16, y = 30;
+        int w = 308 - Spacing.Lg;
+        using var bmp = new Bitmap(x + w + 80, 200);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        var rects = new Dictionary<string, Rectangle>();
+        var active = new[] { 25, 95 };
+
+        DashboardSettingsView.MultiSegmentRow(g, draw: true, "milestone", "Avisar al llegar a…",
+            MilestoneSegs, active, x, y, w, Theme.Dark, Typography.Caption, rects);
+
+        var acc = Theme.Dark.Accent;
+        foreach (var pct in active)
+        {
+            Assert.True(rects.TryGetValue($"milestone:{pct}", out var r));
+            var c = bmp.GetPixel(r.X + 2, r.Y + r.Height / 2);
+            Assert.True(Math.Abs(c.R - acc.R) <= 10 && Math.Abs(c.G - acc.G) <= 10 && Math.Abs(c.B - acc.B) <= 10,
+                $"el hito activo {pct}% debe seguir en Accent tras el wrap");
+        }
+    }
+
+    [Fact]
+    public void MultiSegmentRow_short_label_and_few_segments_stays_one_row()
+    {
+        // Si etiqueta + segmentos SÍ caben, no se envuelve: el avance es el de un solo renglón (sin
+        // regresión de alto en el caso que ya cabía).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        const int y0 = 100;
+        int after = DashboardSettingsView.MultiSegmentRow(g, draw: false, "milestone", "",
+            MilestoneSegs, new[] { 25 }, X, y0, W, Theme.Dark, Typography.Caption, rects);
+
+        Assert.Equal(y0 + DashboardSettingsView.SegmentRowAdvanceForTest, after);
+    }
+
+    // -------- Draw completo end-to-end: ningún rect clicable se sale del contenido, en los 8 idiomas --------
+
+    [Fact]
+    public void Draw_no_clickable_rect_overflows_content_in_all_languages()
+    {
+        // Invariante 3 (CERO textos/chips cortados) verificado END-TO-END sobre el Draw real: ningún
+        // rect clicable empieza a la izquierda de contentLeft ni rebasa el borde derecho (x+w). Cubre
+        // la regresión del hito 95% cortado y la vigila en TODOS los idiomas (alemán = el más largo).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
+        {
+            var s = Localization.Get(lang);
+            var rects = new Dictionary<string, Rectangle>();
+            DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+                Typography.Body, Typography.Caption, rects);
+            foreach (var (key, r) in rects)
+            {
+                Assert.True(r.X >= X, $"[{lang}] {key}: rect a la izquierda de contentLeft (x={r.X} < {X})");
+                Assert.True(r.Right <= X + W, $"[{lang}] {key}: rect rebasa el borde derecho (right={r.Right} > {X + W})");
+            }
+        }
+    }
+
+    [Fact]
+    public void Draw_measure_equals_paint_in_all_languages()
+    {
+        // El invariante de 2 pasadas del Draw completo se mantiene en los 8 idiomas (con o sin wrap de
+        // segmentos): medir==pintar → mismo alto, nada se mueve al cambiar de idioma.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
+        {
+            var s = Localization.Get(lang);
+            var rects = new Dictionary<string, Rectangle>();
+            int measured = DashboardSettingsView.Draw(g, draw: false, X, 0, W, cfg, s, Theme.Dark,
+                Typography.Body, Typography.Caption, rects);
+            rects.Clear();
+            int painted = DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+                Typography.Body, Typography.Caption, rects);
+            Assert.Equal(measured, painted);
+        }
+    }
+
+    [Fact]
+    public void Draw_is_single_screen_without_tab_navigation()
+    {
+        // DECISIÓN DE YOVAN: una pantalla agrupada, SIN pestañas. El panel NO registra ningún rect de
+        // navegación por tabs (tab:general|display|live|system) → no hay tab-bar. Las secciones reales
+        // (Mostrar, Sesiones en vivo, Notificaciones, Icono, Apariencia, Sistema, Acerca de) conviven
+        // en una sola vista vertical, así que todas sus claves coexisten en el mismo Draw.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        foreach (var tab in new[] { "tab:general", "tab:display", "tab:live", "tab:system" })
+            Assert.False(rects.ContainsKey(tab), $"no debe haber tab-bar ({tab}): es una sola pantalla");
+        // Coexistencia de secciones (sin panes): claves de varias secciones presentes a la vez.
+        foreach (var key in new[] { "toggle:ShowSpend", "special:hooktoggle", "toggle:Notifications",
+                                    "icon:percent", "theme:dark", "toggle:Startup", "special:importtheme" })
+            Assert.True(rects.ContainsKey(key), $"la sección de '{key}' debe estar en la misma vista (una pantalla)");
+    }
+
+    // -------- Mascota visible end-to-end (desacople de LiveSessionsEnabled) --------
+
+    [Fact]
+    public void Header_mascot_visible_with_show_on_and_live_off_end_to_end()
+    {
+        // Criterio de aceptación 5 (verificación T10): con ShowMascot=on y LiveSessionsEnabled=off el
+        // header reserva alto para la mascota Idle (se ve). Es el desacople de DashboardHeader.cs:80.
+        using var bmp = new Bitmap(W + X * 2, 400);
+        using var g = Graphics.FromImage(bmp);
+        Rectangle gear = Rectangle.Empty;
+        var live = new LiveSessionsView();
+        var sLoc = Localization.Get("es");
+
+        int Run(bool showMascot) => DashboardHeader.Draw(g, draw: false, X, 0, W, snap: null, live,
+            new AppConfig { ShowMascot = showMascot, LiveSessionsEnabled = false, ShowHealth = true, MascotSize = "compact" },
+            sLoc, Theme.Dark, MascotAnimator.StaticState, Mood.Neutral,
+            Typography.Body, Typography.Caption, Typography.Mono, ref gear,
+            motion: null, reduceMotion: false, mascotBounceOffsetY: 0, celebration: null);
+
+        Assert.True(Run(true) > Run(false),
+            "con live OFF, ShowMascot=on debe reservar alto para la mascota Idle (mascota visible)");
     }
 }
