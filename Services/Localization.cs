@@ -35,6 +35,8 @@ public sealed class Strings
     public string DefaultTag { get; init; } = "(default)";
     public string Settings { get; init; } = "Settings";
     public string ShowSpend { get; init; } = "Show estimated spend";
+    /// <summary>Subtítulo de la fila "Mostrar gasto" (T6): aclara qué representa el coste mostrado.</summary>
+    public string ShowSpendSubtitle { get; init; } = "API-equivalent cost per model";
     public string StartWithWindows { get; init; } = "Start with Windows";
     public string EditConfig { get; init; } = "Edit config (advanced)…";
     public string OpenDataFolder { get; init; } = "Open data folder";
@@ -272,6 +274,7 @@ public static class Localization
         DefaultTag = "(def.)",
         Settings = "Ajustes",
         ShowSpend = "Mostrar gasto estimado",
+        ShowSpendSubtitle = "Coste equivalente por modelo",
         StartWithWindows = "Iniciar con Windows",
         EditConfig = "Editar config (avanzado)…",
         OpenDataFolder = "Abrir carpeta de datos",
@@ -398,6 +401,7 @@ public static class Localization
         DefaultTag = "(standaard)",
         Settings = "Instellingen",
         ShowSpend = "Geschatte uitgaven tonen",
+        ShowSpendSubtitle = "API-equivalente kosten per model",
         StartWithWindows = "Starten met Windows",
         EditConfig = "Config bewerken (geavanceerd)…",
         OpenDataFolder = "Datamap openen",
@@ -516,6 +520,7 @@ public static class Localization
         DefaultTag = "(déf.)",
         Settings = "Paramètres",
         ShowSpend = "Afficher le coût estimé",
+        ShowSpendSubtitle = "Coût équivalent API par modèle",
         StartWithWindows = "Démarrer avec Windows",
         EditConfig = "Éditer la config (avancé)…",
         OpenDataFolder = "Ouvrir le dossier de données",
@@ -634,6 +639,7 @@ public static class Localization
         DefaultTag = "(Std.)",
         Settings = "Einstellungen",
         ShowSpend = "Geschätzte Kosten anzeigen",
+        ShowSpendSubtitle = "API-äquivalente Kosten pro Modell",
         StartWithWindows = "Mit Windows starten",
         EditConfig = "Konfig bearbeiten (erweitert)…",
         OpenDataFolder = "Datenordner öffnen",
@@ -752,6 +758,7 @@ public static class Localization
         DefaultTag = "(既定)",
         Settings = "設定",
         ShowSpend = "推定コストを表示",
+        ShowSpendSubtitle = "モデルごとのAPI換算コスト",
         StartWithWindows = "Windows 起動時に開始",
         EditConfig = "設定を編集（詳細）…",
         OpenDataFolder = "データフォルダーを開く",
@@ -870,6 +877,7 @@ public static class Localization
         DefaultTag = "(기본)",
         Settings = "설정",
         ShowSpend = "예상 비용 표시",
+        ShowSpendSubtitle = "모델별 API 환산 비용",
         StartWithWindows = "Windows 시작 시 실행",
         EditConfig = "구성 편집 (고급)…",
         OpenDataFolder = "데이터 폴더 열기",
@@ -988,6 +996,7 @@ public static class Localization
         DefaultTag = "(預設)",
         Settings = "設定",
         ShowSpend = "顯示估計花費",
+        ShowSpendSubtitle = "各模型的 API 約當成本",
         StartWithWindows = "隨 Windows 啟動",
         EditConfig = "編輯設定（進階）…",
         OpenDataFolder = "開啟資料夾",

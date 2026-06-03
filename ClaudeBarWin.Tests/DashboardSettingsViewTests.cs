@@ -798,4 +798,162 @@ public class DashboardSettingsViewTests
             }
         }
     }
+
+    // ================= T6: DrawDependent (master/dependientes) + secciones Mostrar/Notif/Actualización =================
+
+    [Fact]
+    public void DrawDependent_measure_equals_paint_when_active()
+    {
+        // El invariante de 2 pasadas también para el envoltorio de dependientes: medir==pintar.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.DrawDependent(active: true, X, 100, W, Theme.Dark, rects,
+            (ix, iw, th) => DashboardSettingsView.ToggleRow(g, draw: false, "toggle:Dep", "Dependiente", null, true,
+                ix, 100, iw, th, Typography.Body, Typography.Caption, rects));
+        rects.Clear();
+        int painted = DashboardSettingsView.DrawDependent(active: true, X, 100, W, Theme.Dark, rects,
+            (ix, iw, th) => DashboardSettingsView.ToggleRow(g, draw: true, "toggle:Dep", "Dependiente", null, true,
+                ix, 100, iw, th, Typography.Body, Typography.Caption, rects));
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void DrawDependent_indents_inner_by_lg()
+    {
+        // El dependiente se dibuja sangrado Spacing.Lg respecto al contentLeft del master.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.DrawDependent(active: true, X, 100, W, Theme.Dark, rects,
+            (ix, iw, th) => DashboardSettingsView.ToggleRow(g, draw: true, "toggle:Dep", "Dependiente", null, true,
+                ix, 100, iw, th, Typography.Body, Typography.Caption, rects));
+
+        Assert.True(rects.TryGetValue("toggle:Dep", out var r));
+        Assert.Equal(X + Spacing.Lg, r.X);                 // sangría Lg
+        Assert.Equal(W - Spacing.Lg, r.Width);             // ancho reducido por la sangría
+    }
+
+    [Fact]
+    public void DrawDependent_inert_when_master_off_does_not_register_rect()
+    {
+        // INERCIA: con el master OFF, el rect del dependiente NO queda registrado → el clic no muta nada.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.DrawDependent(active: false, X, 100, W, Theme.Dark, rects,
+            (ix, iw, th) => DashboardSettingsView.ToggleRow(g, draw: true, "toggle:Dep", "Dependiente", null, true,
+                ix, 100, iw, th, Typography.Body, Typography.Caption, rects));
+
+        Assert.False(rects.ContainsKey("toggle:Dep"), "dependiente inerte: su rect no debe disparar mutación");
+    }
+
+    [Fact]
+    public void DrawDependent_same_advance_regardless_of_master_state()
+    {
+        // El alto reservado por el dependiente es idéntico esté el master on u off (solo cambia
+        // la atenuación y la inercia, no la geometría → no se mueve nada al activar/desactivar).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        const int y0 = 100;
+        int onY = DashboardSettingsView.DrawDependent(active: true, X, y0, W, Theme.Dark, rects,
+            (ix, iw, th) => DashboardSettingsView.ToggleRow(g, draw: false, "toggle:Dep", "Dependiente", null, true,
+                ix, y0, iw, th, Typography.Body, Typography.Caption, rects));
+        rects.Clear();
+        int offY = DashboardSettingsView.DrawDependent(active: false, X, y0, W, Theme.Dark, rects,
+            (ix, iw, th) => DashboardSettingsView.ToggleRow(g, draw: false, "toggle:Dep", "Dependiente", null, true,
+                ix, y0, iw, th, Typography.Body, Typography.Caption, rects));
+
+        Assert.Equal(onY, offY);
+    }
+
+    [Fact]
+    public void Draw_notifications_off_makes_dependents_inert()
+    {
+        // Con Notificaciones OFF, PaceAlerts e hitos quedan INERTES (su rect no se registra) → el clic
+        // sobre ellos no muta nada. El Draw completo sigue cumpliendo medir==pintar.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        cfg.NotificationsEnabled = false;
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.Draw(g, draw: false, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+        // El master sí responde; los dependientes no.
+        Assert.True(rects.ContainsKey("toggle:Notifications"), "el master de notificaciones siempre responde");
+        Assert.False(rects.ContainsKey("toggle:PaceAlerts"), "PaceAlerts inerte con notificaciones off");
+        foreach (var pct in new[] { 25, 50, 75, 95 })
+            Assert.False(rects.ContainsKey($"milestone:{pct}"), $"milestone:{pct} inerte con notificaciones off");
+    }
+
+    [Fact]
+    public void Draw_notifications_on_dependents_active_and_indented()
+    {
+        // Con Notificaciones ON, PaceAlerts e hitos responden (rect registrado) y están sangrados Spacing.Lg.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        cfg.NotificationsEnabled = true;
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.TryGetValue("toggle:PaceAlerts", out var pace), "PaceAlerts activo con notificaciones on");
+        Assert.True(pace.X >= X + Spacing.Lg, $"PaceAlerts debe ir sangrado Lg (x={pace.X})");
+        foreach (var pct in new[] { 25, 50, 75, 95 })
+        {
+            Assert.True(rects.TryGetValue($"milestone:{pct}", out var m), $"falta milestone:{pct} con notif on");
+            Assert.True(m.X >= X + Spacing.Lg, $"milestone:{pct} debe ir sangrado Lg (x={m.X})");
+        }
+    }
+
+    [Fact]
+    public void Draw_show_spend_row_has_subtitle()
+    {
+        // La fila "Mostrar gasto" lleva subtítulo ("Coste equivalente por modelo") → su rect es más alto
+        // que una fila sin subtítulo, y el Draw completo sigue cumpliendo medir==pintar.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.Draw(g, draw: false, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+        Assert.Equal(measured, painted);
+
+        // La fila de gasto (con subtítulo) es más alta que la de salud (sin subtítulo).
+        Assert.True(rects.TryGetValue("toggle:ShowSpend", out var spend));
+        Assert.True(rects.TryGetValue("toggle:ShowHealth", out var health));
+        Assert.True(spend.Height > health.Height, "la fila de gasto con subtítulo debe ser más alta");
+    }
+
+    [Fact]
+    public void Draw_show_spend_subtitle_is_localized_in_all_languages()
+    {
+        // i18n: el subtítulo de gasto sale de Strings y no queda vacío en ningún idioma.
+        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
+        {
+            var s = Localization.Get(lang);
+            Assert.False(string.IsNullOrWhiteSpace(s.ShowSpendSubtitle), $"[{lang}] ShowSpendSubtitle vacío");
+        }
+    }
 }

@@ -32,9 +32,10 @@ public static class DashboardSettingsView
     {
         rects.Clear();
 
-        // -------- Secciones --------
+        // -------- Mostrar (qué se ve en el dashboard) --------
         y = SectionHeader(g, draw, s.MenuSections, x, y, w, theme, smallFont);
-        y = ToggleRow(g, draw, "toggle:ShowSpend", s.ShowSpend, null, cfg.ShowSpendEstimate, x, y, w, theme, labelFont, smallFont, rects);
+        // Gasto estimado lleva subtítulo aclaratorio ("Coste equivalente por modelo").
+        y = ToggleRow(g, draw, "toggle:ShowSpend", s.ShowSpend, s.ShowSpendSubtitle, cfg.ShowSpendEstimate, x, y, w, theme, labelFont, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:ShowHealth", s.ShowServiceStatus, null, cfg.ShowHealth, x, y, w, theme, labelFont, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:ShowChart", s.UsageChart, null, cfg.ShowChart, x, y, w, theme, labelFont, smallFont, rects);
 
@@ -51,15 +52,23 @@ public static class DashboardSettingsView
             hooksOn ? s.MenuUninstallHooks : s.MenuInstallHooks,
             hooksOn ? theme.Critical : theme.Ok, x, y, w, theme, smallFont, rects);
 
-        // -------- Notificaciones --------
+        // -------- Notificaciones (master + dependientes) --------
+        // "Notificaciones" es el MASTER; PaceAlerts y los hitos son DEPENDIENTES: sangrados Spacing.Lg,
+        // atenuados e INERTES cuando el master está off (vía DrawDependent). Resuelve "lo activé y no pasa
+        // nada": el dependiente solo responde si el master está encendido.
         y = SectionHeader(g, draw, s.Notifications, x, y, w, theme, smallFont);
         y = ToggleRow(g, draw, "toggle:Notifications", s.Enabled, null, cfg.NotificationsEnabled, x, y, w, theme, labelFont, smallFont, rects);
-        y = ToggleRow(g, draw, "toggle:PaceAlerts", s.PaceAlerts, null, cfg.PaceAlerts, x, y, w, theme, labelFont, smallFont, rects);
+        bool notif = cfg.NotificationsEnabled;
+        y = DrawDependent(notif, x, y, w, theme, rects,
+            (ix, iw, th) => ToggleRow(g, draw, "toggle:PaceAlerts", s.PaceAlerts, null, cfg.PaceAlerts,
+                ix, y, iw, th, labelFont, smallFont, rects));
         // Hitos individuales 25/50/75/95 como toggles multi-activo que editan el array NotifyMilestones:
         // un único MultiSegmentRow (varios activos, mismo estilo de pill Accent+Contrast), SIN re-pintado manual.
-        y = MultiSegmentRow(g, draw, "milestone", s.NotifyWhenReaching,
-            MilestoneOptions.Select(m => ($"{m}", $"{m}%")).ToArray(),
-            cfg.NotifyMilestones ?? Array.Empty<int>(), x, y, w, theme, smallFont, rects);
+        int milestoneY = y; // captura el y de entrada del dependiente para la lambda
+        y = DrawDependent(notif, x, milestoneY, w, theme, rects,
+            (ix, iw, th) => MultiSegmentRow(g, draw, "milestone", s.NotifyWhenReaching,
+                MilestoneOptions.Select(m => ($"{m}", $"{m}%")).ToArray(),
+                cfg.NotifyMilestones ?? Array.Empty<int>(), ix, milestoneY, iw, th, smallFont, rects));
 
         // -------- Frecuencia de actualización --------
         y = SectionHeader(g, draw, s.UpdateFrequency, x, y, w, theme, smallFont);
@@ -240,6 +249,60 @@ public static class DashboardSettingsView
             g.DrawLine(pen, x, dy, x + w, dy);
         }
         return y + Spacing.Sm; // aire abajo (separa de la primera fila)
+    }
+
+    // -------- DrawDependent: sub-ajuste dependiente de un master (indent + atenuación + inercia) --------
+
+    /// <summary>
+    /// Atenúa un tema a ~0.5 hacia su fondo (para dibujar dependientes "apagados" cuando el master está
+    /// off). PURO: interpola por canal los tokens de texto/acento/separador/elevado hacia
+    /// <c>Background</c>; la geometría de las filas NO depende del color, así que medir==pintar se
+    /// mantiene aunque el dependiente cambie de tema según el estado del master.
+    /// </summary>
+    private static Theme Dimmed(Theme t)
+    {
+        const double k = 0.5; // ~50% de opacidad sobre el fondo
+        Color D(Color c) => ColorMath.Lerp(c, t.Background, k);
+        return new Theme
+        {
+            Id = t.Id,
+            Background = t.Background,
+            Foreground = D(t.Foreground),
+            Dim = D(t.Dim),
+            Track = D(t.Track),
+            Ok = D(t.Ok),
+            Warn = D(t.Warn),
+            Critical = D(t.Critical),
+            Neutral = D(t.Neutral),
+            Accent = D(t.Accent),
+            BgElevated = D(t.BgElevated),
+            TextMuted = D(t.TextMuted),
+            Separator = D(t.Separator),
+        };
+    }
+
+    /// <summary>
+    /// Dibuja un sub-ajuste DEPENDIENTE de un control maestro: sangrado <c>Spacing.Lg</c> (indent), y
+    /// cuando el master está <b>off</b> (<paramref name="active"/>=false) se pinta <b>atenuado</b>
+    /// (~0.5 vía <see cref="Dimmed"/>) e <b>inerte</b> (sus rects NO quedan registrados → un clic no
+    /// muta nada). La sangría reduce el ancho útil a <c>w - Spacing.Lg</c>. El <paramref name="drawInner"/>
+    /// recibe el x sangrado, el ancho reducido y el tema efectivo, y devuelve el nuevo <c>y</c>; el
+    /// avance es IDÉNTICO esté el master on u off (solo cambian color e inercia, no la geometría), de
+    /// modo que medir==pintar y nada se mueve al activar/desactivar el master. Devuelve el nuevo <c>y</c>.
+    /// </summary>
+    internal static int DrawDependent(bool active, int x, int y, int w, Theme theme,
+        Dictionary<string, Rectangle> rects, Func<int, int, Theme, int> drawInner)
+    {
+        int ix = x + Spacing.Lg;        // sangría del dependiente
+        int iw = w - Spacing.Lg;        // ancho útil reducido por la sangría
+        Theme eff = active ? theme : Dimmed(theme);
+        // Snapshot de claves para poder retirar las nuevas (inercia) si el master está off.
+        var before = active ? null : new HashSet<string>(rects.Keys);
+        int ny = drawInner(ix, iw, eff);
+        if (!active && before is not null)
+            foreach (var k in rects.Keys.Where(k => !before.Contains(k)).ToList())
+                rects.Remove(k);        // inerte: el dependiente no dispara mutación con el master off
+        return ny;
     }
 
     /// <summary>
