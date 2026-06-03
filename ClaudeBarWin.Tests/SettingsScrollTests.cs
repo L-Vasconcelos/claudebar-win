@@ -80,4 +80,87 @@ public class SettingsScrollTests
         Assert.InRange(DashboardSettingsView.MaxPanelHeightPct, 40, 90);
         Assert.True(DashboardSettingsView.WheelStepPx > 0);
     }
+
+    // ---------------- WheelToPixels (acumulador rueda/trackpad) ----------------
+    // Ratón clásico: un diente de ±120 = ±WheelStepPx exacto, sin resto, simétrico.
+    // Trackpad de precisión: ráfagas de deltas pequeños se ACUMULAN hasta el mismo total, sin perder
+    // nada y sin tragarse los deltas diminutos (la división entera de antes los truncaba a 0).
+
+    [Fact]
+    public void Wheel_classic_mouse_one_notch_is_exactly_one_step()
+    {
+        // +120 (un diente hacia arriba) → exactamente WheelStepPx px, resto 0 (sensación de siempre).
+        var (px, rest) = DashboardSettingsView.WheelToPixels(0, 120);
+        Assert.Equal(DashboardSettingsView.WheelStepPx, px);
+        Assert.Equal(0, rest);
+    }
+
+    [Fact]
+    public void Wheel_classic_mouse_is_symmetric_down()
+    {
+        // −120 (un diente hacia abajo) → exactamente −WheelStepPx, resto 0: simétrico al caso de subir.
+        var (px, rest) = DashboardSettingsView.WheelToPixels(0, -120);
+        Assert.Equal(-DashboardSettingsView.WheelStepPx, px);
+        Assert.Equal(0, rest);
+    }
+
+    [Fact]
+    public void Wheel_trackpad_burst_accumulates_exactly_one_notch()
+    {
+        // 8 eventos de +15 = +120 acumulado ⇒ MISMO desplazamiento que un diente (WheelStepPx px) en
+        // total, sin perder nada por el camino (lo que la división entera /120 truncaba a 0).
+        int acc = 0, total = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            var (px, rest) = DashboardSettingsView.WheelToPixels(acc, 15);
+            total += px;
+            acc = rest;
+        }
+        Assert.Equal(DashboardSettingsView.WheelStepPx, total);
+        Assert.Equal(0, acc); // el acumulador acaba limpio (8·15 = 120 = diente entero)
+    }
+
+    [Fact]
+    public void Wheel_tiny_deltas_eventually_scroll_and_are_not_swallowed()
+    {
+        // Deltas diminutos (+1 repetido): con /120 cada uno truncaba a 0 y el panel NUNCA rodaba.
+        // Acumulando, terminan produciendo desplazamiento real (no se "tragan").
+        int acc = 0, total = 0;
+        for (int i = 0; i < 120; i++)
+        {
+            var (px, rest) = DashboardSettingsView.WheelToPixels(acc, 1);
+            total += px;
+            acc = rest;
+        }
+        // 120 eventos de +1 = +120 acumulado ⇒ un diente completo (WheelStepPx px).
+        Assert.Equal(DashboardSettingsView.WheelStepPx, total);
+    }
+
+    [Fact]
+    public void Wheel_negative_burst_is_exact_mirror_of_positive()
+    {
+        // La misma ráfaga (8·15) en negativo produce EXACTAMENTE el mismo desplazamiento con signo opuesto.
+        int accP = 0, totalP = 0, accN = 0, totalN = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            var (pxP, restP) = DashboardSettingsView.WheelToPixels(accP, 15);
+            totalP += pxP; accP = restP;
+            var (pxN, restN) = DashboardSettingsView.WheelToPixels(accN, -15);
+            totalN += pxN; accN = restN;
+        }
+        Assert.Equal(totalP, -totalN);
+        Assert.Equal(accP, -accN); // el acumulador también es espejo exacto
+    }
+
+    [Fact]
+    public void Wheel_remainder_is_carried_across_events()
+    {
+        // Resto conservado: un +60 da píxeles PARCIALES; otro +60 completa el diente exacto sin pérdida.
+        var (px1, rest1) = DashboardSettingsView.WheelToPixels(0, 60);
+        var (px2, rest2) = DashboardSettingsView.WheelToPixels(rest1, 60);
+        // 60+60 = 120 = un diente ⇒ la suma de ambos eventos = WheelStepPx exacto.
+        Assert.Equal(DashboardSettingsView.WheelStepPx, px1 + px2);
+        Assert.Equal(0, rest2); // tras completar el diente el acumulador queda limpio
+        Assert.True(px1 > 0);   // el primer +60 ya desplazó (no esperó al diente completo)
+    }
 }

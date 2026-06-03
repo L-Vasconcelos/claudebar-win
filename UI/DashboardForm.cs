@@ -227,6 +227,12 @@ public sealed class DashboardForm : Form
     // Scroll del panel de ajustes (v0.3.7): el panel se LIMITA en alto (MaxPanelHeightPct del área
     // útil) y el contenido rueda. El offset/altos viven aquí; la matemática pura en DashboardSettingsView.
     private int _settingsScroll;                 // desplazamiento actual del contenido (px, 0 = arriba)
+    // Acumulador de la rueda (v0.3.7+): los trackpads de precisión mandan muchos eventos pequeños
+    // (±1…±40, smooth-scrolling) en vez del diente de ±120 del ratón clásico. WheelToPixels acumula aquí
+    // el delta (en su dominio escalado, opaco) y solo convierte a píxeles la parte entera, conservando el
+    // resto para el siguiente evento ⇒ scroll suave con trackpad sin cambiar la sensación del ratón.
+    // Se resetea junto con _settingsScroll (en ShowSettings) para no arrastrar resto entre aperturas.
+    private int _settingsWheelAccum;
     private int _settingsContentH;               // alto real del contenido de ajustes (sin tope)
     private int _settingsViewportTop;            // y donde arranca la zona scrollable (bajo "‹ Ajustes")
     private const int SettingsViewportBottomPad = 12; // aire entre el final del viewport y el borde
@@ -262,8 +268,8 @@ public sealed class DashboardForm : Form
     /// (claves "special:*", p.ej. "special:importtheme"/"special:hooktoggle"). El host las maneja.</summary>
     public event Action<string>? SpecialActionRequested;
 
-    /// <summary>Cambia a la vista de ajustes (⚙). Resetea el scroll, reajusta el alto y repinta.</summary>
-    public void ShowSettings() { _viewMode = "settings"; _settingsScroll = 0; Relayout(); Invalidate(); }
+    /// <summary>Cambia a la vista de ajustes (⚙). Resetea el scroll (y el acumulador de rueda), reajusta el alto y repinta.</summary>
+    public void ShowSettings() { _viewMode = "settings"; _settingsScroll = 0; _settingsWheelAccum = 0; Relayout(); Invalidate(); }
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -704,6 +710,13 @@ public sealed class DashboardForm : Form
     /// <summary>
     /// Rueda del ratón en la vista de ajustes (v0.3.7): desplaza el contenido WheelStepPx por diente,
     /// acotado a [0, overflow]. En la vista de datos no hace nada (esa vista auto-dimensiona).
+    /// <para>
+    /// Compatibilidad con TRACKPADS de precisión: en vez de <c>e.Delta / 120</c> (que truncaba a 0 con
+    /// los deltas pequeños del smooth-scrolling y dejaba el panel sin rodar), acumulamos el delta crudo
+    /// en <see cref="_settingsWheelAccum"/> y convertimos a píxeles solo la parte entera vía
+    /// <see cref="DashboardSettingsView.WheelToPixels"/>; el resto se conserva para el siguiente evento.
+    /// Un diente de ratón clásico (±120) sigue desplazando exactamente <c>WheelStepPx</c> (48px).
+    /// </para>
     /// </summary>
     protected override void OnMouseWheel(MouseEventArgs e)
     {
@@ -711,8 +724,12 @@ public sealed class DashboardForm : Form
         if (_viewMode != "settings") return;
         int viewportH = Height - _settingsViewportTop - SettingsViewportBottomPad;
         if (_settingsContentH <= viewportH) return;
-        int step = e.Delta / 120 * DashboardSettingsView.WheelStepPx;
-        int ns = DashboardSettingsView.ClampScroll(_settingsScroll - step, _settingsContentH, viewportH);
+        // Acumula el delta crudo y extrae los píxeles enteros (el resto queda para el próximo evento).
+        var (px, rest) = DashboardSettingsView.WheelToPixels(_settingsWheelAccum, e.Delta);
+        _settingsWheelAccum = rest;
+        if (px == 0) return; // delta de trackpad aún insuficiente para 1px: sigue sumando, no repintes
+        // Signo: delta positivo (rueda arriba) REDUCE el scroll (sube el contenido).
+        int ns = DashboardSettingsView.ClampScroll(_settingsScroll - px, _settingsContentH, viewportH);
         if (ns != _settingsScroll) { _settingsScroll = ns; Invalidate(); }
     }
 

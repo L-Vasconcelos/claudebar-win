@@ -43,6 +43,42 @@ public static class DashboardSettingsView
         => Math.Max(0, Math.Min(scroll, Math.Max(0, contentH - viewportH)));
 
     /// <summary>
+    /// Convierte un evento de rueda en PÍXELES a desplazar, ACUMULANDO el delta crudo para soportar
+    /// trackpads de precisión. Un ratón clásico manda un "diente" entero de ±120 por muesca; un trackpad
+    /// (portátil, Magic Trackpad…) hace smooth-scrolling: muchos eventos pequeños (±1…±40) que con la
+    /// división entera <c>delta / 120</c> truncaban a 0 ⇒ el panel NO rodaba con trackpad. Aquí cada
+    /// evento SUMA su <paramref name="delta"/> al acumulador y solo se convierte a píxeles la parte que
+    /// ya completa "muescas" (<c>acc * WheelStepPx / 120</c>); el delta sobrante se conserva en
+    /// <c>rest</c> para el siguiente evento, de modo que los deltas pequeños se van sumando y producen
+    /// scroll suave y proporcional sin perder nada.
+    /// <para>
+    /// Simetría: tanto la división entera como el módulo de C# heredan el signo del numerador, así que
+    /// subir (+) y bajar (−) se comportan idénticos en magnitud (p.ej. ±100·48/120 = ±40), exactamente
+    /// lo que queremos. Para un diente exacto de ±120 da px=±48 y rest=0 (misma sensación que el ratón de
+    /// siempre), y nunca se "traga" delta — el resto se acumula hasta completar el siguiente píxel.
+    /// </para>
+    /// </summary>
+    /// <param name="accumulatedDelta">Resto arrastrado de eventos anteriores (0 al empezar); es delta
+    /// crudo YA escalado por WheelStepPx, opaco para quien llama — solo hay que volver a pasarlo.</param>
+    /// <param name="delta">Delta de ESTE evento de rueda (<c>MouseEventArgs.Delta</c>; ±120 por muesca
+    /// de ratón clásico, valores pequeños en trackpads).</param>
+    /// <returns><c>px</c> = píxeles enteros a desplazar (mismo signo que el delta neto); <c>rest</c> =
+    /// resto escalado que queda acumulado para el siguiente evento (siempre <c>|rest| &lt; 120</c> ⇒
+    /// insuficiente para otro píxel, así que se irá sumando hasta completarlo sin perder NADA).</returns>
+    internal static (int px, int rest) WheelToPixels(int accumulatedDelta, int delta)
+    {
+        // Trabajamos en el dominio ESCALADO (delta·WheelStepPx) para que el reparto píxel/resto sea
+        // EXACTO sea cual sea WheelStepPx (120 no es múltiplo de 48): el resto se conserva entero y los
+        // deltas diminutos del trackpad se acumulan sin tragarse nada ni perder precisión.
+        long scaled = (long)accumulatedDelta + (long)delta * WheelStepPx;
+        // Píxeles completos: división entera de C# que TRUNCA HACIA CERO ⇒ simétrica en + y −.
+        int px = (int)(scaled / 120);
+        // Resto escalado (también con signo del numerador): lo que aún no alcanza el siguiente píxel.
+        int rest = (int)(scaled % 120);
+        return (px, rest);
+    }
+
+    /// <summary>
     /// Rect del pulgar de la barra de scroll: alto proporcional al viewport (mínimo 24px para que
     /// siempre se pueda ver/agarrar) y posición proporcional al scroll. <see cref="Rectangle.Empty"/>
     /// cuando el contenido cabe (sin overflow no hay barra).
