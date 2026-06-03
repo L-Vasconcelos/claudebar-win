@@ -23,10 +23,15 @@ The 5h/7d bars and their values are coloured by **pace** (burn-rate), the chart 
 **Spend $** (stacked by model) and **Quota %** (real utilisation over time), and the panel auto-sizes
 to whatever sections you enable.
 
-Everything expanded at once — the live-session **mascot**, both quota bars, per-model spend, and the
-usage chart:
+Everything expanded at once — the live-session **mascot** in its own band, both quota bars, per-model
+spend, and the usage chart:
 
 <p align="center"><img src="assets/dashboard-full.png" alt="Full dashboard with the live-session mascot" width="320"></p>
+
+**One settings screen** — every option on a single clean, grouped page: toggles, master/dependent rows
+(enable live sessions, then pick the mascot size), segmented pickers, no clutter:
+
+<p align="center"><img src="assets/settings.png" alt="Grouped settings panel — all options on one screen" width="300"></p>
 
 **Drag it anywhere, dial in the opacity** — the panel is a movable, see-through widget:
 
@@ -74,12 +79,14 @@ Tray icon, by status / pace:
 - **Themes** (System / Dark / Light / CLI + import `.itermcolors`) and **9 languages**
   (System + English, Español, Nederlands, Français, Deutsch, 日本語, 한국어, 繁體中文) — both
   default to your Windows settings.
-- **Live sessions (opt-in)**: an ASCII mascot in the dashboard reacts to your Claude Code sessions
-  in real time (idle / working / waiting for approval / waiting for input / compacting / ended),
-  driven by Claude Code hooks over a local named pipe; the tray icon adds an amber badge when a
-  session needs your attention. Toggle it from **Settings → Live sessions** — it installs/removes
-  the hooks in `~/.claude/settings.json` (with a backup and a confirmation prompt).
-- Everything is configurable from the in-dashboard **⚙ settings panel**.
+- **Mascot**: an ASCII cat lives in the dashboard, on by default (an ambient *Idle* cat) — toggle it
+  with **Show mascot** and pick **Hidden / Compact / Large**.
+- **Live sessions (opt-in)**: turn this on and the mascot reacts to your Claude Code sessions in real
+  time (idle / working / waiting for approval / waiting for input / compacting / ended), driven by
+  Claude Code hooks over a local named pipe; the tray icon adds an amber badge when a session needs
+  your attention. Toggle it from **Settings → Live sessions** — it installs/removes the hooks in
+  `~/.claude/settings.json` (with a backup and a confirmation prompt).
+- Everything is configurable from the in-dashboard **⚙ settings panel** — one clean, grouped screen.
 
 ## How the data works
 
@@ -132,12 +139,12 @@ Auto-start on login: right-click the tray icon → **Settings → Start with Win
 
 ## Configuration (in-dashboard settings panel)
 
-Open the dashboard and click the **⚙** (top-right) — **all settings live there**, grouped:
+Open the dashboard and click the **⚙** (top-right) — **all settings live on one grouped screen**:
 
 ```
-Sections          ☑ Estimated spend · ☑ Service status · ☑ Usage chart
-Live sessions     ☑ Mascot · Mascot size (compact/large) · ☑ Suppress when focused
-                  [ Enable/Disable — installs/removes Claude Code hooks (with confirmation) ]
+Panel content     ☑ Estimated spend · ☑ Service status · ☑ Usage chart
+Live sessions     ☑ Enabled (installs/removes Claude Code hooks, with confirmation)
+                  Show mascot · size Hidden / Compact / Large · ☑ Suppress when focused
 Notifications     ☑ Enabled · ☑ Pace alerts · milestones ☑25 ☑50 ☑75 ☑95
 Update frequency  30s · 1min · 5min · 15min
 Icon              mode % / ▲ / %▲ · colour threshold 70/90 · 80/95 · 60/85

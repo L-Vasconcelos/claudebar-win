@@ -23,10 +23,16 @@ Las barras de 5h/7d y sus valores se colorean por **ritmo** (pace), la gráfica 
 **Gasto $** (apilado por modelo) y **Cuota %** (utilización real en el tiempo), y el panel se
 auto-ajusta a las secciones que actives.
 
-Todo desplegado a la vez — la **mascota** de sesiones en vivo, las dos barras de cuota, el gasto por
+Todo desplegado a la vez — la **mascota** en su propia banda, las dos barras de cuota, el gasto por
 modelo y la gráfica de uso:
 
 <p align="center"><img src="assets/dashboard-full.png" alt="Dashboard completo con la mascota de sesiones en vivo" width="320"></p>
+
+**Una sola pantalla de ajustes** — todas las opciones en una página limpia y agrupada: toggles, filas
+maestra/dependiente (activa las sesiones en vivo y elige el tamaño de la mascota), selectores
+segmentados, sin ruido:
+
+<p align="center"><img src="assets/settings.png" alt="Panel de ajustes agrupado — todas las opciones en una pantalla" width="300"></p>
 
 **Arrástralo donde quieras y ajústale la opacidad** — el panel es un widget movible y semitransparente:
 
@@ -74,13 +80,15 @@ Icono de bandeja, por estado / ritmo:
 - **Temas** (Sistema / Oscuro / Claro / CLI + importar `.itermcolors`) y **9 idiomas**
   (Sistema + English, Español, Nederlands, Français, Deutsch, 日本語, 한국어, 繁體中文) — ambos
   por defecto siguen tu configuración de Windows.
-- **Sesiones en vivo (opt-in)**: una mascota ASCII en el dashboard reacciona a tus sesiones de
-  Claude Code en tiempo real (inactiva / trabajando / esperando aprobación / esperando input /
-  compactando / terminada), mediante hooks de Claude Code por un named pipe local; el icono de
-  bandeja añade un punto ámbar cuando una sesión necesita tu atención. Se activa/desactiva en
-  **Ajustes → Sesiones en vivo** — instala/quita los hooks en `~/.claude/settings.json` (con copia
-  de seguridad y confirmación).
-- Todo configurable desde el **panel de ajustes ⚙** del dashboard.
+- **Mascota**: un gato ASCII vive en el dashboard, visible por defecto (un gato *Idle* de ambiente) —
+  actívala/ocúltala con **Mostrar mascota** y elige **Oculta / Compacta / Grande**.
+- **Sesiones en vivo (opt-in)**: actívalas y la mascota reacciona a tus sesiones de Claude Code en
+  tiempo real (inactiva / trabajando / esperando aprobación / esperando input / compactando /
+  terminada), mediante hooks de Claude Code por un named pipe local; el icono de bandeja añade un
+  punto ámbar cuando una sesión necesita tu atención. Se activan/desactivan en **Ajustes → Sesiones
+  en vivo** — instala/quita los hooks en `~/.claude/settings.json` (con copia de seguridad y
+  confirmación).
+- Todo configurable desde el **panel de ajustes ⚙** del dashboard — una sola pantalla limpia y agrupada.
 
 ## De dónde sale el dato
 
@@ -131,12 +139,12 @@ Arranque automático: click derecho en el icono → **Ajustes → Iniciar con Wi
 
 ## Configuración (panel de ajustes en el dashboard)
 
-Abre el dashboard y pulsa el **⚙** (arriba a la derecha) — **toda la configuración vive ahí**, agrupada:
+Abre el dashboard y pulsa el **⚙** (arriba a la derecha) — **toda la configuración en una sola pantalla agrupada**:
 
 ```
-Secciones         ☑ Gasto estimado · ☑ Estado del servicio · ☑ Gráfica de uso
-Sesiones en vivo  ☑ Mascota · Tamaño (compacta/grande) · ☑ Silenciar si la terminal tiene foco
-                  [ Activar/Desactivar — instala/quita los hooks de Claude Code (con confirmación) ]
+Contenido panel   ☑ Gasto estimado · ☑ Estado del servicio · ☑ Gráfica de uso
+Sesiones en vivo  ☑ Activadas (instala/quita los hooks de Claude Code, con confirmación)
+                  Mostrar mascota · tamaño Oculta / Compacta / Grande · ☑ Silenciar si la terminal tiene foco
 Notificaciones    ☑ Activadas · ☑ Avisos de ritmo · hitos ☑25 ☑50 ☑75 ☑95
 Frecuencia        30s · 1min · 5min · 15min
 Icono             modo % / ▲ / %▲ · umbral de color 70/90 · 80/95 · 60/85
