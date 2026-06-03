@@ -33,13 +33,13 @@ public static class DashboardSettingsView
         rects.Clear();
 
         // -------- Secciones --------
-        y = GroupHeader(g, draw, s.MenuSections, x, y, theme, labelFont);
+        y = SectionHeader(g, draw, s.MenuSections, x, y, w, theme, smallFont);
         y = ToggleRow(g, draw, "toggle:ShowSpend", s.ShowSpend, cfg.ShowSpendEstimate, x, y, w, theme, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:ShowHealth", s.ShowServiceStatus, cfg.ShowHealth, x, y, w, theme, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:ShowChart", s.UsageChart, cfg.ShowChart, x, y, w, theme, smallFont, rects);
 
         // -------- Sesiones en vivo --------
-        y = GroupHeader(g, draw, s.MenuLiveSessions, x, y, theme, labelFont);
+        y = SectionHeader(g, draw, s.MenuLiveSessions, x, y, w, theme, smallFont);
         y = ToggleRow(g, draw, "toggle:ShowMascot", s.MenuShowMascot, cfg.ShowMascot, x, y, w, theme, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:Suppress", s.MenuSuppressWhenFocused, cfg.SuppressWhenFocused, x, y, w, theme, smallFont, rects);
         y = SegmentedRow(g, draw, "mascotsize", s.MascotSizeLabel,
@@ -52,7 +52,7 @@ public static class DashboardSettingsView
             hooksOn ? theme.Critical : theme.Ok, x, y, w, theme, smallFont, rects);
 
         // -------- Notificaciones --------
-        y = GroupHeader(g, draw, s.Notifications, x, y, theme, labelFont);
+        y = SectionHeader(g, draw, s.Notifications, x, y, w, theme, smallFont);
         y = ToggleRow(g, draw, "toggle:Notifications", s.Enabled, cfg.NotificationsEnabled, x, y, w, theme, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:PaceAlerts", s.PaceAlerts, cfg.PaceAlerts, x, y, w, theme, smallFont, rects);
         // Hitos individuales 25/50/75/95 como toggles que editan el array NotifyMilestones.
@@ -76,16 +76,16 @@ public static class DashboardSettingsView
                     using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                     g.DrawString($"{m}%", smallFont, tb, mr, sf);
                 }
-        y += 22;
+        y += SegmentRowAdvance; // hitos: avance sobre rejilla 8pt (el MultiSegmentRow de T5 lo absorberá)
 
         // -------- Frecuencia de actualización --------
-        y = GroupHeader(g, draw, s.UpdateFrequency, x, y, theme, labelFont);
+        y = SectionHeader(g, draw, s.UpdateFrequency, x, y, w, theme, smallFont);
         y = SegmentedRow(g, draw, "freq", "",
             new[] { ("30", s.Sec30), ("60", s.Min1), ("300", s.Min5), ("900", s.Min15) },
             cfg.RefreshSeconds.ToString(), x, y, w, theme, smallFont, rects);
 
         // -------- Icono --------
-        y = GroupHeader(g, draw, s.MenuIcon, x, y, theme, labelFont);
+        y = SectionHeader(g, draw, s.MenuIcon, x, y, w, theme, smallFont);
         y = SegmentedRow(g, draw, "icon", s.IconMode,
             new[] { ("percent", "%"), ("pace", "▲"), ("both", "%▲") },
             string.IsNullOrEmpty(cfg.IconDisplayMode) ? "percent" : cfg.IconDisplayMode, x, y, w, theme, smallFont, rects);
@@ -94,7 +94,7 @@ public static class DashboardSettingsView
             $"{cfg.WarnThresholdPct:0}/{cfg.CriticalThresholdPct:0}", x, y, w, theme, smallFont, rects);
 
         // -------- Apariencia --------
-        y = GroupHeader(g, draw, s.MenuAppearance, x, y, theme, labelFont);
+        y = SectionHeader(g, draw, s.MenuAppearance, x, y, w, theme, smallFont);
         y = SegmentedRow(g, draw, "theme", s.Theme,
             new[] { ("system", s.ThemeSystem), ("dark", s.ThemeDark), ("light", s.ThemeLight), ("cli", "CLI") },
             cfg.Theme, x, y, w, theme, smallFont, rects);
@@ -107,12 +107,13 @@ public static class DashboardSettingsView
         y = ToggleRow(g, draw, "toggle:ReduceMotion", s.ReduceMotion, cfg.ReduceMotion, x, y, w, theme, smallFont, rects);
 
         // -------- Idioma --------
-        y = GroupHeader(g, draw, s.Language, x, y, theme, labelFont);
+        y = SectionHeader(g, draw, s.Language, x, y, w, theme, smallFont);
         y = CycleRow(g, draw, "cycle:lang", s.Language,
             Localization.LanguageDisplayName(cfg.Language, s), x, y, w, theme, smallFont, rects);
 
         // -------- Sistema --------
-        y = GroupHeader(g, draw, "Sistema", x, y, theme, labelFont);
+        // NOTA: literal hardcodeado; lo localiza T8 (i18n "Sistema").
+        y = SectionHeader(g, draw, "Sistema", x, y, w, theme, smallFont);
         y = ToggleRow(g, draw, "toggle:Startup", s.StartWithWindows, StartupManager.IsEnabled(), x, y, w, theme, smallFont, rects);
 
         return y;
@@ -218,43 +219,65 @@ public static class DashboardSettingsView
 
     // ---------------- helpers de dibujo (simetría medir/pintar; registran rects con clave) ----------------
 
-    /// <summary>Encabezado de grupo (texto atenuado). Avanza 20px.</summary>
-    private static int GroupHeader(Graphics g, bool draw, string title, int x, int y, Theme theme, Font f)
+    // -------- ritmo vertical sobre rejilla 8pt (sin literales mágicos) --------
+    // Alto de contenido de una fila estándar de 1 línea; el avance suma Spacing.Sm entre filas.
+    private const int RowContentHeight = 18;
+    private static int RowAdvance => RowContentHeight + Spacing.Sm;   // fila estándar = alto + Sm
+    // Alto de un bloque de segmentos (coincide con DashboardDataView.DrawSegments: h=18).
+    private const int SegmentHeight = 18;
+    private static int SegmentRowAdvance => SegmentHeight + Spacing.Sm;
+
+    /// <summary>
+    /// Encabezado de sección estilo Apple: caption en MAYÚSCULAS, tenue (<c>TextMuted</c>, más pequeña
+    /// que el body), con un Divider de 1px (<c>Theme.Separator</c>) debajo. Reserva <c>Spacing.Md</c> de
+    /// aire arriba y <c>Spacing.Sm</c> abajo. Mide==pinta: el avance es idéntico en ambas pasadas.
+    /// </summary>
+    internal static int SectionHeader(Graphics g, bool draw, string title, int x, int y, int w, Theme theme, Font f)
     {
+        y += Spacing.Md; // aire arriba (separa del grupo anterior)
+        int textH = (int)Math.Ceiling(g.MeasureString(title, f).Height);
         if (draw)
         {
-            using var b = new SolidBrush(theme.TextSecondary);
-            g.DrawString(title, f, b, x, y);
+            using var b = new SolidBrush(theme.TextMuted);
+            g.DrawString(title.ToUpperInvariant(), f, b, x, y);
         }
-        return y + 20;
+        y += textH;
+        if (draw)
+        {
+            // Divisor 1px dentro de [x, x+w], centrado en el aire inferior.
+            int dy = y + Spacing.Sm / 2;
+            using var pen = new Pen(theme.Separator, 1);
+            g.DrawLine(pen, x, dy, x + w, dy);
+        }
+        return y + Spacing.Sm; // aire abajo (separa de la primera fila)
     }
 
     /// <summary>Fila de toggle (☑/☐ + etiqueta). Registra rects[key] con el ancho completo de la fila.</summary>
     private static int ToggleRow(Graphics g, bool draw, string key, string label, bool on,
         int x, int y, int w, Theme theme, Font f, Dictionary<string, Rectangle> rects)
     {
-        var r = new Rectangle(x, y, w, 18);
+        var r = new Rectangle(x, y, w, RowContentHeight);
         rects[key] = r;
         if (draw)
         {
             using var b = new SolidBrush(theme.TextPrimary);
             g.DrawString((on ? "☑ " : "☐ ") + label, f, b, x, y);
         }
-        return y + 20;
+        return y + RowAdvance;
     }
 
     /// <summary>Fila de acción simple (etiqueta clicable, sin estado on/off). Registra rects[key].</summary>
     private static int ActionRow(Graphics g, bool draw, string key, string label,
         int x, int y, int w, Theme theme, Font f, Dictionary<string, Rectangle> rects)
     {
-        var r = new Rectangle(x, y, w, 18);
+        var r = new Rectangle(x, y, w, RowContentHeight);
         rects[key] = r;
         if (draw)
         {
             using var b = new SolidBrush(theme.TextPrimary);
             g.DrawString("› " + label, f, b, x, y);
         }
-        return y + 20;
+        return y + RowAdvance;
     }
 
     /// <summary>
@@ -278,7 +301,7 @@ public static class DashboardSettingsView
             using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
             g.DrawString(label, f, tb, r, sf);
         }
-        return y + h + 8;
+        return y + h + Spacing.Sm;
     }
 
     /// <summary>
@@ -288,7 +311,7 @@ public static class DashboardSettingsView
     private static int CycleRow(Graphics g, bool draw, string key, string label, string current,
         int x, int y, int w, Theme theme, Font f, Dictionary<string, Rectangle> rects)
     {
-        var r = new Rectangle(x, y, w, 18);
+        var r = new Rectangle(x, y, w, RowContentHeight);
         rects[key] = r;
         if (draw)
         {
@@ -299,7 +322,7 @@ public static class DashboardSettingsView
             var sz = g.MeasureString(right, f);
             g.DrawString(right, f, fgb, x + w - sz.Width, y);
         }
-        return y + 20;
+        return y + RowAdvance;
     }
 
     /// <summary>
@@ -319,6 +342,6 @@ public static class DashboardSettingsView
         DashboardDataView.DrawSegments(g, draw, f, theme,
             segs.Select(seg => (seg.txt, $"{key}:{seg.val}")).ToArray(),
             $"{key}:{active}", x + w, y, rightAlign: true, rects);
-        return y + 24;
+        return y + SegmentRowAdvance;
     }
 }
