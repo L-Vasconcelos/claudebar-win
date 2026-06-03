@@ -42,6 +42,29 @@ public static class ColorMath
     /// </summary>
     public static Color Contrast(Color bg)
         => (bg.R * 0.299 + bg.G * 0.587 + bg.B * 0.114) < 140 ? Color.White : Color.Black;
+
+    /// <summary>
+    /// Ratio de contraste WCAG 2.x entre dos colores: <c>(L1 + 0.05) / (L2 + 0.05)</c> con el más
+    /// claro arriba (rango 1..21). AA pide ≥ 4.5:1 para texto pequeño. Simétrico. Lo usa el test del
+    /// tema claro para garantizar que el gris tenue y el verde de éxito son legibles sobre el fondo.
+    /// </summary>
+    public static double ContrastRatio(Color a, Color b)
+    {
+        double la = RelativeLuminance(a), lb = RelativeLuminance(b);
+        double hi = Math.Max(la, lb), lo = Math.Min(la, lb);
+        return (hi + 0.05) / (lo + 0.05);
+    }
+
+    /// <summary>Luminancia relativa WCAG (sRGB linearizado). 0 = negro, 1 = blanco.</summary>
+    private static double RelativeLuminance(Color c)
+    {
+        static double Chan(int v)
+        {
+            double s = v / 255.0;
+            return s <= 0.03928 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4);
+        }
+        return 0.2126 * Chan(c.R) + 0.7152 * Chan(c.G) + 0.0722 * Chan(c.B);
+    }
 }
 
 /// <summary>

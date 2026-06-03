@@ -190,6 +190,9 @@ public static class DashboardDataView
 
         y = DrawPace(g, draw, snap, theme, x, y, w, smallFont);
 
+        // Aire entre la línea de pace y el desglose por modelo (Opus/Sonnet): antes iban pegados y se
+        // leían como una sola fila apretada (auditoría visual, T9). Constante en ambas pasadas (medir==pintar).
+        y += Spacing.Sm;
         y = DrawModelLine(g, draw, "Opus 7d", usage.SevenDayOpus, x, y, w, smallFont, fg, dim);
         y = DrawModelLine(g, draw, "Sonnet 7d", usage.SevenDaySonnet, x, y, w, smallFont, fg, dim);
 
@@ -372,6 +375,20 @@ public static class DashboardDataView
             : DrawSpendBody(g, draw, x, y, w, s, smallFont, chartData, chartLoading, dim);
     }
 
+    /// <summary>
+    /// X de dibujo de una etiqueta del eje horizontal, PURA y testeable. Por defecto la centra bajo su
+    /// tick (<paramref name="centerX"/>), pero la ancla al borde del plot cuando se saldría: la primera
+    /// etiqueta (tick = plotLeft) dejaba de cortarse por la izquierda ("Jun 00h" → "un 00h") y la última
+    /// por la derecha. Si la etiqueta es más ancha que el plot, prioriza no cortar por la izquierda.
+    /// </summary>
+    internal static float AxisLabelX(float centerX, float labelW, float plotLeft, float plotRight)
+    {
+        float lx = centerX - labelW / 2f;          // centrada bajo el tick
+        if (lx + labelW > plotRight) lx = plotRight - labelW;  // última: no cortar por la derecha
+        if (lx < plotLeft) lx = plotLeft;          // primera: no cortar por la izquierda (gana)
+        return lx;
+    }
+
     internal static void DrawSegments(Graphics g, bool draw, Font font, Theme theme,
         (string label, string key)[] segs, string activeKey, int anchorX, int y,
         bool rightAlign, Dictionary<string, Rectangle> rects)
@@ -458,7 +475,9 @@ public static class DashboardDataView
         {
             var lbl = chartData[i].Label;
             var lsz = g.MeasureString(lbl, smallFont);
-            g.DrawString(lbl, smallFont, dim, X(i) - lsz.Width / 2f, bottom + 2);
+            // Ancla la 1ª/última etiqueta al borde del plot para que no se corten (auditoría visual, T9).
+            float labelX = AxisLabelX(X(i), lsz.Width, x, x + w);
+            g.DrawString(lbl, smallFont, dim, labelX, bottom + 2);
         }
 
         int lx = x, ly = bottom + 16;
@@ -539,7 +558,9 @@ public static class DashboardDataView
         {
             string lbl = pts[i].TsUtc.ToLocalTime().ToString(longRange ? "dd/MM" : "HH:mm");
             var lsz = g.MeasureString(lbl, smallFont);
-            g.DrawString(lbl, smallFont, dim, X(i) - lsz.Width / 2f, bottom + 2);
+            // Ancla la 1ª/última etiqueta al borde del plot para que no se corten (auditoría visual, T9).
+            float lx = AxisLabelX(X(i), lsz.Width, x, x + w);
+            g.DrawString(lbl, smallFont, dim, lx, bottom + 2);
         }
         return bottom + ChartFooter;
     }

@@ -173,7 +173,7 @@ internal static class Program
 
         var sb = new StringBuilder();
         sb.AppendLine("=== ClaudeBar report ===");
-        sb.AppendLine($"Plan   : {plan.Display}");
+        sb.AppendLine($"{plan.Display}");
         sb.AppendLine($"State  : {snap.LatestState}");
         if (snap.Usage is { } u)
         {

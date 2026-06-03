@@ -50,13 +50,17 @@ public sealed class Theme
         Foreground = Color.FromArgb(24, 24, 27),
         Dim = Color.FromArgb(113, 113, 122),
         Track = Color.FromArgb(212, 212, 216),
-        Ok = Color.FromArgb(22, 163, 74),
+        // Verde de éxito oscurecido (#15803D, green-700): el anterior #16A34A caía a ~3.2:1 sobre el
+        // fondo claro (texto pequeño ilegible: línea de salud, badges). Ahora ~4.8:1 (AA, T9).
+        Ok = Color.FromArgb(21, 128, 61),
         Warn = Color.FromArgb(202, 138, 4),
         Critical = Color.FromArgb(220, 38, 38),
         Neutral = Color.FromArgb(161, 161, 170),
         Accent = Color.FromArgb(0xCC, 0x78, 0x5C),
         BgElevated = Color.FromArgb(255, 255, 255),
-        TextMuted = Color.FromArgb(142, 142, 147),
+        // Gris tenue subido (#6C6C72): el anterior #8E8E93 caía a ~3.1:1 sobre el fondo claro. Ahora
+        // ~5.0:1 (AA, T9) — antes era el mismo valor que en oscuro pese a fondos opuestos.
+        TextMuted = Color.FromArgb(108, 108, 114),
         Separator = Color.FromArgb(209, 209, 214)
     };
 

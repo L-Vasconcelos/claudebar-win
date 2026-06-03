@@ -39,7 +39,9 @@ public static class MascotRenderer
         if (draw && state.SpinnerGlyph != '\0')
         {
             using var sb = new SolidBrush(theme.TextMuted);
-            g.DrawString(state.SpinnerGlyph.ToString(), mono, sb, x + maxW, y);
+            // Aire entre el borde del ASCII y el spinner (≥ Spacing.Sm): antes quedaba pegado al gato
+            // (auditoría visual, T9). Solo pintado y dentro de la celda → no ensancha la medida.
+            g.DrawString(state.SpinnerGlyph.ToString(), mono, sb, x + maxW + Spacing.Sm, y);
         }
 
         return new Size((int)Math.Ceiling(maxW), (int)Math.Ceiling(frame.Length * lineH));

@@ -19,4 +19,28 @@ public class DesignSystemTests
         Assert.Equal(a, ColorMath.Lerp(a, b, 0));
         Assert.Equal(b, ColorMath.Lerp(a, b, 1));
     }
+
+    // --- T9: ratio de contraste WCAG (verificación del tema claro) ---
+
+    [Fact]
+    public void ContrastRatio_black_on_white_is_21()
+    {
+        // El máximo teórico del ratio WCAG 2.x es 21:1 (negro sobre blanco).
+        Assert.Equal(21.0, ColorMath.ContrastRatio(Color.Black, Color.White), 1);
+    }
+
+    [Fact]
+    public void ContrastRatio_is_symmetric()
+    {
+        var a = Color.FromArgb(108, 108, 114);
+        var b = Color.FromArgb(250, 250, 250);
+        Assert.Equal(ColorMath.ContrastRatio(a, b), ColorMath.ContrastRatio(b, a), 6);
+    }
+
+    [Fact]
+    public void ContrastRatio_same_color_is_1()
+    {
+        var c = Color.FromArgb(120, 130, 140);
+        Assert.Equal(1.0, ColorMath.ContrastRatio(c, c), 6);
+    }
 }

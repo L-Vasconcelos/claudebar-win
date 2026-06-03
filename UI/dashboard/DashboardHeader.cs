@@ -77,7 +77,10 @@ public static class DashboardHeader
         //    con ShowMascot on y live off se ve un gato Idle estático (ambiente). Las puertas de
         //    ANIMACIÓN siguen exigiendo live on (bote en SyncBounce, fast-tick/mascotAlive en
         //    DashboardForm; aquí el bounce llega ya gateado y, con draw=false, se fuerza a 0).
-        int top = y + 18;
+        // Margen superior del bloque de estado (T9/§3.4): el contenido arrancaba en y+18 y se solapaba
+        // con la fila del ⚙/✕ (24px). Ahora baja a `gearSize + Spacing.Xs` para despegarlo de los
+        // botones. Tokenizado (fin del 18 mágico) y simétrico en medir/pintar.
+        int top = y + gearSize + Spacing.Xs;
         var mascotSize = MascotSprite.ParseSize(cfg.MascotSize);
         int textX = x;
         int mascotH = 0;
@@ -134,7 +137,11 @@ public static class DashboardHeader
                 using var dot = new SolidBrush(hc);
                 g.FillEllipse(dot, textX, ty + 4, 8, 8);
                 using var b = new SolidBrush(theme.TextSecondary);
-                g.DrawString(hl, smallFont, b, textX + 12, ty);
+                // Anti-corte (T9/§1.3): con la mascota robando ancho, "⚠ mié 13:40" se cortaba en el borde.
+                // Se elide con elipsis medido dejando margen derecho ≥ Spacing.Md. Determinista (medir==pintar).
+                int hlX = textX + 12;
+                string hlShown = FitHeaderLine(hl, hlX, x + w, Spacing.Md, t => g.MeasureString(t, smallFont).Width);
+                g.DrawString(hlShown, smallFont, b, hlX, ty);
             }
         }
         ty += 16;
@@ -196,8 +203,22 @@ public static class DashboardHeader
             text += $"   ⚠ {exa.EtaUtc!.Value.ToLocalTime():ddd HH:mm}";
 
         using var br = new SolidBrush(c);
-        g.DrawString(text, smallFont, br, x, y);
+        // Anti-corte (T9/§1.3): la ETA "⚠ ddd HH:mm" se cortaba ("mié 13:4") cuando la mascota estrecha
+        // la columna. Elipsis medido con margen derecho ≥ Spacing.Md. Solo se pinta (draw=true ya filtrado).
+        string shown = FitHeaderLine(text, x, x + w, Spacing.Md, t => g.MeasureString(t, smallFont).Width);
+        g.DrawString(shown, smallFont, br, x, y);
         return y + 18;
+    }
+
+    /// <summary>
+    /// Recorta una línea de la cabecera para que NO rebase <c>rightEdge - margin</c>, partiendo de
+    /// <paramref name="drawX"/>. PURA (delega en <see cref="TextWrap.Ellipsize"/> con el ancho útil) y
+    /// determinista: la misma entrada da la misma salida, así medir y pintar reservan lo mismo.
+    /// </summary>
+    internal static string FitHeaderLine(string text, int drawX, int rightEdge, int margin, Func<string, double> measure)
+    {
+        int avail = Math.Max(0, rightEdge - margin - drawX);
+        return TextWrap.Ellipsize(text, avail, measure);
     }
 
 }

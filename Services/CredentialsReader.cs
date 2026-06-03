@@ -19,7 +19,15 @@ public sealed record PlanInfo(string SubscriptionType, string RateLimitTier)
                 _ => string.Empty
             };
 
-            return string.IsNullOrEmpty(tier) ? sub : $"{sub} · {tier}";
+            // El tier ya repite el nombre del plan ("Max 5x"), que también es `sub` → sin deduplicar salía
+            // "Max · Max 5x" (auditoría visual, T9). Quita el `sub ` redundante del inicio del tier y
+            // antepone "Plan" una sola vez → "Plan Max · 5x" / "Plan Pro" / "Plan Max".
+            if (tier.StartsWith(sub + " ", StringComparison.OrdinalIgnoreCase))
+                tier = tier[(sub.Length + 1)..];
+            else if (string.Equals(tier, sub, StringComparison.OrdinalIgnoreCase))
+                tier = string.Empty;
+
+            return string.IsNullOrEmpty(tier) ? $"Plan {sub}" : $"Plan {sub} · {tier}";
         }
     }
 }

@@ -102,4 +102,60 @@ public class DashboardHeaderTests
 
         Assert.Equal(noBounce, bounced);
     }
+
+    // --- T9: anti-corte de las líneas de la cabecera (salud / pace) con la mascota robando ancho ---
+
+    // Medidor sintético: 10 px por carácter (la elipsis "…" mide 10). Determinista, sin GDI+/fuentes.
+    private static double M(string s) => s.Length * 10.0;
+
+    [Fact]
+    public void FitHeaderLine_leaves_right_margin_and_elides_when_too_long()
+    {
+        // drawX=100, rightEdge=300, margin=Spacing.Md(12) → ancho útil = 300-12-100 = 188 px (18 chars).
+        // Texto de 30 chars (300 px) no cabe → se elide y cabe en el ancho útil reservando el margen.
+        var shown = DashboardHeader.FitHeaderLine(new string('a', 30), drawX: 100, rightEdge: 300,
+            margin: Spacing.Md, measure: M);
+        Assert.EndsWith("…", shown);
+        Assert.True(M(shown) <= 300 - Spacing.Md - 100,
+            $"la línea elidida ({M(shown)}px) rebasa el ancho útil con margen derecho {Spacing.Md}px");
+    }
+
+    [Fact]
+    public void FitHeaderLine_keeps_text_unchanged_when_it_fits()
+    {
+        var shown = DashboardHeader.FitHeaderLine("ok", drawX: 100, rightEdge: 300, margin: Spacing.Md, measure: M);
+        Assert.Equal("ok", shown);
+    }
+
+    [Fact]
+    public void FitHeaderLine_never_reaches_the_right_edge()
+    {
+        // Para cualquier longitud, el texto dibujado termina al menos `margin` px antes del borde.
+        const int drawX = 80, rightEdge = 280, margin = Spacing.Md;
+        for (int len = 1; len <= 40; len++)
+        {
+            var shown = DashboardHeader.FitHeaderLine(new string('x', len), drawX, rightEdge, margin, M);
+            Assert.True(drawX + M(shown) <= rightEdge - margin + 1e-6,
+                $"len {len}: la línea llega a {drawX + M(shown)} (borde {rightEdge}, margen {margin})");
+        }
+    }
+
+    [Fact]
+    public void Header_measure_equals_paint_with_mascot_and_health_on_narrow_panel()
+    {
+        // Cabecera estrecha con mascota + salud: el elidido debe ser idéntico en medir y pintar (mismo y).
+        using var bmp = new Bitmap(160, 400);
+        using var g = Graphics.FromImage(bmp);
+        Rectangle gear = Rectangle.Empty;
+        var live = new LiveSessionsView();
+        var s = Localization.Get("en");
+        var cfg = Cfg(showMascot: true, liveEnabled: false);
+        var snap = new AppSnapshot { Health = new HealthStatus(HealthLevel.Operational, "Operational") };
+
+        int Run(bool draw) => DashboardHeader.Draw(g, draw, 8, 0, 120, snap, live, cfg, s, Theme.Dark,
+            MascotAnimator.StaticState, Mood.Neutral, Typography.Body, Typography.Caption, Typography.Mono,
+            ref gear, motion: null, reduceMotion: false, mascotBounceOffsetY: 0, celebration: null);
+
+        Assert.Equal(Run(false), Run(true));
+    }
 }
