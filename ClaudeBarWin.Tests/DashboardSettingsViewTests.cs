@@ -591,6 +591,191 @@ public class DashboardSettingsViewTests
         Assert.DoesNotContain("…", shown);
     }
 
+    // ================= T5: MultiSegmentRow (hitos multi-activo, sin re-pintado manual) =================
+
+    private static readonly (string val, string txt)[] MilestoneSegs =
+        { ("25", "25%"), ("50", "50%"), ("75", "75%"), ("95", "95%") };
+
+    [Fact]
+    public void MultiSegmentRow_measure_equals_paint()
+    {
+        // El invariante de 2 pasadas: medir (draw=false) y pintar (draw=true) avanzan el mismo y.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+        var active = new[] { 25, 75 };
+
+        int measured = DashboardSettingsView.MultiSegmentRow(g, draw: false, "milestone", "Avisar al llegar a",
+            MilestoneSegs, active, X, 100, W, Theme.Dark, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.MultiSegmentRow(g, draw: true, "milestone", "Avisar al llegar a",
+            MilestoneSegs, active, X, 100, W, Theme.Dark, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void MultiSegmentRow_registers_a_rect_per_segment()
+    {
+        // Cada segmento registra rects[$"{key}:{val}"] (las claves que el host enruta por ActionFor).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.MultiSegmentRow(g, draw: true, "milestone", "", MilestoneSegs,
+            new[] { 50 }, X, 100, W, Theme.Dark, Typography.Caption, rects);
+
+        foreach (var seg in MilestoneSegs)
+            Assert.True(rects.ContainsKey($"milestone:{seg.val}"), $"falta rect milestone:{seg.val}");
+    }
+
+    [Fact]
+    public void MultiSegmentRow_marks_every_active_value_with_accent_fill()
+    {
+        // Multi-activo NATIVO: TODOS los valores presentes en el array se pintan con Accent (un solo
+        // estilo de pill), no solo uno. Verificado por píxel en el centro de cada chip.
+        const int x = 16, w = 308, y = 30;
+        using var bmp = new Bitmap(x + w + 40, 100);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        var rects = new Dictionary<string, Rectangle>();
+        var active = new[] { 25, 75, 95 }; // 3 activos a la vez → el caso que rompía DrawSegments
+
+        DashboardSettingsView.MultiSegmentRow(g, draw: true, "milestone", "", MilestoneSegs, active,
+            x, y, w, Theme.Dark, Typography.Caption, rects);
+
+        var acc = Theme.Dark.Accent;
+        bool IsAccent(Rectangle r)
+        {
+            var c = bmp.GetPixel(r.X + 2, r.Y + r.Height / 2); // borde izquierdo del chip (sin texto)
+            return Math.Abs(c.R - acc.R) <= 10 && Math.Abs(c.G - acc.G) <= 10 && Math.Abs(c.B - acc.B) <= 10;
+        }
+        foreach (var pct in active)
+        {
+            Assert.True(rects.TryGetValue($"milestone:{pct}", out var r));
+            Assert.True(IsAccent(r), $"el hito activo {pct}% debe pintarse con Accent (un solo estilo de pill)");
+        }
+    }
+
+    [Fact]
+    public void MultiSegmentRow_inactive_value_is_not_accent()
+    {
+        // Un valor NO presente en el array se pinta con el estilo "off" (BgElevated), no Accent.
+        const int x = 16, w = 308, y = 30;
+        using var bmp = new Bitmap(x + w + 40, 100);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.MultiSegmentRow(g, draw: true, "milestone", "", MilestoneSegs,
+            new[] { 25 }, x, y, w, Theme.Dark, Typography.Caption, rects);
+
+        Assert.True(rects.TryGetValue("milestone:50", out var r)); // 50 NO está activo
+        var c = bmp.GetPixel(r.X + 2, r.Y + r.Height / 2);
+        var acc = Theme.Dark.Accent;
+        bool isAccent = Math.Abs(c.R - acc.R) <= 10 && Math.Abs(c.G - acc.G) <= 10 && Math.Abs(c.B - acc.B) <= 10;
+        Assert.False(isAccent, "un hito inactivo NO debe pintarse con Accent");
+    }
+
+    [Fact]
+    public void MultiSegmentRow_no_chip_left_of_content_and_keeps_right_margin()
+    {
+        // Anti-truncamiento: ningún chip se pinta con x < contentLeft (X) y el bloque deja margen
+        // derecho ≥ Spacing.Sm respecto a X+W.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.MultiSegmentRow(g, draw: true, "milestone", "", MilestoneSegs,
+            new[] { 25, 50, 75, 95 }, X, 100, W, Theme.Dark, Typography.Caption, rects);
+
+        foreach (var seg in MilestoneSegs)
+        {
+            Assert.True(rects.TryGetValue($"milestone:{seg.val}", out var r));
+            Assert.True(r.X >= X, $"milestone:{seg.val} a la izquierda de contentLeft (x={r.X})");
+            Assert.True(r.Right <= X + W - Spacing.Sm, $"milestone:{seg.val} sin margen derecho (right={r.Right})");
+        }
+    }
+
+    [Fact]
+    public void MultiSegmentRow_advance_is_one_segment_row()
+    {
+        // Los hitos compactos (25/50/75/95) caben en un renglón → el avance es el de una fila de
+        // segmentos (alto + Sm), no el doble (sin wrap).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        const int y0 = 100;
+        int after = DashboardSettingsView.MultiSegmentRow(g, draw: false, "milestone", "", MilestoneSegs,
+            new[] { 25 }, X, y0, W, Theme.Dark, Typography.Caption, rects);
+
+        Assert.Equal(y0 + DashboardSettingsView.SegmentRowAdvanceForTest, after);
+    }
+
+    [Fact]
+    public void MultiSegmentRow_empty_active_marks_nothing()
+    {
+        // Sin activos: todos los chips quedan en estilo "off" (ninguno Accent). Sigue registrando rects.
+        const int x = 16, w = 308, y = 30;
+        using var bmp = new Bitmap(x + w + 40, 100);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.MultiSegmentRow(g, draw: true, "milestone", "", MilestoneSegs,
+            Array.Empty<int>(), x, y, w, Theme.Dark, Typography.Caption, rects);
+
+        var acc = Theme.Dark.Accent;
+        foreach (var seg in MilestoneSegs)
+        {
+            Assert.True(rects.TryGetValue($"milestone:{seg.val}", out var r));
+            var c = bmp.GetPixel(r.X + 2, r.Y + r.Height / 2);
+            bool isAccent = Math.Abs(c.R - acc.R) <= 10 && Math.Abs(c.G - acc.G) <= 10 && Math.Abs(c.B - acc.B) <= 10;
+            Assert.False(isAccent, $"sin activos, milestone:{seg.val} no debe ser Accent");
+        }
+    }
+
+    [Fact]
+    public void Draw_milestone_segments_reflect_active_array()
+    {
+        // En el Draw completo, los hitos activos del array NotifyMilestones se registran y, tras el
+        // refactor de T5, se pintan multi-activo SIN el re-pintado manual. Aquí basta con verificar
+        // que el clic alterna (ActionFor) y que medir==pintar del Draw se mantiene con varios activos.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        cfg.NotifyMilestones = new[] { 25, 75 }; // 2 activos
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.Draw(g, draw: false, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+        foreach (var pct in new[] { 25, 50, 75, 95 })
+            Assert.True(rects.ContainsKey($"milestone:{pct}"), $"falta rect milestone:{pct} en el Draw completo");
+    }
+
+    [Fact]
+    public void MultiSegment_milestone_action_toggles_within_array()
+    {
+        // La clave milestone:<pct> sigue alternando el valor dentro del array (ActionFor intacto).
+        var cfg = Cfg();
+        cfg.NotifyMilestones = new[] { 25, 50 };
+
+        DashboardSettingsView.ActionFor("milestone:75")!(cfg);   // añade 75
+        Assert.Contains(75, cfg.NotifyMilestones);
+        Assert.Equal(new[] { 25, 50, 75 }, cfg.NotifyMilestones);
+
+        DashboardSettingsView.ActionFor("milestone:50")!(cfg);   // quita 50
+        Assert.DoesNotContain(50, cfg.NotifyMilestones);
+        Assert.Equal(new[] { 25, 75 }, cfg.NotifyMilestones);
+    }
+
     [Fact]
     public void Draw_frequency_segments_fit_within_content_in_all_languages()
     {

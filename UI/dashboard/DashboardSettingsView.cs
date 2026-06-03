@@ -55,28 +55,11 @@ public static class DashboardSettingsView
         y = SectionHeader(g, draw, s.Notifications, x, y, w, theme, smallFont);
         y = ToggleRow(g, draw, "toggle:Notifications", s.Enabled, null, cfg.NotificationsEnabled, x, y, w, theme, labelFont, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:PaceAlerts", s.PaceAlerts, null, cfg.PaceAlerts, x, y, w, theme, labelFont, smallFont, rects);
-        // Hitos individuales 25/50/75/95 como toggles que editan el array NotifyMilestones.
-        var milestones = cfg.NotifyMilestones ?? Array.Empty<int>();
-        if (draw)
-        {
-            using var b = new SolidBrush(theme.TextSecondary);
-            g.DrawString(s.NotifyWhenReaching, smallFont, b, x, y);
-        }
-        DashboardDataView.DrawSegments(g, draw, smallFont, theme,
-            MilestoneOptions.Select(m => ($"{m}%", $"milestone:{m}")).ToArray(),
-            "", x + w, y, rightAlign: true, rects);
-        // Resaltar los activos: re-pintamos el rect activo con look "on" (DrawSegments no conoce multi-activo).
-        if (draw)
-            foreach (var m in MilestoneOptions)
-                if (milestones.Contains(m) && rects.TryGetValue($"milestone:{m}", out var mr))
-                {
-                    using var bg = new SolidBrush(theme.Accent);
-                    Shapes.FillRounded(g, bg, mr, 4);
-                    using var tb = new SolidBrush(ColorMath.Contrast(theme.Accent));
-                    using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    g.DrawString($"{m}%", smallFont, tb, mr, sf);
-                }
-        y += SegmentRowAdvance; // hitos: avance sobre rejilla 8pt (el MultiSegmentRow de T5 lo absorberá)
+        // Hitos individuales 25/50/75/95 como toggles multi-activo que editan el array NotifyMilestones:
+        // un único MultiSegmentRow (varios activos, mismo estilo de pill Accent+Contrast), SIN re-pintado manual.
+        y = MultiSegmentRow(g, draw, "milestone", s.NotifyWhenReaching,
+            MilestoneOptions.Select(m => ($"{m}", $"{m}%")).ToArray(),
+            cfg.NotifyMilestones ?? Array.Empty<int>(), x, y, w, theme, smallFont, rects);
 
         // -------- Frecuencia de actualización --------
         y = SectionHeader(g, draw, s.UpdateFrequency, x, y, w, theme, smallFont);
@@ -578,5 +561,55 @@ public static class DashboardSettingsView
             acc = next; count++;
         }
         return Math.Max(1, count); // al menos 1 por fila para no perder segmentos
+    }
+
+    /// <summary>
+    /// Fila de segmentos con <b>MÚLTIPLES activos</b> (p.ej. hitos 25/50/75/95): a diferencia de
+    /// <see cref="DashboardDataView.DrawSegments"/> (un solo activo), aquí <paramref name="active"/> es un
+    /// conjunto y CADA valor presente se pinta en estado "on" con el MISMO lenguaje visual (Accent +
+    /// <see cref="ColorMath.Contrast"/>), un único estilo de pill. Esto sustituye al re-pintado manual por
+    /// encima de <c>DrawSegments</c>. Geometría de chip idéntica a <c>DrawSegments</c>
+    /// (<c>SegGap</c>/<c>SegPadX</c>/<c>SegmentHeight</c>). Etiqueta opcional a la izquierda; segmentos
+    /// anclados a la derecha dejando margen ≥ <c>Spacing.Sm</c> y nunca con <c>x &lt; contentLeft</c>. Cada
+    /// segmento registra <c>rects[$"{key}:{val}"]</c>. Mide==pinta: el avance es idéntico en ambas pasadas
+    /// (la geometría no depende de <paramref name="draw"/>). Devuelve el nuevo <c>y</c>.
+    /// </summary>
+    internal static int MultiSegmentRow(Graphics g, bool draw, string key, string label,
+        (string val, string txt)[] segs, IEnumerable<int> active, int x, int y, int w, Theme theme, Font f,
+        Dictionary<string, Rectangle> rects)
+    {
+        if (draw && !string.IsNullOrEmpty(label))
+        {
+            using var b = new SolidBrush(theme.TextPrimary);
+            g.DrawString(label, f, b, x, y);
+        }
+
+        var activeSet = new HashSet<string>((active ?? Enumerable.Empty<int>())
+            .Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        int labelRight = string.IsNullOrEmpty(label)
+            ? x
+            : x + (int)Math.Ceiling(g.MeasureString(label, f).Width) + Spacing.Md;
+        int rightEdge = x + w - Spacing.Sm;            // margen derecho de seguridad
+
+        // Anclado a la derecha (deja margen ≥ Sm; primer chip ≥ max(labelRight, x) ≥ contentLeft).
+        int total = SegmentsTotalWidth(g, f, segs.Select(s => s.txt).ToList());
+        int sx = Math.Max(rightEdge - total, Math.Max(labelRight, x));
+        foreach (var (val, txt) in segs)
+        {
+            int chipW = (int)g.MeasureString(txt, f).Width + SegPadX * 2;
+            var rect = new Rectangle(sx, y, chipW, SegmentHeight);
+            bool on = activeSet.Contains(val);
+            if (draw)
+            {
+                using var bg = new SolidBrush(on ? theme.Accent : theme.BgElevated);
+                Shapes.FillRounded(g, bg, rect, 4);
+                using var tb = new SolidBrush(on ? ColorMath.Contrast(theme.Accent) : theme.TextPrimary);
+                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                g.DrawString(txt, f, tb, rect, sf);
+            }
+            rects[$"{key}:{val}"] = rect;
+            sx += chipW + SegGap;
+        }
+        return y + SegmentRowAdvance;
     }
 }
