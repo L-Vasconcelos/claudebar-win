@@ -205,6 +205,11 @@ public sealed class DashboardForm : Form
 
     private DateTime _shownAtUtc = DateTime.MinValue;
     private readonly DateTime _startedAtUtc = DateTime.UtcNow; // para no marcar stale durante la 1ª fetch
+    // Footer (fix F3 Tarea 8): "ahora" CONGELADO por repaint para que medir(draw=false) y pintar(draw=true)
+    // del footer produzcan las mismas líneas, y firma del último footer pintado para detectar (en el tick)
+    // cuándo el nº de líneas cambió (fresh→stale / cruce de wrap del relativo) y hace falta Relayout().
+    private DateTime _footerNowUtc = DateTime.MinValue;
+    private (int Stale, int Footer, int Seal) _lastFooterSig;
     private bool _sticky;
     private bool _menuOpen;
     private string _appliedPlacement = "";
@@ -310,6 +315,11 @@ public sealed class DashboardForm : Form
         bool animating = _fadeOpacity.IsAnimating || _motion.IsAnimating
                          || _hoverIntensity.IsAnimating || mascotAlive
                          || BounceActive() || CelebrationActive();
+
+        // Red de seguridad del footer (fix F3 Tarea 8): congela un "ahora" común y, si el nº de líneas
+        // del footer cambió desde el último pintado (fresh→stale / cruce de wrap del relativo), re-mide el
+        // alto ANTES de invalidar para no recortar el sello. Barato: solo mide texto en repaints lentos.
+        ReconcileFooterHeight();
 
         // Repinta si hubo cambio de animación o es un tick de countdown.
         Invalidate();
@@ -949,57 +959,42 @@ public sealed class DashboardForm : Form
         try
         {
 
-        // footer: "Actualizado · hace N min · pista", con marcador stale si el dato envejece.
-        // F2 truncaba el footer y el sello al ancho fijo del panel (340 px). Ahora ambos se ENVUELVEN
-        // a varias líneas con TextWrap (puro), midiendo el nº de líneas en LAS DOS pasadas (medir/pintar)
-        // para que el alto reservado crezca con el contenido y el y siga siendo idéntico. El marcador
-        // stale conserva su color Warn en su propia línea corta (siempre cabe).
+        // footer: "Actualizado · hace N min · pista", con marcador stale si el dato envejece, más el
+        // sello de privacidad. F2 truncaba ambos al ancho fijo del panel (340 px); ahora se ENVUELVEN a
+        // varias líneas. PERO el nº de líneas depende del reloj de pared (el flag stale + el texto del
+        // relativo), y el alto de la ventana solo se recalcula en Relayout(). Para no recortar el sello
+        // entre snapshots, las líneas las construye FooterLayout (PURO, único origen de verdad) con un
+        // "ahora" CONGELADO por pasada (_footerNowUtc) — así medir(draw=false) y pintar(draw=true) del
+        // mismo repaint coinciden — y OnMotionTick re-layouta si la firma del footer cambió (la red de
+        // seguridad que faltaba). El marcador stale conserva su color Warn en su línea corta.
         y += 4;
         int lineH = (int)Math.Ceiling(smallFont.GetHeight(g));
-        double Mw(string s) => g.MeasureString(s, smallFont).Width;
+        double Mw(string str) => g.MeasureString(str, smallFont).Width;
 
-        // ¿el dato está desfasado? No marcar durante los primeros RefreshSeconds tras arrancar (1ª fetch).
-        bool grace = (DateTime.UtcNow - _startedAtUtc) < TimeSpan.FromSeconds(Math.Max(15, _cfg.RefreshSeconds));
-        bool stale = _snap is not null
-            && _snap.LatestState == UsageFetchState.Ok
-            && !grace
-            && UsageFormat.IsStale(_snap.UsageAtUtc, _cfg.RefreshSeconds);
+        var footerLines = BuildFooterLines(w, Mw);
+        // Snapshot de la firma SOLO en la pasada de pintado: es la que el tick compara para decidir si
+        // el alto reservado quedó obsoleto. (Medir no debe pisar la firma del último pintado.)
+        if (draw) _lastFooterSig = FooterLayout.Signature(footerLines);
 
-        if (stale)
+        bool sealStarted = false;
+        foreach (var fl in footerLines)
         {
-            string mark = $"⚠ {_s.StaleLabel} ·";
-            if (draw)
+            // Aire entre el bloque footer y el sello: una sola vez, antes de la primera línea del sello.
+            if (fl.Kind == FooterLayout.LineKind.Seal && !sealStarted)
             {
-                using var warn = new SolidBrush(_theme.Warn);
-                g.DrawString(mark, smallFont, warn, x, y);
+                y += Spacing.Xs;
+                sealStarted = true;
             }
-            y += lineH;
-        }
-
-        string footer;
-        if (_snap is not null && _snap.LatestState != UsageFetchState.Ok)
-            footer = $"⚠ {UsageFormat.StateMessage(_snap.LatestState, _s)} · {_s.PreviousDataFooter}";
-        else if (_snap is not null)
-        {
-            string hint = _sticky ? _s.HintPinnedClose : _s.HintClickToHide;
-            footer = $"{_s.UpdatedAt} · {UsageFormat.Relative(_snap.UsageAtUtc, _s)} · {hint}";
-        }
-        else footer = _s.Loading;
-
-        foreach (var line in TextWrap.WordWrap(footer, w, Mw))
-        {
-            if (draw) g.DrawString(line, smallFont, dim, x, y);
-            y += lineH;
-        }
-        y += Spacing.Xs;
-
-        // Sello de privacidad honesto (siempre visible, neutro): se envuelve igual.
-        foreach (var line in TextWrap.WordWrap(_s.LocalSeal, w, Mw))
-        {
             if (draw)
             {
-                using var muted = new SolidBrush(_theme.TextMuted);
-                g.DrawString(line, smallFont, muted, x, y);
+                Color c = fl.Kind switch
+                {
+                    FooterLayout.LineKind.Stale => _theme.Warn,
+                    FooterLayout.LineKind.Seal => _theme.TextMuted,
+                    _ => _theme.TextSecondary,
+                };
+                using var brush = new SolidBrush(c);
+                g.DrawString(fl.Text, smallFont, brush, x, y);
             }
             y += lineH;
         }
@@ -1009,6 +1004,52 @@ public sealed class DashboardForm : Form
         {
             if (fOff != 0) g.TranslateTransform(0, -fOff);  // deshace el desplazamiento del footer
         }
+    }
+
+    /// <summary>
+    /// Construye las líneas del footer (marcador stale + estado/actualización + sello) vía
+    /// <see cref="FooterLayout"/>, el ÚNICO origen de verdad compartido por el pintado y por la guardia
+    /// de re-layout del tick lento. El "ahora" está congelado en <see cref="_footerNowUtc"/> (lo fija el
+    /// tick antes de invalidar; en arranque/Relayout = el reloj de pared) para que medir(draw=false) y
+    /// pintar(draw=true) del mismo repaint produzcan EXACTAMENTE las mismas líneas (invariante de altura).
+    /// </summary>
+    private List<FooterLayout.Line> BuildFooterLines(int width, Func<string, double> measure)
+    {
+        DateTime now = _footerNowUtc == DateTime.MinValue ? DateTime.UtcNow : _footerNowUtc;
+        // ¿el dato está desfasado? No marcar durante los primeros RefreshSeconds tras arrancar (1ª fetch).
+        bool grace = (now - _startedAtUtc) < TimeSpan.FromSeconds(Math.Max(15, _cfg.RefreshSeconds));
+        bool stale = _snap is not null
+            && _snap.LatestState == UsageFetchState.Ok
+            && !grace
+            && UsageFormat.IsStaleAt(_snap.UsageAtUtc, now, _cfg.RefreshSeconds);
+        return FooterLayout.Build(_snap, _s, stale, _sticky, now, width, measure);
+    }
+
+    /// <summary>
+    /// Red de seguridad del invariante medir/pintar para el footer (fix F3 Tarea 8): el alto del bloque
+    /// footer depende del reloj (flag stale + texto del relativo), pero la ventana solo se re-mide en
+    /// <see cref="Relayout"/>. Sin esto, una transición fresh→stale o un cruce de wrap del relativo entre
+    /// dos repaints a 1 Hz dejaba la ventana 1 línea corta y RECORTABA el sello. Aquí, en cada tick,
+    /// congelamos un "ahora" común, medimos la firma del footer con él y, si cambió respecto a la última
+    /// pintada, hacemos <see cref="Relayout"/> (re-mide el alto) ANTES de invalidar. Devuelve true si
+    /// re-layoutó. Barato: solo mide texto cuando hay un repaint de countdown.
+    /// </summary>
+    private bool ReconcileFooterHeight()
+    {
+        if (!IsHandleCreated || !Visible || _renderOverride is not null) return false;
+        _footerNowUtc = DateTime.UtcNow;
+        var prev = _lastFooterSig;
+        (int, int, int) nowSig;
+        using (var g = CreateGraphics())
+        {
+            float h = Typography.Caption.GetHeight(g); // forzar contexto válido (no usado para la firma)
+            _ = h;
+            int w = Width - Padding.Horizontal;
+            nowSig = FooterLayout.Signature(BuildFooterLines(w, str => g.MeasureString(str, Typography.Caption).Width));
+        }
+        if (nowSig == prev) return false;
+        Relayout();   // re-mide el alto con el footer actual; LayoutContent(draw:true) ya leerá _footerNowUtc
+        return true;
     }
 
     /// <summary>Traduce la clave de una sección plegable clicada a la mutación de config (Collapsed*).</summary>

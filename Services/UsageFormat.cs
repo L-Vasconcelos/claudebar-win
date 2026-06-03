@@ -19,9 +19,17 @@ public static class UsageFormat
 
     /// <summary>Antigüedad de un dato UTC en texto relativo localizado ("hace 5 min" / "hace 30 s").
     /// Espejo de <see cref="Countdown"/>. Normaliza Kind=Unspecified como UTC.</summary>
-    public static string Relative(DateTime utc, Strings s)
+    public static string Relative(DateTime utc, Strings s) => RelativeAt(utc, DateTime.UtcNow, s);
+
+    /// <summary>
+    /// Como <see cref="Relative(DateTime, Strings)"/> pero con el instante "ahora" <b>inyectable</b>
+    /// (<paramref name="nowUtc"/>) en vez de leer el reloj. Lo usa <see cref="FooterLayout"/> para que
+    /// la guardia de re-layout y el pintado del footer compartan el MISMO texto de forma determinista
+    /// (testeable sin reloj real).
+    /// </summary>
+    public static string RelativeAt(DateTime utc, DateTime nowUtc, Strings s)
     {
-        var span = DateTime.UtcNow - AsUtc(utc);
+        var span = AsUtc(nowUtc) - AsUtc(utc);
         if (span < TimeSpan.Zero) span = TimeSpan.Zero;
         string ago =
             span.TotalDays >= 1 ? $"{(int)span.TotalDays} d"
@@ -33,8 +41,15 @@ public static class UsageFormat
 
     /// <summary>El dato se considera "envejecido" cuando supera 3× la frecuencia de refresco.
     /// Normaliza Kind=Unspecified como UTC.</summary>
-    public static bool IsStale(DateTime utc, int refreshSeconds)
-        => DateTime.UtcNow - AsUtc(utc) > TimeSpan.FromSeconds(3 * refreshSeconds);
+    public static bool IsStale(DateTime utc, int refreshSeconds) => IsStaleAt(utc, DateTime.UtcNow, refreshSeconds);
+
+    /// <summary>
+    /// Como <see cref="IsStale"/> pero con el instante "ahora" <b>inyectable</b> (<paramref name="nowUtc"/>):
+    /// la guardia de re-layout del footer congela un "ahora" común por tick para que medir y pintar
+    /// decidan lo mismo de forma determinista.
+    /// </summary>
+    public static bool IsStaleAt(DateTime utc, DateTime nowUtc, int refreshSeconds)
+        => AsUtc(nowUtc) - AsUtc(utc) > TimeSpan.FromSeconds(3 * refreshSeconds);
 
     /// <summary>Normaliza un DateTime a UTC: Unspecified se asume ya en UTC; Local se convierte.</summary>
     private static DateTime AsUtc(DateTime dt) => dt.Kind switch
