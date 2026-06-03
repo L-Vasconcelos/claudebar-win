@@ -1205,10 +1205,11 @@ public class DashboardSettingsViewTests
     }
 
     [Fact]
-    public void Draw_appearance_has_no_import_theme_button()
+    public void Draw_appearance_has_no_inline_import_theme_button()
     {
-        // T7: "Importar .itermcolors" se retira de Apariencia (lo consolida T8 en Acerca de). En este
-        // estado intermedio, el panel NO registra special:importtheme (no es responsabilidad de T7).
+        // T8: "Importar .itermcolors" ya NO va inline en Apariencia; se consolidó en ACERCA DE. El botón
+        // existe (lo verifica Draw_registers_import_theme_button_in_about_section) pero queda DEBAJO de las
+        // preferencias de Apariencia, no entre ellas.
         using var bmp = NewBmp();
         using var g = Graphics.FromImage(bmp);
         var cfg = Cfg();
@@ -1218,14 +1219,16 @@ public class DashboardSettingsViewTests
         DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
             Typography.Body, Typography.Caption, rects);
 
-        Assert.False(rects.ContainsKey("special:importtheme"),
-            "Importar tema sale de Apariencia en T7 (lo recoloca T8 en Acerca de)");
         // Las preferencias de apariencia siguen presentes.
         Assert.True(rects.ContainsKey("theme:dark"));
         Assert.True(rects.ContainsKey("cycle:position"));
         Assert.True(rects.ContainsKey("toggle:Sticky"));
         Assert.True(rects.ContainsKey("toggle:OnTop"));
         Assert.True(rects.ContainsKey("toggle:ReduceMotion"));
+        // El botón de importar tema está, pero por DEBAJO de la última preferencia de apariencia (no inline).
+        Assert.True(rects.TryGetValue("special:importtheme", out var import));
+        Assert.True(rects.TryGetValue("toggle:ReduceMotion", out var rm));
+        Assert.True(import.Y > rm.Y, "Importar tema va al final (Acerca de), no entre las preferencias de Apariencia");
     }
 
     [Fact]
@@ -1273,5 +1276,143 @@ public class DashboardSettingsViewTests
         foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
             Assert.False(string.IsNullOrWhiteSpace(Localization.Get(lang).ReduceMotionSubtitle),
                 $"[{lang}] ReduceMotionSubtitle vacío");
+    }
+
+    // ================= T8: secciones SISTEMA + ACERCA DE =================
+
+    [Fact]
+    public void MenuSystem_localized_in_all_languages()
+    {
+        // i18n: el título "Sistema" deja de estar hardcodeado y sale de Strings en los 8 idiomas.
+        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
+            Assert.False(string.IsNullOrWhiteSpace(Localization.Get(lang).MenuSystem),
+                $"[{lang}] MenuSystem vacío");
+        // El español debe ser "Sistema" (sustituye exactamente el literal antiguo).
+        Assert.Equal("Sistema", Localization.Get("es").MenuSystem);
+    }
+
+    [Fact]
+    public void Draw_registers_import_theme_button_in_about_section()
+    {
+        // T8: "Importar .itermcolors" se consolida en ACERCA DE → el panel vuelve a registrar special:importtheme.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.ContainsKey("special:importtheme"),
+            "Importar tema vive ahora en la sección Acerca de (ButtonRow)");
+    }
+
+    [Fact]
+    public void Draw_import_theme_lives_after_appearance_preferences()
+    {
+        // Acerca de va al FINAL: el botón Importar tema queda por DEBAJO de las preferencias de Apariencia.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.TryGetValue("special:importtheme", out var import));
+        Assert.True(rects.TryGetValue("theme:dark", out var theme));
+        Assert.True(rects.TryGetValue("toggle:Startup", out var startup));
+        Assert.True(import.Y > theme.Y, "Importar tema (Acerca de) va por debajo del tema (Apariencia)");
+        Assert.True(import.Y > startup.Y, "Importar tema (Acerca de) va por debajo de Sistema (Arrancar con Windows)");
+    }
+
+    [Fact]
+    public void Draw_language_lives_in_system_section_after_startup()
+    {
+        // SISTEMA agrupa Arrancar con Windows + Idioma: el ciclo de idioma queda DEBAJO del toggle de arranque.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.TryGetValue("toggle:Startup", out var startup));
+        Assert.True(rects.TryGetValue("cycle:lang", out var lang));
+        Assert.True(lang.Y > startup.Y, "Idioma va dentro de SISTEMA, debajo de Arrancar con Windows");
+    }
+
+    [Fact]
+    public void Draw_does_not_register_unrouted_special_actions()
+    {
+        // El host (TrayAppContext) solo enruta importtheme y hooktoggle: logs/github NO se pintan (no botón muerto).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.False(rects.ContainsKey("special:openlogs"), "logs no enrutado por el host → no se pinta");
+        Assert.False(rects.ContainsKey("special:opengithub"), "github no enrutado por el host → no se pinta");
+    }
+
+    [Fact]
+    public void Draw_with_version_override_measure_equals_paint()
+    {
+        // La fila de Versión (texto) no rompe el invariante de 2 pasadas, con versión inyectada explícita.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.Draw(g, draw: false, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects, "9.9.9");
+        int painted = DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects, "9.9.9");
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void InfoRow_measure_equals_paint_and_not_clickable()
+    {
+        // InfoRow (Versión): texto no clicable → no registra rect; medir==pintar (mismo avance).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.InfoRow(g, draw: false, "Versión", "v9.9.9",
+            X, 100, W, Theme.Dark, Typography.Body, rects);
+        int painted = DashboardSettingsView.InfoRow(g, draw: true, "Versión", "v9.9.9",
+            X, 100, W, Theme.Dark, Typography.Body, rects);
+
+        Assert.Equal(measured, painted);
+        Assert.Empty(rects); // una fila informativa nunca registra un rect clicable
+    }
+
+    [Fact]
+    public void InfoRow_value_anchored_right_within_safe_margin()
+    {
+        // El valor (derecha) no rebasa x+w-Spacing.Sm y no invade la etiqueta (anti-truncamiento medido).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        // Valor absurdamente largo: debe elidirse y quedar dentro del margen derecho de seguridad.
+        var (lx, _, rx, rw) = DashboardSettingsView.InfoRowLayout(g, "Versión",
+            "v9.9.9-un-valor-extremadamente-largo-que-no-cabe-de-ninguna-manera",
+            X, W, Typography.Body);
+
+        Assert.Equal(X, lx);
+        Assert.True(rx + rw <= X + W - Spacing.Sm, "el valor respeta el margen derecho ≥ Spacing.Sm");
+        Assert.True(rx >= X, "el valor nunca empieza a la izquierda de contentLeft");
     }
 }

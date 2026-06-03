@@ -126,6 +126,10 @@ public sealed class Strings
     public string MenuSections { get; init; } = "Sections";
     public string MenuIcon { get; init; } = "Icon";
     public string MenuAdvanced { get; init; } = "Advanced";
+    /// <summary>Título de la sección SISTEMA del panel (T8): deja de estar hardcodeado.</summary>
+    public string MenuSystem { get; init; } = "System";
+    /// <summary>Etiqueta de la fila informativa de versión en la sección ACERCA DE (T8).</summary>
+    public string VersionLabel { get; init; } = "Version";
     public string About { get; init; } = "About";
     public string CheckUpdates { get; init; } = "Check for updates";
     public string Checking { get; init; } = "Checking for updates…";
@@ -344,6 +348,8 @@ public static class Localization
         MenuSections = "Secciones",
         MenuIcon = "Icono",
         MenuAdvanced = "Avanzado",
+        MenuSystem = "Sistema",
+        VersionLabel = "Versión",
         About = "Acerca de",
         CheckUpdates = "Buscar actualizaciones",
         Checking = "Buscando actualizaciones…",
@@ -465,6 +471,8 @@ public static class Localization
         MenuSections = "Secties",
         MenuIcon = "Pictogram",
         MenuAdvanced = "Geavanceerd",
+        MenuSystem = "Systeem",
+        VersionLabel = "Versie",
         About = "Over",
         CheckUpdates = "Controleren op updates",
         Checking = "Controleren op updates…",
@@ -586,6 +594,8 @@ public static class Localization
         MenuSections = "Sections",
         MenuIcon = "Icône",
         MenuAdvanced = "Avancé",
+        MenuSystem = "Système",
+        VersionLabel = "Version",
         About = "À propos",
         CheckUpdates = "Rechercher des mises à jour",
         Checking = "Recherche de mises à jour…",
@@ -707,6 +717,8 @@ public static class Localization
         MenuSections = "Abschnitte",
         MenuIcon = "Symbol",
         MenuAdvanced = "Erweitert",
+        MenuSystem = "System",
+        VersionLabel = "Version",
         About = "Über",
         CheckUpdates = "Nach Updates suchen",
         Checking = "Suche nach Updates…",
@@ -828,6 +840,8 @@ public static class Localization
         MenuSections = "セクション",
         MenuIcon = "アイコン",
         MenuAdvanced = "詳細",
+        MenuSystem = "システム",
+        VersionLabel = "バージョン",
         About = "情報",
         CheckUpdates = "更新を確認",
         Checking = "更新を確認中…",
@@ -949,6 +963,8 @@ public static class Localization
         MenuSections = "섹션",
         MenuIcon = "아이콘",
         MenuAdvanced = "고급",
+        MenuSystem = "시스템",
+        VersionLabel = "버전",
         About = "정보",
         CheckUpdates = "업데이트 확인",
         Checking = "업데이트 확인 중…",
@@ -1070,6 +1086,8 @@ public static class Localization
         MenuSections = "區段",
         MenuIcon = "圖示",
         MenuAdvanced = "進階",
+        MenuSystem = "系統",
+        VersionLabel = "版本",
         About = "關於",
         CheckUpdates = "檢查更新",
         Checking = "正在檢查更新…",

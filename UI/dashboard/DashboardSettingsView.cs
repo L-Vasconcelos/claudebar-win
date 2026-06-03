@@ -26,9 +26,11 @@ public static class DashboardSettingsView
     // Hitos de notificación individuales (toggles sobre NotifyMilestones).
     private static readonly int[] MilestoneOptions = { 25, 50, 75, 95 };
 
-    /// <summary>Dibuja el panel y registra rects clicables con clave de acción. Devuelve nuevo y.</summary>
+    /// <summary>Dibuja el panel y registra rects clicables con clave de acción. Devuelve nuevo y.
+    /// <paramref name="version"/> es la versión a mostrar en "Acerca de"; si es null se resuelve desde
+    /// el ensamblado en ejecución (inyectable para test).</summary>
     public static int Draw(Graphics g, bool draw, int x, int y, int w, AppConfig cfg, Strings s, Theme theme,
-                           Font labelFont, Font smallFont, Dictionary<string, Rectangle> rects)
+                           Font labelFont, Font smallFont, Dictionary<string, Rectangle> rects, string? version = null)
     {
         rects.Clear();
 
@@ -94,17 +96,31 @@ public static class DashboardSettingsView
         // "Reducir movimiento" lleva subtítulo aclaratorio ("Desactiva las animaciones").
         y = ToggleRow(g, draw, "toggle:ReduceMotion", s.ReduceMotion, s.ReduceMotionSubtitle, cfg.ReduceMotion, x, y, w, theme, labelFont, smallFont, rects);
 
-        // -------- Idioma --------
-        y = SectionHeader(g, draw, s.Language, x, y, w, theme, smallFont);
+        // -------- Sistema --------
+        // i18n: el título sale de Strings (fin del literal hardcodeado). Agrupa Arrancar con Windows + Idioma
+        // (el ciclo de idioma se trae aquí desde su antigua sección suelta: una sola pantalla, menos cabeceras).
+        y = SectionHeader(g, draw, s.MenuSystem, x, y, w, theme, smallFont);
+        y = ToggleRow(g, draw, "toggle:Startup", s.StartWithWindows, null, StartupManager.IsEnabled(), x, y, w, theme, labelFont, smallFont, rects);
         y = CycleRow(g, draw, "cycle:lang", s.Language,
             Localization.LanguageDisplayName(cfg.Language, s), x, y, w, theme, smallFont, rects);
 
-        // -------- Sistema --------
-        // NOTA: literal hardcodeado; lo localiza T8 (i18n "Sistema").
-        y = SectionHeader(g, draw, "Sistema", x, y, w, theme, smallFont);
-        y = ToggleRow(g, draw, "toggle:Startup", s.StartWithWindows, null, StartupManager.IsEnabled(), x, y, w, theme, labelFont, smallFont, rects);
+        // -------- Acerca de (acciones al final, separadas de las preferencias) --------
+        // Versión (texto, no clicable) + Importar .itermcolors (ButtonRow). "Importar tema" se consolida aquí
+        // (sacado de Apariencia en T7) para no mezclar una ACCIÓN con las preferencias. Logs/GitHub solo se
+        // pintarían si el host enrutara sus "special:*"; TrayAppContext NO los enruta hoy → no se dibujan (sin
+        // botón muerto).
+        y = SectionHeader(g, draw, s.About, x, y, w, theme, smallFont);
+        y = InfoRow(g, draw, s.VersionLabel, "v" + (version ?? ResolveVersion()), x, y, w, theme, labelFont, rects);
+        y = ButtonRow(g, draw, "special:importtheme", s.ImportTheme, theme.Accent, x, y, w, theme, labelFont, rects);
 
         return y;
+    }
+
+    /// <summary>Versión a mostrar en "Acerca de" cuando no se inyecta una: Major.Minor.Build del ensamblado.</summary>
+    private static string ResolveVersion()
+    {
+        var v = typeof(DashboardSettingsView).Assembly.GetName().Version;
+        return v is null ? "0.0.0" : $"{v.Major}.{v.Minor}.{v.Build}";
     }
 
     /// <summary>
@@ -521,6 +537,62 @@ public static class DashboardSettingsView
         {
             using var b = new SolidBrush(theme.TextPrimary);
             g.DrawString("› " + label, f, b, x, y);
+        }
+        return y + RowAdvance;
+    }
+
+    /// <summary>
+    /// Geometría medida de un <see cref="InfoRow"/>: etiqueta izquierda (en <c>x</c>) y valor derecho
+    /// (anclado a <c>x+w-Spacing.Sm</c>, YA elidido si no cabía). PURO (sin dibujo) para test e
+    /// implementación: el valor nunca invade la etiqueta (gutter ≥ <c>Spacing.Md</c>) ni rebasa el margen
+    /// derecho de seguridad (<c>Spacing.Sm</c>). Devuelve (labelX, labelW, valueX, valueW).
+    /// </summary>
+    internal static (int lx, int lw, int rx, int rw) InfoRowLayout(Graphics g, string label, string value,
+        int x, int w, Font f)
+    {
+        int labelW = (int)Math.Ceiling(g.MeasureString(label, f).Width);
+        int rightEdge = x + w - Spacing.Sm;            // margen derecho de seguridad
+        int valueLeftBound = x + labelW + Spacing.Md;  // gutter mínimo etiqueta↔valor
+        int maxValueW = Math.Max(0, rightEdge - valueLeftBound);
+        string shown = ShownInfoValue(g, value, maxValueW, f);
+        int valueW = (int)Math.Ceiling(g.MeasureString(shown, f).Width);
+        if (valueW > maxValueW) valueW = maxValueW;    // defensa: nunca exceder
+        int valueX = rightEdge - valueW;               // anclado a la derecha con margen
+        if (valueX < valueLeftBound) valueX = valueLeftBound;
+        return (x, labelW, valueX, valueW);
+    }
+
+    /// <summary>Valor que un <see cref="InfoRow"/> muestra realmente: el valor o, si no cabe en
+    /// <paramref name="maxValueW"/>, recortado por la cola con elipsis MEDIDA. Determinista (misma medición
+    /// en draw=false/true → mismo resultado, clave para medir==pintar).</summary>
+    private static string ShownInfoValue(Graphics g, string value, int maxValueW, Font f)
+    {
+        value ??= string.Empty;
+        if (maxValueW <= 0) return string.Empty;
+        if ((int)Math.Ceiling(g.MeasureString(value, f).Width) <= maxValueW) return value;
+        return TextWrap.Ellipsize(value, maxValueW, t => g.MeasureString(t, f).Width);
+    }
+
+    /// <summary>
+    /// Fila INFORMATIVA (no clicable): etiqueta a la izquierda (<c>TextMuted</c>) + valor a la derecha
+    /// (<c>TextPrimary</c>), p.ej. "Versión" / "v0.3.5". NO registra rect (no es accionable). El valor se
+    /// elide con elipsis medida si no cabe (nunca solapa la etiqueta ni rebasa el margen derecho). Mide==pinta:
+    /// la decisión de elidir es la misma en ambas pasadas → mismo <c>y</c> de salida. Devuelve el nuevo <c>y</c>.
+    /// </summary>
+    internal static int InfoRow(Graphics g, bool draw, string label, string value,
+        int x, int y, int w, Theme theme, Font f, Dictionary<string, Rectangle> rects)
+    {
+        if (draw)
+        {
+            var (_, _, rx, _) = InfoRowLayout(g, label, value, x, w, f);
+            using (var lb = new SolidBrush(theme.TextMuted))
+                g.DrawString(label, f, lb, x, y);
+            int rightEdge = x + w - Spacing.Sm;
+            int labelW = (int)Math.Ceiling(g.MeasureString(label, f).Width);
+            int maxValueW = Math.Max(0, rightEdge - (x + labelW + Spacing.Md));
+            string shown = ShownInfoValue(g, value, maxValueW, f);
+            using var vb = new SolidBrush(theme.TextPrimary);
+            g.DrawString(shown, f, vb, rx, y);
         }
         return y + RowAdvance;
     }
