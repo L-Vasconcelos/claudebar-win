@@ -956,4 +956,322 @@ public class DashboardSettingsViewTests
             Assert.False(string.IsNullOrWhiteSpace(s.ShowSpendSubtitle), $"[{lang}] ShowSpendSubtitle vacío");
         }
     }
+
+    // ================= T7: SESIONES EN VIVO (master hooks + StatusBadge + mascota dependiente) =================
+
+    // -------- MasterRowWithBadge: fila maestra con título/subtítulo + StatusBadge a la derecha --------
+
+    [Fact]
+    public void MasterRowWithBadge_measure_equals_paint()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.MasterRowWithBadge(g, draw: false, "special:hooktoggle",
+            "Activar sesiones en vivo", "Recibe el estado de tus sesiones", "Activas", Theme.Dark.Ok,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.MasterRowWithBadge(g, draw: true, "special:hooktoggle",
+            "Activar sesiones en vivo", "Recibe el estado de tus sesiones", "Activas", Theme.Dark.Ok,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void MasterRowWithBadge_registers_full_row_rect_and_badge_on_right()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.MasterRowWithBadge(g, draw: true, "special:hooktoggle",
+            "Activar sesiones en vivo", "Recibe el estado de tus sesiones", "Instalar", Theme.Dark.Warn,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        // El hit-test es la fila completa (clic en cualquier punto dispara la acción del host).
+        Assert.True(rects.TryGetValue("special:hooktoggle", out var r));
+        Assert.Equal(X, r.X);
+        Assert.Equal(W, r.Width);
+        Assert.True(r.Height > 0);
+    }
+
+    [Fact]
+    public void MasterRowWithBadge_measure_equals_paint_with_long_label_and_subtitle()
+    {
+        // Anti-truncamiento: con etiqueta+subtítulo largos en un ancho estrecho, la decisión de elidir es
+        // idéntica en medir y pintar → mismo y de salida (no se mueve nada, no se corta bajo el badge).
+        const int x = 16, w = 160; // estrecho a propósito
+        using var bmp = new Bitmap(x + w + 80, 200);
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.MasterRowWithBadge(g, draw: false, "special:hooktoggle",
+            "Desactivar (quitar hooks de settings.json)", "Recibe el estado de tus sesiones de Claude Code",
+            "Activas", Theme.Dark.Ok, x, 0, w, Theme.Dark, Typography.Body, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.MasterRowWithBadge(g, draw: true, "special:hooktoggle",
+            "Desactivar (quitar hooks de settings.json)", "Recibe el estado de tus sesiones de Claude Code",
+            "Activas", Theme.Dark.Ok, x, 0, w, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void MasterRowWithBadge_with_subtitle_is_taller_than_without()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        int plain = DashboardSettingsView.MasterRowWithBadge(g, draw: false, "special:x",
+            "Activar sesiones en vivo", null, "Activas", Theme.Dark.Ok,
+            X, 0, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+        int withSub = DashboardSettingsView.MasterRowWithBadge(g, draw: false, "special:x",
+            "Activar sesiones en vivo", "Recibe el estado de tus sesiones", "Activas", Theme.Dark.Ok,
+            X, 0, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.True(withSub > plain, "la fila maestra con subtítulo debe ocupar más alto");
+    }
+
+    // -------- LiveSessionsSection: master hooks + dependientes (mascota/tamaño/silenciar) --------
+
+    [Fact]
+    public void LiveSessions_measure_equals_paint_installed()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.LiveSessionsSection(g, draw: false, hooksInstalled: true,
+            X, 100, W, cfg, s, Theme.Dark, Typography.Body, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.LiveSessionsSection(g, draw: true, hooksInstalled: true,
+            X, 100, W, cfg, s, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void LiveSessions_measure_equals_paint_not_installed()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.LiveSessionsSection(g, draw: false, hooksInstalled: false,
+            X, 100, W, cfg, s, Theme.Dark, Typography.Body, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.LiveSessionsSection(g, draw: true, hooksInstalled: false,
+            X, 100, W, cfg, s, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void LiveSessions_advance_identical_regardless_of_hooks_state()
+    {
+        // La geometría no cambia con el estado de los hooks (solo color + inercia) → no se mueve nada.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        const int y0 = 100;
+        int onY = DashboardSettingsView.LiveSessionsSection(g, draw: false, hooksInstalled: true,
+            X, y0, W, cfg, s, Theme.Dark, Typography.Body, Typography.Caption, rects);
+        rects.Clear();
+        int offY = DashboardSettingsView.LiveSessionsSection(g, draw: false, hooksInstalled: false,
+            X, y0, W, cfg, s, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(onY, offY);
+    }
+
+    [Fact]
+    public void LiveSessions_dependents_active_and_indented_when_installed()
+    {
+        // Con hooks instalados: la fila maestra responde, los 3 dependientes responden y van sangrados Lg.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.LiveSessionsSection(g, draw: true, hooksInstalled: true,
+            X, 100, W, cfg, s, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.ContainsKey("special:hooktoggle"), "la fila maestra siempre responde");
+        foreach (var key in new[] { "toggle:ShowMascot", "toggle:Suppress" })
+        {
+            Assert.True(rects.TryGetValue(key, out var r), $"falta dependiente {key} con hooks instalados");
+            Assert.True(r.X >= X + Spacing.Lg, $"{key} debe ir sangrado Lg (x={r.X})");
+        }
+        Assert.True(rects.TryGetValue("mascotsize:compact", out var ms), "falta el segmento de tamaño con hooks on");
+        Assert.True(ms.X >= X + Spacing.Lg, $"mascotsize debe ir sangrado Lg (x={ms.X})");
+    }
+
+    [Fact]
+    public void LiveSessions_dependents_inert_when_not_installed()
+    {
+        // Sin hooks instalados: los 3 dependientes quedan INERTES (sus rects no se registran) → un clic
+        // no muta nada. La fila maestra (special:hooktoggle) SÍ responde (es lo que instala los hooks).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.LiveSessionsSection(g, draw: true, hooksInstalled: false,
+            X, 100, W, cfg, s, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.ContainsKey("special:hooktoggle"), "la fila maestra responde para poder instalar");
+        Assert.False(rects.ContainsKey("toggle:ShowMascot"), "ShowMascot inerte sin hooks");
+        Assert.False(rects.ContainsKey("toggle:Suppress"), "Suppress inerte sin hooks");
+        foreach (var v in new[] { "compact", "large" })
+            Assert.False(rects.ContainsKey($"mascotsize:{v}"), $"mascotsize:{v} inerte sin hooks");
+    }
+
+    [Fact]
+    public void LiveSessions_badge_says_active_green_when_installed()
+    {
+        // Con hooks instalados el StatusBadge dice "Activas" en verde (Theme.Ok).
+        const int x = 16, w = 308, y = 30;
+        using var bmp = new Bitmap(x + w + 40, 200);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        // Badge geométrico independiente: el helper de badge usa Ok cuando installed.
+        var badge = DashboardSettingsView.StatusBadge(g, draw: true, s.BadgeActive, Theme.Dark.Ok,
+            x, x + w, y, 28, Theme.Dark, Typography.Caption);
+        var c = bmp.GetPixel(badge.X + 3, badge.Y + badge.Height / 2);
+        var ok = Theme.Dark.Ok;
+        Assert.True(Math.Abs(c.R - ok.R) <= 10 && Math.Abs(c.G - ok.G) <= 10 && Math.Abs(c.B - ok.B) <= 10,
+            "instalado → badge verde (Ok)");
+        Assert.Equal("Activas", s.BadgeActive);
+    }
+
+    // -------- Draw completo: orden de secciones, sin duplicados, mascota como dependiente --------
+
+    [Fact]
+    public void Draw_mascot_row_is_dependent_below_hook_master()
+    {
+        // SIN DUPLICADOS: "Mostrar mascota" ya NO es una fila suelta por ENCIMA del botón de hooks; es un
+        // dependiente sangrado Lg y se dibuja DESPUÉS (más abajo en y) que la fila maestra de hooks.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.TryGetValue("special:hooktoggle", out var master), "falta la fila maestra de hooks");
+        // Si la mascota es dependiente (rect registrado solo con hooks instalados), debe ir DEBAJO y sangrada.
+        if (rects.TryGetValue("toggle:ShowMascot", out var mascot))
+        {
+            Assert.True(mascot.Y > master.Y, "la mascota dependiente va DEBAJO de la fila maestra de hooks");
+            Assert.True(mascot.X >= X + Spacing.Lg, "la mascota dependiente va sangrada Lg");
+        }
+    }
+
+    [Fact]
+    public void Draw_threshold_lives_in_icon_section_not_notifications()
+    {
+        // El umbral de color sigue registrado (sección Icono), separado de los hitos de notificación.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        // Umbral presente (umbral de color del icono) y hitos presentes (notificación): coexisten, no duplican.
+        Assert.True(rects.Keys.Any(k => k.StartsWith("threshold:")), "el umbral de color debe estar en la sección Icono");
+        Assert.True(rects.ContainsKey("icon:percent"), "el contenido del icono debe estar en la sección Icono");
+        foreach (var pct in new[] { 25, 50, 75, 95 })
+            Assert.True(rects.ContainsKey($"milestone:{pct}"), $"los hitos de notificación siguen presentes ({pct})");
+    }
+
+    [Fact]
+    public void Draw_appearance_has_no_import_theme_button()
+    {
+        // T7: "Importar .itermcolors" se retira de Apariencia (lo consolida T8 en Acerca de). En este
+        // estado intermedio, el panel NO registra special:importtheme (no es responsabilidad de T7).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.False(rects.ContainsKey("special:importtheme"),
+            "Importar tema sale de Apariencia en T7 (lo recoloca T8 en Acerca de)");
+        // Las preferencias de apariencia siguen presentes.
+        Assert.True(rects.ContainsKey("theme:dark"));
+        Assert.True(rects.ContainsKey("cycle:position"));
+        Assert.True(rects.ContainsKey("toggle:Sticky"));
+        Assert.True(rects.ContainsKey("toggle:OnTop"));
+        Assert.True(rects.ContainsKey("toggle:ReduceMotion"));
+    }
+
+    [Fact]
+    public void Draw_reduce_motion_row_has_subtitle()
+    {
+        // "Reducir movimiento" lleva subtítulo ("Desactiva animaciones") → más alto que una fila sin sub.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.TryGetValue("toggle:ReduceMotion", out var rm));
+        Assert.True(rects.TryGetValue("toggle:OnTop", out var ontop)); // sin subtítulo
+        Assert.True(rm.Height > ontop.Height, "Reducir movimiento con subtítulo debe ser más alto");
+    }
+
+    [Fact]
+    public void Draw_no_orphan_mascot_button_row_in_old_position()
+    {
+        // Regresión: ya NO existe la presentación antigua (mascota suelta + ButtonRow de hooks como fila más).
+        // La fila maestra de hooks debe ir ANTES (más arriba) que cualquier dependiente de mascota.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.ContainsKey("special:hooktoggle"));
+        // El subtítulo de la fila maestra está localizado en todos los idiomas.
+        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
+            Assert.False(string.IsNullOrWhiteSpace(Localization.Get(lang).LiveSessionsSubtitle),
+                $"[{lang}] LiveSessionsSubtitle vacío");
+    }
+
+    [Fact]
+    public void Draw_reduce_motion_subtitle_localized_in_all_languages()
+    {
+        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
+            Assert.False(string.IsNullOrWhiteSpace(Localization.Get(lang).ReduceMotionSubtitle),
+                $"[{lang}] ReduceMotionSubtitle vacío");
+    }
 }

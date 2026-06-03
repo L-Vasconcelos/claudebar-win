@@ -21,6 +21,8 @@ public sealed class Strings
     public string AlwaysOnTop { get; init; } = "Always on top";
     /// <summary>Toggle "reducir movimiento" (F3): colapsa toda animación a su estado final.</summary>
     public string ReduceMotion { get; init; } = "Reduce motion";
+    /// <summary>Subtítulo de "Reducir movimiento" (T7): aclara que desactiva las animaciones.</summary>
+    public string ReduceMotionSubtitle { get; init; } = "Turns off animations";
     public string UpdateFrequency { get; init; } = "Update frequency";
     // Etiquetas COMPACTAS estilo Apple para los segmentos de frecuencia (4 chips en una fila estrecha).
     // El formato largo cortaba el primer chip ("gundos"); ver T3 de la spec v0.3.5.
@@ -139,6 +141,8 @@ public sealed class Strings
 
     // Live sessions / Mascot
     public string MenuLiveSessions { get; init; } = "Live sessions";
+    /// <summary>Subtítulo de la fila maestra de hooks (T7): explica qué activan las sesiones en vivo.</summary>
+    public string LiveSessionsSubtitle { get; init; } = "Get the status of your Claude Code sessions";
     public string MenuShowMascot { get; init; } = "Show mascot";
     public string MenuSuppressWhenFocused { get; init; } = "Mute when terminal focused";
     public string MenuInstallHooks { get; init; } = "Enable (install hooks)…";
@@ -262,6 +266,7 @@ public static class Localization
         Sticky = "Fijado (no se cierra solo)",
         AlwaysOnTop = "Siempre encima",
         ReduceMotion = "Reducir movimiento",
+        ReduceMotionSubtitle = "Desactiva las animaciones",
         UpdateFrequency = "Frecuencia de actualización",
         Sec30 = "30s",
         Min1 = "1m",
@@ -348,6 +353,7 @@ public static class Localization
         UpdateDownloadedFmt = "Descargado en:\n{0}\n\nCierra ClaudeBar y reemplaza el .exe en uso por este archivo.",
         UpdateFailed = "No se pudo comprobar/descargar la actualización.",
         MenuLiveSessions = "Sesiones en vivo",
+        LiveSessionsSubtitle = "Recibe el estado de tus sesiones de Claude Code",
         MenuShowMascot = "Mostrar mascota",
         MenuSuppressWhenFocused = "Silenciar si la terminal tiene foco",
         MenuInstallHooks = "Activar (instalar hooks)…",
@@ -389,6 +395,7 @@ public static class Localization
         Sticky = "Vastgezet (niet automatisch sluiten)",
         AlwaysOnTop = "Altijd op voorgrond",
         ReduceMotion = "Beweging beperken",
+        ReduceMotionSubtitle = "Schakelt animaties uit",
         UpdateFrequency = "Verversingsfrequentie",
         Sec30 = "30s",
         Min1 = "1m",
@@ -467,6 +474,7 @@ public static class Localization
         UpdateDownloadedFmt = "Gedownload naar:\n{0}\n\nSluit ClaudeBar en vervang de actieve .exe door dit bestand.",
         UpdateFailed = "Kan de update niet controleren/downloaden.",
         MenuLiveSessions = "Live sessies",
+        LiveSessionsSubtitle = "Krijg de status van je Claude Code-sessies",
         MenuShowMascot = "Mascotte tonen",
         MenuSuppressWhenFocused = "Dempen als terminal focus heeft",
         MenuInstallHooks = "Inschakelen (hooks installeren)…",
@@ -508,6 +516,7 @@ public static class Localization
         Sticky = "Épinglé (ne pas fermer auto)",
         AlwaysOnTop = "Toujours au premier plan",
         ReduceMotion = "Réduire les animations",
+        ReduceMotionSubtitle = "Désactive les animations",
         UpdateFrequency = "Fréquence d'actualisation",
         Sec30 = "30s",
         Min1 = "1m",
@@ -586,6 +595,7 @@ public static class Localization
         UpdateDownloadedFmt = "Téléchargé dans :\n{0}\n\nFerme ClaudeBar et remplace le .exe en cours par ce fichier.",
         UpdateFailed = "Impossible de vérifier/télécharger la mise à jour.",
         MenuLiveSessions = "Sessions en direct",
+        LiveSessionsSubtitle = "Reçois l'état de tes sessions Claude Code",
         MenuShowMascot = "Afficher la mascotte",
         MenuSuppressWhenFocused = "Muet si le terminal a le focus",
         MenuInstallHooks = "Activer (installer les hooks)…",
@@ -627,6 +637,7 @@ public static class Localization
         Sticky = "Angeheftet (nicht autom. schließen)",
         AlwaysOnTop = "Immer im Vordergrund",
         ReduceMotion = "Bewegung reduzieren",
+        ReduceMotionSubtitle = "Schaltet Animationen aus",
         UpdateFrequency = "Aktualisierungsintervall",
         Sec30 = "30s",
         Min1 = "1m",
@@ -705,6 +716,7 @@ public static class Localization
         UpdateDownloadedFmt = "Heruntergeladen nach:\n{0}\n\nSchließe ClaudeBar und ersetze die laufende .exe durch diese Datei.",
         UpdateFailed = "Update konnte nicht geprüft/geladen werden.",
         MenuLiveSessions = "Live-Sitzungen",
+        LiveSessionsSubtitle = "Erhalte den Status deiner Claude-Code-Sitzungen",
         MenuShowMascot = "Maskottchen anzeigen",
         MenuSuppressWhenFocused = "Stumm, wenn Terminal im Fokus",
         MenuInstallHooks = "Aktivieren (Hooks installieren)…",
@@ -746,6 +758,7 @@ public static class Localization
         Sticky = "固定（自動で閉じない）",
         AlwaysOnTop = "常に最前面",
         ReduceMotion = "アニメーションを減らす",
+        ReduceMotionSubtitle = "アニメーションを無効化",
         UpdateFrequency = "更新頻度",
         Sec30 = "30秒",
         Min1 = "1分",
@@ -824,6 +837,7 @@ public static class Localization
         UpdateDownloadedFmt = "ダウンロード先:\n{0}\n\nClaudeBar を閉じて、実行中の .exe をこのファイルに置き換えてください。",
         UpdateFailed = "更新の確認/ダウンロードに失敗しました。",
         MenuLiveSessions = "ライブセッション",
+        LiveSessionsSubtitle = "Claude Code セッションの状態を受け取る",
         MenuShowMascot = "マスコットを表示",
         MenuSuppressWhenFocused = "ターミナルがフォーカス中はミュート",
         MenuInstallHooks = "有効化（フックをインストール）…",
@@ -865,6 +879,7 @@ public static class Localization
         Sticky = "고정 (자동으로 닫지 않음)",
         AlwaysOnTop = "항상 위에",
         ReduceMotion = "동작 줄이기",
+        ReduceMotionSubtitle = "애니메이션 끄기",
         UpdateFrequency = "새로고침 주기",
         Sec30 = "30초",
         Min1 = "1분",
@@ -943,6 +958,7 @@ public static class Localization
         UpdateDownloadedFmt = "다운로드 위치:\n{0}\n\nClaudeBar를 닫고 실행 중인 .exe를 이 파일로 교체하세요.",
         UpdateFailed = "업데이트 확인/다운로드에 실패했습니다.",
         MenuLiveSessions = "실시간 세션",
+        LiveSessionsSubtitle = "Claude Code 세션 상태를 받습니다",
         MenuShowMascot = "마스코트 표시",
         MenuSuppressWhenFocused = "터미널이 포커스일 때 음소거",
         MenuInstallHooks = "활성화 (훅 설치)…",
@@ -984,6 +1000,7 @@ public static class Localization
         Sticky = "釘選（不自動關閉）",
         AlwaysOnTop = "永遠在最上層",
         ReduceMotion = "減少動態效果",
+        ReduceMotionSubtitle = "關閉動畫",
         UpdateFrequency = "更新頻率",
         Sec30 = "30秒",
         Min1 = "1分鐘",
@@ -1062,6 +1079,7 @@ public static class Localization
         UpdateDownloadedFmt = "已下載到:\n{0}\n\n關閉 ClaudeBar 並用此檔案取代執行中的 .exe。",
         UpdateFailed = "無法檢查／下載更新。",
         MenuLiveSessions = "即時工作階段",
+        LiveSessionsSubtitle = "接收你的 Claude Code 工作階段狀態",
         MenuShowMascot = "顯示吉祥物",
         MenuSuppressWhenFocused = "終端機聚焦時靜音",
         MenuInstallHooks = "啟用（安裝 hooks）…",

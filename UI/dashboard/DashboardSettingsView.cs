@@ -39,18 +39,13 @@ public static class DashboardSettingsView
         y = ToggleRow(g, draw, "toggle:ShowHealth", s.ShowServiceStatus, null, cfg.ShowHealth, x, y, w, theme, labelFont, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:ShowChart", s.UsageChart, null, cfg.ShowChart, x, y, w, theme, labelFont, smallFont, rects);
 
-        // -------- Sesiones en vivo --------
-        y = SectionHeader(g, draw, s.MenuLiveSessions, x, y, w, theme, smallFont);
-        y = ToggleRow(g, draw, "toggle:ShowMascot", s.MenuShowMascot, null, cfg.ShowMascot, x, y, w, theme, labelFont, smallFont, rects);
-        y = ToggleRow(g, draw, "toggle:Suppress", s.MenuSuppressWhenFocused, null, cfg.SuppressWhenFocused, x, y, w, theme, labelFont, smallFont, rects);
-        y = SegmentedRow(g, draw, "mascotsize", s.MascotSizeLabel,
-            new[] { ("compact", s.MascotSizeCompact), ("large", s.MascotSizeLarge) }, cfg.MascotSize, x, y, w, theme, smallFont, rects);
-        // Activador de la feature = BOTÓN destacado (no una fila más): instala/quita hooks en
-        // ~/.claude/settings.json con confirmación en el host. Verde = activar, rojo = desactivar (delicado).
-        bool hooksOn = HookInstaller.IsInstalled();
-        y = ButtonRow(g, draw, "special:hooktoggle",
-            hooksOn ? s.MenuUninstallHooks : s.MenuInstallHooks,
-            hooksOn ? theme.Critical : theme.Ok, x, y, w, theme, smallFont, rects);
+        // -------- Sesiones en vivo (master hooks + StatusBadge + mascota dependiente) --------
+        // Fila MAESTRA = instalar/quitar hooks con StatusBadge; Mostrar mascota / Tamaño / Silenciar son
+        // DEPENDIENTES (sangrados Lg, atenuados+inertes mientras no haya hooks). Quita el control huérfano:
+        // "Mostrar mascota" ya no es una fila suelta por encima del botón. (T0 hace que el gato Idle se vea
+        // con ShowMascot on aunque live esté off; aquí la jerarquía master→dependiente comunica que la
+        // mascota solo cobra vida con hooks.)
+        y = LiveSessionsSection(g, draw, HookInstaller.IsInstalled(), x, y, w, cfg, s, theme, labelFont, smallFont, rects);
 
         // -------- Notificaciones (master + dependientes) --------
         // "Notificaciones" es el MASTER; PaceAlerts y los hitos son DEPENDIENTES: sangrados Spacing.Lg,
@@ -86,17 +81,18 @@ public static class DashboardSettingsView
             $"{cfg.WarnThresholdPct:0}/{cfg.CriticalThresholdPct:0}", x, y, w, theme, smallFont, rects);
 
         // -------- Apariencia --------
+        // "Importar .itermcolors" se RETIRA de aquí (lo consolida T8 en "Acerca de"): aquí solo preferencias.
         y = SectionHeader(g, draw, s.MenuAppearance, x, y, w, theme, smallFont);
         y = SegmentedRow(g, draw, "theme", s.Theme,
             new[] { ("system", s.ThemeSystem), ("dark", s.ThemeDark), ("light", s.ThemeLight), ("cli", "CLI") },
             cfg.Theme, x, y, w, theme, smallFont, rects);
-        y = ActionRow(g, draw, "special:importtheme", s.ImportTheme, x, y, w, theme, smallFont, rects);
         // Posición: fila que cicla (5 opciones no caben en segmentos); muestra la posición actual.
         y = CycleRow(g, draw, "cycle:position", s.Position, PosLabel(cfg.DashboardPosition, s), x, y, w, theme, smallFont, rects);
         y = SegmentedRow(g, draw, "opacity", s.Opacity, OpacitySegs, FmtOpacity(cfg.DashboardOpacity), x, y, w, theme, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:Sticky", s.Sticky, null, cfg.DashboardSticky, x, y, w, theme, labelFont, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:OnTop", s.AlwaysOnTop, null, cfg.DashboardAlwaysOnTop, x, y, w, theme, labelFont, smallFont, rects);
-        y = ToggleRow(g, draw, "toggle:ReduceMotion", s.ReduceMotion, null, cfg.ReduceMotion, x, y, w, theme, labelFont, smallFont, rects);
+        // "Reducir movimiento" lleva subtítulo aclaratorio ("Desactiva las animaciones").
+        y = ToggleRow(g, draw, "toggle:ReduceMotion", s.ReduceMotion, s.ReduceMotionSubtitle, cfg.ReduceMotion, x, y, w, theme, labelFont, smallFont, rects);
 
         // -------- Idioma --------
         y = SectionHeader(g, draw, s.Language, x, y, w, theme, smallFont);
@@ -404,6 +400,87 @@ public static class DashboardSettingsView
             g.DrawString(shown, f, tb, badge, sf);
         }
         return badge;
+    }
+
+    /// <summary>
+    /// Fila MAESTRA de una integración (p.ej. "Activar sesiones en vivo" = instalar/quitar hooks): título
+    /// (<c>labelFont</c>/<c>TextPrimary</c>) + subtítulo opcional debajo (<c>smallFont</c>/<c>TextMuted</c>) a la
+    /// izquierda + <see cref="StatusBadge"/> semántico a la DERECHA (verde "Activas" / ámbar "Instalar"). A
+    /// diferencia de <see cref="ToggleRow"/>, NO lleva pill: la fila completa es clicable y su clave es
+    /// normalmente "special:*" (la enruta el host: instalar/quitar hooks con confirmación). El hit-test es el
+    /// rect COMPLETO de la fila. Mide==pinta: la geometría del badge se decide igual en ambas pasadas, así que
+    /// el rect y el <c>y</c> de salida son idénticos. Devuelve el nuevo <c>y</c>.
+    /// </summary>
+    internal static int MasterRowWithBadge(Graphics g, bool draw, string key, string label, string? subtitle,
+        string badgeText, Color badgeColor, int x, int y, int w, Theme theme, Font labelFont, Font smallFont,
+        Dictionary<string, Rectangle> rects)
+    {
+        int titleH = (int)Math.Ceiling(g.MeasureString(label, labelFont).Height);
+        bool hasSub = !string.IsNullOrEmpty(subtitle);
+        int subH = hasSub ? (int)Math.Ceiling(g.MeasureString(subtitle, smallFont).Height) : 0;
+        int contentH = Math.Max(BadgeHeight, titleH + subH);
+
+        var r = new Rectangle(x, y, w, contentH);
+        rects[key] = r;
+        // El badge se ancla a la derecha; su geometría se decide igual en ambas pasadas (medir==pintar).
+        var badge = StatusBadge(g, draw, badgeText, badgeColor, x, x + w, y, contentH, theme, smallFont);
+        // ANTI-TRUNCAMIENTO: la columna de texto izquierda no debe invadir el badge. Mide el ancho útil
+        // hasta el borde izquierdo del badge con gutter Spacing.Md y elide título/subtítulo (elipsis medida,
+        // misma decisión en draw=false/true → medir==pintar). Si no hay badge, usa todo el ancho.
+        int textColW = (badge.Width > 0 ? badge.X : x + w) - Spacing.Md - x;
+        if (textColW <= 0) textColW = Math.Max(0, x + w - x); // defensa: nunca negativo
+        if (draw)
+        {
+            string shownLabel = TextWrap.Ellipsize(label, textColW, t => g.MeasureString(t, labelFont).Width);
+            using (var b = new SolidBrush(theme.TextPrimary))
+                g.DrawString(shownLabel, labelFont, b, x, y);
+            if (hasSub)
+            {
+                string shownSub = TextWrap.Ellipsize(subtitle!, textColW, t => g.MeasureString(t, smallFont).Width);
+                using var sb = new SolidBrush(theme.TextMuted);
+                g.DrawString(shownSub, smallFont, sb, x, y + titleH);
+            }
+        }
+        return y + contentH + Spacing.Sm;
+    }
+
+    /// <summary>
+    /// Sección "SESIONES EN VIVO": cabecera + fila MAESTRA = instalar/quitar hooks (<c>special:hooktoggle</c>)
+    /// con <see cref="StatusBadge"/> a la derecha (verde "Activas" si <paramref name="hooksInstalled"/>, ámbar
+    /// "Instalar" si no) y subtítulo aclaratorio; debajo, los DEPENDIENTES (Mostrar mascota, Tamaño, Silenciar)
+    /// vía <see cref="DrawDependent"/>: sangrados <c>Spacing.Lg</c>, y cuando los hooks NO están instalados se
+    /// pintan atenuados (~0.5) e INERTES (sus rects no se registran → un clic no muta nada). La fila maestra
+    /// SIEMPRE responde (es la que instala los hooks). Esto elimina el duplicado/huérfano: "Mostrar mascota"
+    /// deja de ser una fila suelta por encima del master y pasa a depender visiblemente de él. La geometría no
+    /// depende de <paramref name="hooksInstalled"/> (solo color + inercia) → medir==pintar y el avance es
+    /// idéntico esté instalado o no. <paramref name="hooksInstalled"/> se inyecta para poder testear ambas
+    /// ramas de forma determinista (el <see cref="Draw"/> pasa <c>HookInstaller.IsInstalled()</c>).
+    /// </summary>
+    internal static int LiveSessionsSection(Graphics g, bool draw, bool hooksInstalled, int x, int y, int w,
+        AppConfig cfg, Strings s, Theme theme, Font labelFont, Font smallFont, Dictionary<string, Rectangle> rects)
+    {
+        y = SectionHeader(g, draw, s.MenuLiveSessions, x, y, w, theme, smallFont);
+        // Fila maestra: instala/quita hooks (delicado → diálogo en el host). Título ACCIONABLE (distinto de la
+        // cabecera de sección, sin duplicar texto) + StatusBadge semántico a la derecha (Activas/Instalar).
+        y = MasterRowWithBadge(g, draw, "special:hooktoggle",
+            hooksInstalled ? s.MenuUninstallHooks : s.MenuInstallHooks, s.LiveSessionsSubtitle,
+            hooksInstalled ? s.BadgeActive : s.BadgeInstall,
+            hooksInstalled ? theme.Ok : theme.Warn,
+            x, y, w, theme, labelFont, smallFont, rects);
+        // Dependientes: atenuados + inertes mientras no haya hooks (la mascota Idle solo cobra vida con hooks).
+        y = DrawDependent(hooksInstalled, x, y, w, theme, rects,
+            (ix, iw, th) => ToggleRow(g, draw, "toggle:ShowMascot", s.MenuShowMascot, null, cfg.ShowMascot,
+                ix, y, iw, th, labelFont, smallFont, rects));
+        int sizeY = y;
+        y = DrawDependent(hooksInstalled, x, sizeY, w, theme, rects,
+            (ix, iw, th) => SegmentedRow(g, draw, "mascotsize", s.MascotSizeLabel,
+                new[] { ("compact", s.MascotSizeCompact), ("large", s.MascotSizeLarge) }, cfg.MascotSize,
+                ix, sizeY, iw, th, smallFont, rects));
+        int supY = y;
+        y = DrawDependent(hooksInstalled, x, supY, w, theme, rects,
+            (ix, iw, th) => ToggleRow(g, draw, "toggle:Suppress", s.MenuSuppressWhenFocused, null,
+                cfg.SuppressWhenFocused, ix, supY, iw, th, labelFont, smallFont, rects));
+        return y;
     }
 
     /// <summary>
