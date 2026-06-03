@@ -486,6 +486,111 @@ public class DashboardSettingsViewTests
 
     // -------- Draw completo: las filas reales no truncan (regresión de frecuencia compacta) --------
 
+    // ================= T4: StatusBadge semántico (Activas/Instalar) =================
+
+    [Fact]
+    public void StatusBadge_measure_equals_paint()
+    {
+        // El rect del badge debe ser idéntico en medir (draw=false) y pintar (draw=true).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+
+        var measured = DashboardSettingsView.StatusBadge(g, draw: false, "Activas", Theme.Dark.Ok,
+            x: X, rightX: X + W, y: 100, rowH: 28, theme: Theme.Dark, f: Typography.Caption);
+        var painted = DashboardSettingsView.StatusBadge(g, draw: true, "Activas", Theme.Dark.Ok,
+            x: X, rightX: X + W, y: 100, rowH: 28, theme: Theme.Dark, f: Typography.Caption);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void StatusBadge_right_edge_anchors_with_safe_margin_and_stays_in_content()
+    {
+        // El borde derecho deja margen interno ≥ Spacing.Sm respecto a rightX; no se sale por la izquierda.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+
+        int rightX = X + W;
+        var badge = DashboardSettingsView.StatusBadge(g, draw: false, "Instalar", Theme.Dark.Warn,
+            x: X, rightX: rightX, y: 100, rowH: 28, theme: Theme.Dark, f: Typography.Caption);
+
+        Assert.True(badge.Right <= rightX - Spacing.Sm, "el badge no debe tocar el borde derecho (margen ≥ Sm)");
+        Assert.True(badge.X >= X, "el badge no se sale por la izquierda del contenido");
+        Assert.True(badge.Width > 0 && badge.Height > 0, "el badge tiene área positiva");
+    }
+
+    [Fact]
+    public void StatusBadge_centered_vertically_in_row()
+    {
+        // El badge se centra verticalmente en la fila (rowH) → simetría arriba/abajo.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+
+        int y = 100, rowH = 28;
+        var badge = DashboardSettingsView.StatusBadge(g, draw: false, "Activas", Theme.Dark.Ok,
+            x: X, rightX: X + W, y: y, rowH: rowH, theme: Theme.Dark, f: Typography.Caption);
+
+        int topGap = badge.Y - y;
+        int botGap = (y + rowH) - badge.Bottom;
+        Assert.True(Math.Abs(topGap - botGap) <= 1, $"el badge debe centrarse en la fila (top={topGap}, bot={botGap})");
+    }
+
+    [Fact]
+    public void StatusBadge_fill_is_ok_when_active_warn_when_install()
+    {
+        // El relleno del badge es Theme.Ok (verde) para "Activas" y Theme.Warn (ámbar) para "Instalar".
+        int rightX = 300, y = 30, rowH = 28;
+        using var bmp = new Bitmap(360, 100);
+        using var g = Graphics.FromImage(bmp);
+
+        g.Clear(Theme.Dark.Background);
+        var okBadge = DashboardSettingsView.StatusBadge(g, draw: true, "Activas", Theme.Dark.Ok,
+            x: 16, rightX: rightX, y: y, rowH: rowH, theme: Theme.Dark, f: Typography.Caption);
+        var cOk = bmp.GetPixel(okBadge.X + 3, okBadge.Y + okBadge.Height / 2); // borde izquierdo del relleno (sin texto)
+        var ok = Theme.Dark.Ok;
+        Assert.True(Math.Abs(cOk.R - ok.R) <= 10 && Math.Abs(cOk.G - ok.G) <= 10 && Math.Abs(cOk.B - ok.B) <= 10,
+            $"relleno activo debe ser Ok (#{ok.R:X2}{ok.G:X2}{ok.B:X2}), fue #{cOk.R:X2}{cOk.G:X2}{cOk.B:X2}");
+
+        g.Clear(Theme.Dark.Background);
+        var warnBadge = DashboardSettingsView.StatusBadge(g, draw: true, "Instalar", Theme.Dark.Warn,
+            x: 16, rightX: rightX, y: y, rowH: rowH, theme: Theme.Dark, f: Typography.Caption);
+        var cWarn = bmp.GetPixel(warnBadge.X + 3, warnBadge.Y + warnBadge.Height / 2);
+        var warn = Theme.Dark.Warn;
+        Assert.True(Math.Abs(cWarn.R - warn.R) <= 10 && Math.Abs(cWarn.G - warn.G) <= 10 && Math.Abs(cWarn.B - warn.B) <= 10,
+            $"relleno 'Instalar' debe ser Warn (#{warn.R:X2}{warn.G:X2}{warn.B:X2}), fue #{cWarn.R:X2}{cWarn.G:X2}{cWarn.B:X2}");
+    }
+
+    [Fact]
+    public void StatusBadge_text_truncates_tail_within_its_width_in_narrow_space()
+    {
+        // En un ancho muy estrecho el texto se recorta por la cola (elipsis medida) y el badge NUNCA
+        // empieza a la izquierda del contenido. El texto mostrado es determinista (medir==pintar).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+
+        // rightX muy cerca de contentLeft → el badge no cabe entero; debe recortar manteniéndose en [x, rightX].
+        int x = 16, rightX = x + 70;
+        string shown = DashboardSettingsView.StatusBadgeShownText(g, "Instalar (hooks no instalados)", x, rightX, Typography.Caption);
+        Assert.NotEqual("Instalar (hooks no instalados)", shown);
+        Assert.Contains("…", shown);
+
+        var badge = DashboardSettingsView.StatusBadge(g, draw: false, "Instalar (hooks no instalados)", Theme.Dark.Warn,
+            x: x, rightX: rightX, y: 100, rowH: 28, theme: Theme.Dark, f: Typography.Caption);
+        Assert.True(badge.X >= x, $"el badge recortado no empieza a la izquierda del contenido (x={badge.X} < {x})");
+        Assert.True(badge.Right <= rightX - Spacing.Sm, "el badge recortado deja margen derecho ≥ Sm");
+    }
+
+    [Fact]
+    public void StatusBadge_short_text_is_not_truncated()
+    {
+        // Un texto corto que cabe holgado NO lleva elipsis (no se toca lo que entra).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        string shown = DashboardSettingsView.StatusBadgeShownText(g, "Activas", X, X + W, Typography.Caption);
+        Assert.Equal("Activas", shown);
+        Assert.DoesNotContain("…", shown);
+    }
+
     [Fact]
     public void Draw_frequency_segments_fit_within_content_in_all_languages()
     {

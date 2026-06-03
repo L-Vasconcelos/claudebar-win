@@ -299,6 +299,67 @@ public static class DashboardSettingsView
         return track;
     }
 
+    // -------- StatusBadge: cápsula semántica de estado (Activas/Instalar) a la derecha de la fila --------
+    // Padding interno horizontal del badge (reusa la geometría de chip de DrawSegments → un solo lenguaje).
+    private const int BadgePadX = SegPadX;
+    // Alto del badge sobre la rejilla 8pt (coincide con el alto de un chip de segmento).
+    private const int BadgeHeight = SegmentHeight;
+    private const int BadgeRadius = 4;
+
+    /// <summary>
+    /// Texto que el <see cref="StatusBadge"/> muestra realmente dentro del rango útil <c>[x, rightX]</c>:
+    /// el texto original o, si no cabe, recortado por la cola con <b>elipsis medida</b>
+    /// (<see cref="TextWrap.Ellipsize"/>). PURO y determinista (misma medición en draw=false/true → mismo
+    /// resultado, clave para medir==pintar). El ancho útil de texto descuenta el padding del badge a ambos
+    /// lados y el margen de seguridad derecho <c>Spacing.Sm</c>; nunca invade a la izquierda de <paramref name="x"/>.
+    /// </summary>
+    internal static string StatusBadgeShownText(Graphics g, string text, int x, int rightX, Font f)
+    {
+        text ??= string.Empty;
+        // Espacio disponible para el badge completo: desde contentLeft (x) hasta rightX con margen Sm.
+        int maxBadgeW = (rightX - Spacing.Sm) - x;
+        int maxTextW = maxBadgeW - BadgePadX * 2;
+        if (maxTextW <= 0) return TextWrap.Ellipsis;
+        return TextWrap.Ellipsize(text, maxTextW, t => g.MeasureString(t, f).Width);
+    }
+
+    /// <summary>
+    /// Badge semántico de estado (mini RoundedRect + texto de 1 línea centrado), anclado por su borde
+    /// DERECHO a <paramref name="rightX"/> con margen interno de seguridad <c>Spacing.Sm</c>. Relleno con
+    /// el color semántico dado (<c>Theme.Ok</c> "Activas" / <c>Theme.Warn</c> "Instalar"); el texto usa
+    /// <see cref="ColorMath.Contrast"/> del relleno y se recorta por la cola (<see cref="StatusBadgeShownText"/>)
+    /// para nunca rebasar su ancho. El badge nunca empieza a la izquierda de <paramref name="x"/>
+    /// (contentLeft). Centrado verticalmente en la fila de alto <paramref name="rowH"/>. Devuelve el rect del
+    /// badge (idéntico en medir y pintar: la decisión de recorte es la misma en ambas pasadas).
+    /// </summary>
+    internal static Rectangle StatusBadge(Graphics g, bool draw, string text, Color color,
+        int x, int rightX, int y, int rowH, Theme theme, Font f)
+    {
+        string shown = StatusBadgeShownText(g, text, x, rightX, f);
+        int textW = (int)Math.Ceiling(g.MeasureString(shown, f).Width);
+        int badgeW = textW + BadgePadX * 2;
+        int rightEdge = rightX - Spacing.Sm;             // margen derecho de seguridad
+        int bx = rightEdge - badgeW;
+        if (bx < x) { bx = x; badgeW = Math.Max(0, rightEdge - bx); } // clamp izquierdo a contentLeft
+        int by = y + (rowH - BadgeHeight) / 2;            // centrado vertical en la fila
+        var badge = new Rectangle(bx, by, badgeW, BadgeHeight);
+        if (draw && badgeW > 0)
+        {
+            using (var bg = new SolidBrush(color))
+                Shapes.FillRounded(g, bg, badge, BadgeRadius);
+            using var tb = new SolidBrush(ColorMath.Contrast(color));
+            using var sf = new StringFormat
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center,
+                Trimming = StringTrimming.None,
+                FormatFlags = StringFormatFlags.NoWrap
+            };
+            g.DrawString(shown, f, tb, badge, sf);
+        }
+        return badge;
+    }
+
     /// <summary>
     /// Fila de toggle estilo Apple: título (<c>labelFont</c>/<c>TextPrimary</c>) a la izquierda + subtítulo
     /// opcional debajo (<c>smallFont</c>/<c>TextMuted</c>, 1 línea corta) + <see cref="TogglePill"/> a la
