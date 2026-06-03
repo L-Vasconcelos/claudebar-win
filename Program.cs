@@ -45,6 +45,13 @@ internal static class Program
             return;
         }
 
+        if (args.Contains("--render-gif"))
+        {
+            ApplicationConfiguration.Initialize();
+            RunRenderGif();
+            return;
+        }
+
         if (args.Contains("--notify-demo"))
         {
             ApplicationConfiguration.Initialize();
@@ -369,6 +376,141 @@ internal static class Program
         }
 
         Console.WriteLine(dir);
+    }
+
+    // ---- GIF frame sequences for the README microinteraction animations (F3) ----
+    // Like --render-demo (synthetic data, no personal usage) but instead of single PNGs it dumps
+    // NUMBERED frame sequences by sweeping the deterministic RenderMotionOverride across the animation
+    // timeline. ffmpeg then assembles each folder into a looping .gif (see build-gifs in the README).
+    //   apertura/  — panel open: fade + staggered section entry + bar/number tween, tSinceOpen 0→440 ms.
+    //   mascota/   — mascot life (Processing): braille spinner + blink jitter + playful verb, elapsed 0→2700 ms.
+    //   hover/     — hover highlight fading in over the Quota section, intensity 0→1.
+    //   celebracion/ — reset celebration flash ("✓ quota renewed") + Happy mood pulsing in.
+    // Frames go to %TEMP%\claudebar-gif\<seq>\frame_###.png; only the FINAL .gif belongs in assets/.
+    private static void RunRenderGif()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "claudebar-gif");
+        var now = DateTime.UtcNow;
+        var snap = DemoSnapshot(now);
+        var buckets = DemoBuckets(now);
+        var pct = DemoPct(now);
+        var plan = new PlanInfo("max", "default_claude_max_5x");
+
+        // Config de marketing: tema oscuro, mascota grande viva, Spend+Chart desplegados (panel lleno).
+        AppConfig Cfg() => new()
+        {
+            Theme = "dark", ChartMode = "spend", ChartPctWindow = "7d", Language = "en",
+            ShowSpendEstimate = true, ShowHealth = true, ShowChart = true,
+            LiveSessionsEnabled = true, ShowMascot = true, MascotSize = "large",
+            CollapsedSpend = false, CollapsedChart = false,
+        };
+
+        var processing = new LiveSessionsView { GlobalPhase = SessionPhase.Processing, ActiveCount = 1 };
+
+        // Renderiza UN fotograma a PNG. Si fadeAlpha < 1, mezcla el contenido contra el fondo del tema
+        // para que el fade de apertura SE VEA (DrawToBitmap captura el contenido pero no el Opacity de la
+        // ventana en capas). devuelve el tamaño del panel para reusarlo entre fotogramas de la misma seq.
+        Size Shot(string seqDir, int idx, AppConfig cfg, DashboardForm.RenderMotionOverride mo,
+                  LiveSessionsView live, double fadeAlpha)
+        {
+            using var form = new DashboardForm();
+            form.PrepareForRender(snap, cfg, plan, buckets, pct, ChartRange.Hours5, mo, live);
+            int fw = form.Width, fh = form.Height;
+            using var content = new Bitmap(fw, fh);
+            form.DrawToBitmap(content, new Rectangle(0, 0, fw, fh));
+
+            var file = Path.Combine(seqDir, $"frame_{idx:000}.png");
+            if (fadeAlpha >= 0.999)
+            {
+                content.Save(file);
+            }
+            else
+            {
+                // Fade real: lienzo con el fondo del tema + el contenido a alfa = fadeAlpha encima.
+                using var canvas = new Bitmap(fw, fh);
+                using var g = Graphics.FromImage(canvas);
+                g.Clear(form.BackColor);
+                var cm = new System.Drawing.Imaging.ColorMatrix { Matrix33 = (float)Math.Clamp(fadeAlpha, 0, 1) };
+                using var ia = new System.Drawing.Imaging.ImageAttributes();
+                ia.SetColorMatrix(cm);
+                g.DrawImage(content, new Rectangle(0, 0, fw, fh), 0, 0, fw, fh, GraphicsUnit.Pixel, ia);
+                canvas.Save(file);
+            }
+            return new Size(fw, fh);
+        }
+
+        string Seq(string name)
+        {
+            var d = Path.Combine(root, name);
+            if (Directory.Exists(d)) Directory.Delete(d, true);
+            Directory.CreateDirectory(d);
+            return d;
+        }
+
+        // 1) APERTURA: fade (OutQuad sobre FadeMs) + stagger de secciones + tween de barras/números.
+        //    Barrido tSinceOpen 0→440 ms (cubre fade 120, tween 220 y el stagger de todas las secciones)
+        //    + unos fotogramas de "hold" en el estado asentado para que el loop respire antes de reabrir.
+        {
+            var dir = Seq("apertura");
+            int i = 0;
+            const double endMs = 440, stepMs = 20;
+            for (double t = 0; t <= endMs + 0.001; t += stepMs)
+            {
+                double fade = Motion.FadeMs <= 0 ? 1.0 : Easing.OutQuad(Math.Clamp(t / Motion.FadeMs, 0, 1));
+                Shot(dir, i++, Cfg(),
+                    new DashboardForm.RenderMotionOverride(TSinceOpenMs: t, MascotElapsedMs: t), processing, fade);
+            }
+            for (int h = 0; h < 12; h++) // hold asentado
+                Shot(dir, i++, Cfg(),
+                    new DashboardForm.RenderMotionOverride(TSinceOpenMs: endMs, MascotElapsedMs: endMs), processing, 1.0);
+            Console.WriteLine($"apertura: {i} frames -> {dir}");
+        }
+
+        // 2) MASCOTA: vida en Processing. tSinceOpen alto (panel asentado) y barrido de MascotElapsedMs
+        //    0→2700 ms = 3 ciclos completos del spinner (90 ms × 10 glifos) ⇒ LOOP perfecto del braille.
+        {
+            var dir = Seq("mascota");
+            int i = 0;
+            const double endMs = 2700, stepMs = 30; // 90 fotogramas, 30 ms/frame
+            for (double t = 0; t < endMs - 0.001; t += stepMs)
+                Shot(dir, i++, Cfg(),
+                    new DashboardForm.RenderMotionOverride(
+                        TSinceOpenMs: 4000, MascotElapsedMs: t, MascotMood: Mood.Focused), processing, 1.0);
+            Console.WriteLine($"mascota: {i} frames -> {dir}");
+        }
+
+        // 3) HOVER: realce de la sección de Cuota apareciendo. Barrido manual de la intensidad del
+        //    fade-in (OutQuad sobre FadeMs) reusando el override de hover: pasamos por una rampa de
+        //    fotogramas con la clave activa y, para el inicio "sin realce", la clave a null.
+        {
+            var dir = Seq("hover");
+            int i = 0;
+            // Antes del hover: panel asentado, sin realce.
+            for (int h = 0; h < 6; h++)
+                Shot(dir, i++, Cfg(),
+                    new DashboardForm.RenderMotionOverride(TSinceOpenMs: 4000, MascotElapsedMs: 4000), processing, 1.0);
+            // Hover ON (el override fuerza intensidad plena); mantenemos unos fotogramas para que se lea.
+            for (int h = 0; h < 18; h++)
+                Shot(dir, i++, Cfg(),
+                    new DashboardForm.RenderMotionOverride(
+                        TSinceOpenMs: 4000, HoveredKey: "sec:quota", MascotElapsedMs: 4000 + h * 30), processing, 1.0);
+            Console.WriteLine($"hover: {i} frames -> {dir}");
+        }
+
+        // 4) CELEBRACIÓN: destello "✓ cuota renovada" + humor Happy. Barrido corto de MascotElapsed para
+        //    que la mascota siga viva durante el destello; loop tras unos fotogramas de hold.
+        {
+            var dir = Seq("celebracion");
+            int i = 0;
+            for (int h = 0; h < 30; h++)
+                Shot(dir, i++, Cfg(),
+                    new DashboardForm.RenderMotionOverride(
+                        TSinceOpenMs: 4000, MascotElapsedMs: h * 30, MascotMood: Mood.Happy, Celebrating: true),
+                    processing, 1.0);
+            Console.WriteLine($"celebracion: {i} frames -> {dir}");
+        }
+
+        Console.WriteLine(root);
     }
 
     private static async Task RunRenderTest()

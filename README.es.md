@@ -23,11 +23,30 @@ Las barras de 5h/7d y sus valores se colorean por **ritmo** (pace), la gráfica 
 **Gasto $** (apilado por modelo) y **Cuota %** (utilización real en el tiempo), y el panel se
 auto-ajusta a las secciones que actives.
 
+Todo desplegado a la vez — la **mascota** de sesiones en vivo, las dos barras de cuota, el gasto por
+modelo y la gráfica de uso:
+
+<p align="center"><img src="assets/dashboard-full.png" alt="Dashboard completo con la mascota de sesiones en vivo" width="320"></p>
+
 **Arrástralo donde quieras y ajústale la opacidad** — el panel es un widget movible y semitransparente:
 
 <p align="center">
   <img src="assets/move.gif" alt="Arrastra el panel por la pantalla" width="380">
   <img src="assets/opacity.gif" alt="Opacidad ajustable" width="380">
+</p>
+
+**Microinteracciones** — el panel aparece con un fade y entrada escalonada, los números y las barras
+hacen tween hasta su valor, la mascota parpadea y gira su spinner mientras trabaja, las filas se
+realzan al pasar el cursor, y un reset de cuota recibe un pequeño destello (todo respeta el toggle de
+*reducir movimiento*):
+
+<p align="center">
+  <img src="assets/f3-apertura.gif" alt="Apertura del panel: fade, entrada escalonada, tween de números/barras" width="300">
+  <img src="assets/f3-mascota.gif" alt="Vida de la mascota: parpadeo, spinner braille, verbo juguetón" width="300">
+</p>
+<p align="center">
+  <img src="assets/f3-hover.gif" alt="Realce de hover apareciendo sobre una sección" width="300">
+  <img src="assets/f3-celebracion.gif" alt="Destello de celebración de reset de cuota" width="300">
 </p>
 
 Icono de bandeja, por estado / ritmo:
@@ -150,6 +169,7 @@ cd claudebar-win
 | `ClaudeBarWin.exe --report` | Vuelca la cuota + pace a consola/`%TEMP%` (sin GUI) |
 | `ClaudeBarWin.exe --render-test` | Renderiza el dashboard a `%TEMP%\claudebar-render` |
 | `ClaudeBarWin.exe --render-demo` | Renderiza las capturas del README (datos demo) |
+| `ClaudeBarWin.exe --render-gif` | Vuelca las secuencias de fotogramas de los GIF del README (datos demo) a `%TEMP%\claudebar-gif` |
 | `ClaudeBarWin.exe --db-test` | Prueba la base SQLite del histórico |
 | `ClaudeBarWin.exe --dump-menu` | Imprime la estructura del menú |
 

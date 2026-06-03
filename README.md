@@ -23,11 +23,29 @@ The 5h/7d bars and their values are coloured by **pace** (burn-rate), the chart 
 **Spend $** (stacked by model) and **Quota %** (real utilisation over time), and the panel auto-sizes
 to whatever sections you enable.
 
+Everything expanded at once — the live-session **mascot**, both quota bars, per-model spend, and the
+usage chart:
+
+<p align="center"><img src="assets/dashboard-full.png" alt="Full dashboard with the live-session mascot" width="320"></p>
+
 **Drag it anywhere, dial in the opacity** — the panel is a movable, see-through widget:
 
 <p align="center">
   <img src="assets/move.gif" alt="Drag the panel anywhere on screen" width="380">
   <img src="assets/opacity.gif" alt="Adjustable window opacity" width="380">
+</p>
+
+**Microinteractions** — the panel fades and staggers in, numbers and bars tween to their targets, the
+mascot blinks and spins while it works, rows light up on hover, and a quota reset gets a little flash
+(all respect a *reduce motion* toggle):
+
+<p align="center">
+  <img src="assets/f3-apertura.gif" alt="Panel open: fade, staggered entry, number/bar tween" width="300">
+  <img src="assets/f3-mascota.gif" alt="Mascot life: blink, braille spinner, playful verb" width="300">
+</p>
+<p align="center">
+  <img src="assets/f3-hover.gif" alt="Hover highlight fading in over a section" width="300">
+  <img src="assets/f3-celebracion.gif" alt="Quota-reset celebration flash" width="300">
 </p>
 
 Tray icon, by status / pace:
@@ -152,6 +170,7 @@ cd claudebar-win
 | `ClaudeBarWin.exe --report` | Print current quota + pace to console/`%TEMP%` (no GUI) |
 | `ClaudeBarWin.exe --render-test` | Render the dashboard to `%TEMP%\claudebar-render` |
 | `ClaudeBarWin.exe --render-demo` | Render the README screenshots (synthetic data) |
+| `ClaudeBarWin.exe --render-gif` | Dump the README GIF frame sequences (synthetic data) to `%TEMP%\claudebar-gif` |
 | `ClaudeBarWin.exe --db-test` | Smoke-test the SQLite history store |
 | `ClaudeBarWin.exe --dump-menu` | Print the right-click menu structure |
 
