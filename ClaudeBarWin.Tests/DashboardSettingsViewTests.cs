@@ -142,4 +142,172 @@ public class DashboardSettingsViewTests
         Assert.Contains("special:hooktoggle", rects.Keys);
         Assert.Contains("cycle:position", rects.Keys);
     }
+
+    // ---------------- T2: TogglePill (cápsula+knob, sustituye ☑/☐) ----------------
+
+    [Fact]
+    public void TogglePill_measure_equals_paint()
+    {
+        // El track derecho debe reservar el mismo rect en medir y pintar (geometría idéntica).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+
+        var measured = DashboardSettingsView.TogglePill(g, draw: false, on: true, rightX: X + W, y: 100, rowH: 18, theme: Theme.Dark);
+        var painted = DashboardSettingsView.TogglePill(g, draw: true, on: true, rightX: X + W, y: 100, rowH: 18, theme: Theme.Dark);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void TogglePill_right_edge_anchors_at_rightX_with_safe_margin()
+    {
+        // El borde derecho del pill respeta un margen interno ≥ Spacing.Sm respecto a rightX.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+
+        int rightX = X + W;
+        var pill = DashboardSettingsView.TogglePill(g, draw: false, on: false, rightX: rightX, y: 100, rowH: 18, theme: Theme.Dark);
+
+        Assert.True(pill.Right <= rightX - Spacing.Sm, "el pill no debe tocar el borde derecho (margen ≥ Sm)");
+        Assert.True(pill.X >= X, "el pill no se sale por la izquierda del contenido");
+    }
+
+    [Fact]
+    public void TogglePill_knob_left_when_off_right_when_on()
+    {
+        // El knob se desliza: a la izquierda del track si OFF, a la derecha si ON.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+
+        int rightX = X + W, y = 100, rowH = 18;
+        var track = DashboardSettingsView.TogglePill(g, draw: false, on: false, rightX: rightX, y: y, rowH: rowH, theme: Theme.Dark);
+
+        int knobOff = DashboardSettingsView.PillKnobCenterX(track, on: false);
+        int knobOn = DashboardSettingsView.PillKnobCenterX(track, on: true);
+
+        Assert.True(knobOff < track.X + track.Width / 2, "OFF: knob en la mitad izquierda");
+        Assert.True(knobOn > track.X + track.Width / 2, "ON: knob en la mitad derecha");
+        Assert.True(knobOn > knobOff, "ON desplaza el knob a la derecha respecto a OFF");
+    }
+
+    [Fact]
+    public void TogglePill_track_color_accent_when_on_separator_when_off()
+    {
+        // ON → track Theme.Accent; OFF → track Theme.Separator. Comprobado por píxel en el centro-izquierda
+        // del track (zona de track sin knob: el knob está a la derecha cuando ON, a la izquierda cuando OFF,
+        // así que muestreamos el lado opuesto para leer el color del track).
+        int rightX = 300, y = 40, rowH = 18;
+        using var bmp = new Bitmap(360, 120);
+        using var g = Graphics.FromImage(bmp);
+
+        // ON: knob a la derecha → muestrear cuarto izquierdo (track puro).
+        g.Clear(Theme.Dark.Background);
+        var onTrack = DashboardSettingsView.TogglePill(g, draw: true, on: true, rightX: rightX, y: y, rowH: rowH, theme: Theme.Dark);
+        var cOn = bmp.GetPixel(onTrack.X + onTrack.Width / 4, onTrack.Y + onTrack.Height / 2);
+        var acc = Theme.Dark.Accent;
+        Assert.True(Math.Abs(cOn.R - acc.R) <= 8 && Math.Abs(cOn.G - acc.G) <= 8 && Math.Abs(cOn.B - acc.B) <= 8,
+            $"track ON debe ser Accent (#{acc.R:X2}{acc.G:X2}{acc.B:X2}), fue #{cOn.R:X2}{cOn.G:X2}{cOn.B:X2}");
+
+        // OFF: knob a la izquierda → muestrear cuarto derecho (track puro).
+        g.Clear(Theme.Dark.Background);
+        var offTrack = DashboardSettingsView.TogglePill(g, draw: true, on: false, rightX: rightX, y: y, rowH: rowH, theme: Theme.Dark);
+        var cOff = bmp.GetPixel(offTrack.Right - offTrack.Width / 4, offTrack.Y + offTrack.Height / 2);
+        var sep = Theme.Dark.Separator;
+        Assert.True(Math.Abs(cOff.R - sep.R) <= 8 && Math.Abs(cOff.G - sep.G) <= 8 && Math.Abs(cOff.B - sep.B) <= 8,
+            $"track OFF debe ser Separator (#{sep.R:X2}{sep.G:X2}{sep.B:X2}), fue #{cOff.R:X2}{cOff.G:X2}{cOff.B:X2}");
+    }
+
+    // ---------------- T2: ToggleRow con título + subtítulo + pill, sin glifos ☑/☐ ----------------
+
+    [Fact]
+    public void ToggleRow_measure_equals_paint_single_line()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.ToggleRow(g, draw: false, "toggle:X", "Mostrar mascota", null, true,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+        int painted = DashboardSettingsView.ToggleRow(g, draw: true, "toggle:X", "Mostrar mascota", null, true,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void ToggleRow_with_subtitle_is_taller_than_without()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        int plain = DashboardSettingsView.ToggleRow(g, draw: false, "toggle:X", "Notificaciones", null, true,
+            X, 0, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+        int withSub = DashboardSettingsView.ToggleRow(g, draw: false, "toggle:X", "Notificaciones", "Coste equivalente por modelo", true,
+            X, 0, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.True(withSub > plain, "una fila con subtítulo debe ocupar más alto que sin subtítulo");
+    }
+
+    [Fact]
+    public void ToggleRow_subtitle_measure_equals_paint()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.ToggleRow(g, draw: false, "toggle:X", "Notificaciones", "Coste equivalente por modelo", false,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+        int painted = DashboardSettingsView.ToggleRow(g, draw: true, "toggle:X", "Notificaciones", "Coste equivalente por modelo", false,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void ToggleRow_hit_rect_covers_full_row_width()
+    {
+        // El hit-test es el rect completo de la fila (clic en cualquier punto alterna el toggle).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.ToggleRow(g, draw: true, "toggle:Hit", "Estado del servicio", null, true,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.TryGetValue("toggle:Hit", out var r));
+        Assert.Equal(X, r.X);
+        Assert.Equal(W, r.Width);
+        Assert.True(r.Height > 0);
+    }
+
+    [Fact]
+    public void ToggleRow_does_not_draw_unicode_checkbox_glyphs()
+    {
+        // Regresión: la fila ya NO usa los glifos ☑/☐. La cápsula viene de TogglePill (Accent/Separator),
+        // no de un carácter Unicode. Verificamos que la columna izquierda del texto (donde antes iba el
+        // glifo) NO tiene un cuadro coloreado de check: el primer no-fondo a la altura del baseline es texto.
+        // Comprobación indirecta: el pill ON pinta Accent en el lado derecho del rect, nunca a la izquierda.
+        int x = 20, w = 240, y = 30;
+        using var bmp = new Bitmap(x + w + 40, 80);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.ToggleRow(g, draw: true, "toggle:Z", "Mostrar mascota", null, true,
+            x, y, w, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        var acc = Theme.Dark.Accent;
+        bool IsAccent(int px, int py)
+        {
+            var c = bmp.GetPixel(px, py);
+            return Math.Abs(c.R - acc.R) <= 8 && Math.Abs(c.G - acc.G) <= 8 && Math.Abs(c.B - acc.B) <= 8;
+        }
+        // En el cuarto izquierdo (donde iba ☑) no debe haber Accent en ninguna fila.
+        bool accentOnLeft = false;
+        for (int py = y; py < y + 18 && !accentOnLeft; py++)
+            for (int px = x; px < x + (w / 4); px++)
+                if (IsAccent(px, py)) { accentOnLeft = true; break; }
+        Assert.False(accentOnLeft, "no debe haber cápsula/check a la izquierda (sin glifo ☑)");
+    }
 }

@@ -34,14 +34,14 @@ public static class DashboardSettingsView
 
         // -------- Secciones --------
         y = SectionHeader(g, draw, s.MenuSections, x, y, w, theme, smallFont);
-        y = ToggleRow(g, draw, "toggle:ShowSpend", s.ShowSpend, cfg.ShowSpendEstimate, x, y, w, theme, smallFont, rects);
-        y = ToggleRow(g, draw, "toggle:ShowHealth", s.ShowServiceStatus, cfg.ShowHealth, x, y, w, theme, smallFont, rects);
-        y = ToggleRow(g, draw, "toggle:ShowChart", s.UsageChart, cfg.ShowChart, x, y, w, theme, smallFont, rects);
+        y = ToggleRow(g, draw, "toggle:ShowSpend", s.ShowSpend, null, cfg.ShowSpendEstimate, x, y, w, theme, labelFont, smallFont, rects);
+        y = ToggleRow(g, draw, "toggle:ShowHealth", s.ShowServiceStatus, null, cfg.ShowHealth, x, y, w, theme, labelFont, smallFont, rects);
+        y = ToggleRow(g, draw, "toggle:ShowChart", s.UsageChart, null, cfg.ShowChart, x, y, w, theme, labelFont, smallFont, rects);
 
         // -------- Sesiones en vivo --------
         y = SectionHeader(g, draw, s.MenuLiveSessions, x, y, w, theme, smallFont);
-        y = ToggleRow(g, draw, "toggle:ShowMascot", s.MenuShowMascot, cfg.ShowMascot, x, y, w, theme, smallFont, rects);
-        y = ToggleRow(g, draw, "toggle:Suppress", s.MenuSuppressWhenFocused, cfg.SuppressWhenFocused, x, y, w, theme, smallFont, rects);
+        y = ToggleRow(g, draw, "toggle:ShowMascot", s.MenuShowMascot, null, cfg.ShowMascot, x, y, w, theme, labelFont, smallFont, rects);
+        y = ToggleRow(g, draw, "toggle:Suppress", s.MenuSuppressWhenFocused, null, cfg.SuppressWhenFocused, x, y, w, theme, labelFont, smallFont, rects);
         y = SegmentedRow(g, draw, "mascotsize", s.MascotSizeLabel,
             new[] { ("compact", s.MascotSizeCompact), ("large", s.MascotSizeLarge) }, cfg.MascotSize, x, y, w, theme, smallFont, rects);
         // Activador de la feature = BOTÓN destacado (no una fila más): instala/quita hooks en
@@ -53,8 +53,8 @@ public static class DashboardSettingsView
 
         // -------- Notificaciones --------
         y = SectionHeader(g, draw, s.Notifications, x, y, w, theme, smallFont);
-        y = ToggleRow(g, draw, "toggle:Notifications", s.Enabled, cfg.NotificationsEnabled, x, y, w, theme, smallFont, rects);
-        y = ToggleRow(g, draw, "toggle:PaceAlerts", s.PaceAlerts, cfg.PaceAlerts, x, y, w, theme, smallFont, rects);
+        y = ToggleRow(g, draw, "toggle:Notifications", s.Enabled, null, cfg.NotificationsEnabled, x, y, w, theme, labelFont, smallFont, rects);
+        y = ToggleRow(g, draw, "toggle:PaceAlerts", s.PaceAlerts, null, cfg.PaceAlerts, x, y, w, theme, labelFont, smallFont, rects);
         // Hitos individuales 25/50/75/95 como toggles que editan el array NotifyMilestones.
         var milestones = cfg.NotifyMilestones ?? Array.Empty<int>();
         if (draw)
@@ -102,9 +102,9 @@ public static class DashboardSettingsView
         // Posición: fila que cicla (5 opciones no caben en segmentos); muestra la posición actual.
         y = CycleRow(g, draw, "cycle:position", s.Position, PosLabel(cfg.DashboardPosition, s), x, y, w, theme, smallFont, rects);
         y = SegmentedRow(g, draw, "opacity", s.Opacity, OpacitySegs, FmtOpacity(cfg.DashboardOpacity), x, y, w, theme, smallFont, rects);
-        y = ToggleRow(g, draw, "toggle:Sticky", s.Sticky, cfg.DashboardSticky, x, y, w, theme, smallFont, rects);
-        y = ToggleRow(g, draw, "toggle:OnTop", s.AlwaysOnTop, cfg.DashboardAlwaysOnTop, x, y, w, theme, smallFont, rects);
-        y = ToggleRow(g, draw, "toggle:ReduceMotion", s.ReduceMotion, cfg.ReduceMotion, x, y, w, theme, smallFont, rects);
+        y = ToggleRow(g, draw, "toggle:Sticky", s.Sticky, null, cfg.DashboardSticky, x, y, w, theme, labelFont, smallFont, rects);
+        y = ToggleRow(g, draw, "toggle:OnTop", s.AlwaysOnTop, null, cfg.DashboardAlwaysOnTop, x, y, w, theme, labelFont, smallFont, rects);
+        y = ToggleRow(g, draw, "toggle:ReduceMotion", s.ReduceMotion, null, cfg.ReduceMotion, x, y, w, theme, labelFont, smallFont, rects);
 
         // -------- Idioma --------
         y = SectionHeader(g, draw, s.Language, x, y, w, theme, smallFont);
@@ -114,7 +114,7 @@ public static class DashboardSettingsView
         // -------- Sistema --------
         // NOTA: literal hardcodeado; lo localiza T8 (i18n "Sistema").
         y = SectionHeader(g, draw, "Sistema", x, y, w, theme, smallFont);
-        y = ToggleRow(g, draw, "toggle:Startup", s.StartWithWindows, StartupManager.IsEnabled(), x, y, w, theme, smallFont, rects);
+        y = ToggleRow(g, draw, "toggle:Startup", s.StartWithWindows, null, StartupManager.IsEnabled(), x, y, w, theme, labelFont, smallFont, rects);
 
         return y;
     }
@@ -227,6 +227,13 @@ public static class DashboardSettingsView
     private const int SegmentHeight = 18;
     private static int SegmentRowAdvance => SegmentHeight + Spacing.Sm;
 
+    // -------- TogglePill: cápsula+knob dibujada (sustituye ☑/☐) sobre rejilla 8pt --------
+    // Track de 36×20 (múltiplos de 4) con knob circular ligeramente menor que el alto del track.
+    private const int PillTrackW = 36;
+    private const int PillTrackH = 20;
+    private const int PillKnobInset = 2;                       // holgura del knob dentro del track
+    private static int PillKnobDiameter => PillTrackH - PillKnobInset * 2;
+
     /// <summary>
     /// Encabezado de sección estilo Apple: caption en MAYÚSCULAS, tenue (<c>TextMuted</c>, más pequeña
     /// que el body), con un Divider de 1px (<c>Theme.Separator</c>) debajo. Reserva <c>Spacing.Md</c> de
@@ -252,18 +259,72 @@ public static class DashboardSettingsView
         return y + Spacing.Sm; // aire abajo (separa de la primera fila)
     }
 
-    /// <summary>Fila de toggle (☑/☐ + etiqueta). Registra rects[key] con el ancho completo de la fila.</summary>
-    private static int ToggleRow(Graphics g, bool draw, string key, string label, bool on,
-        int x, int y, int w, Theme theme, Font f, Dictionary<string, Rectangle> rects)
+    /// <summary>
+    /// Centro X del knob del TogglePill dado el rect del track y el estado. Helper PURO (geometría,
+    /// sin dibujo) para test e implementación: knob a la izquierda si OFF, a la derecha si ON.
+    /// </summary>
+    internal static int PillKnobCenterX(Rectangle track, bool on)
     {
-        var r = new Rectangle(x, y, w, RowContentHeight);
+        int rad = PillKnobDiameter / 2;
+        int left = track.X + PillKnobInset + rad;
+        int right = track.Right - PillKnobInset - rad;
+        return on ? right : left;
+    }
+
+    /// <summary>
+    /// Cápsula con knob deslizante (estilo iOS), dibujada a mano (GDI+), anclada por su borde DERECHO a
+    /// <paramref name="rightX"/> con margen interno de seguridad <c>Spacing.Sm</c>. Track <c>Theme.Accent</c>
+    /// cuando ON y <c>Theme.Separator</c> cuando OFF; knob circular claro a izquierda (OFF) / derecha (ON).
+    /// Sustituye los glifos Unicode ☑/☐. Devuelve el rect del track (idéntico en medir y pintar).
+    /// </summary>
+    internal static Rectangle TogglePill(Graphics g, bool draw, bool on, int rightX, int y, int rowH, Theme theme)
+    {
+        // Anclado a la derecha con margen interno ≥ Spacing.Sm; centrado verticalmente en la fila.
+        int tx = rightX - Spacing.Sm - PillTrackW;
+        int ty = y + (rowH - PillTrackH) / 2;
+        var track = new Rectangle(tx, ty, PillTrackW, PillTrackH);
+        if (draw)
+        {
+            using (var bg = new SolidBrush(on ? theme.Accent : theme.Separator))
+                Shapes.FillRounded(g, bg, track, PillTrackH / 2);
+            int d = PillKnobDiameter;
+            int cx = PillKnobCenterX(track, on);
+            var knob = new Rectangle(cx - d / 2, track.Y + PillKnobInset, d, d);
+            var sm = g.SmoothingMode;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var kb = new SolidBrush(on ? ColorMath.Contrast(theme.Accent) : theme.TextPrimary))
+                g.FillEllipse(kb, knob);
+            g.SmoothingMode = sm;
+        }
+        return track;
+    }
+
+    /// <summary>
+    /// Fila de toggle estilo Apple: título (<c>labelFont</c>/<c>TextPrimary</c>) a la izquierda + subtítulo
+    /// opcional debajo (<c>smallFont</c>/<c>TextMuted</c>, 1 línea corta) + <see cref="TogglePill"/> a la
+    /// derecha (sin glifos Unicode). El hit-test es el rect COMPLETO de la fila (clic en cualquier punto).
+    /// Alto = 1 línea, o título+subtítulo si hay subtítulo. Mide==pinta: el avance es idéntico en ambas pasadas.
+    /// </summary>
+    internal static int ToggleRow(Graphics g, bool draw, string key, string label, string? subtitle, bool on,
+        int x, int y, int w, Theme theme, Font labelFont, Font smallFont, Dictionary<string, Rectangle> rects)
+    {
+        int titleH = (int)Math.Ceiling(g.MeasureString(label, labelFont).Height);
+        bool hasSub = !string.IsNullOrEmpty(subtitle);
+        int subH = hasSub ? (int)Math.Ceiling(g.MeasureString(subtitle, smallFont).Height) : 0;
+        int contentH = Math.Max(PillTrackH, titleH + subH);
+
+        var r = new Rectangle(x, y, w, contentH);
         rects[key] = r;
         if (draw)
         {
-            using var b = new SolidBrush(theme.TextPrimary);
-            g.DrawString((on ? "☑ " : "☐ ") + label, f, b, x, y);
+            using (var b = new SolidBrush(theme.TextPrimary))
+                g.DrawString(label, labelFont, b, x, y);
+            if (hasSub)
+                using (var sb = new SolidBrush(theme.TextMuted))
+                    g.DrawString(subtitle!, smallFont, sb, x, y + titleH);
+            TogglePill(g, draw: true, on, x + w, y, contentH, theme);
         }
-        return y + RowAdvance;
+        return y + contentH + Spacing.Sm;
     }
 
     /// <summary>Fila de acción simple (etiqueta clicable, sin estado on/off). Registra rects[key].</summary>
