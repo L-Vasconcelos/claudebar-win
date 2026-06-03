@@ -57,20 +57,26 @@ public static class MascotSprite
         return Animated(p) ? new[] { Frame(baseF), Frame(altF) } : new[] { Frame(baseF) };
     }
 
-    // Large: 7 líneas, gato sentado simétrico (orejas, cara, hocico, pecho, vientre, regazo, patas traseras).
+    // Large: 7 líneas, gato "loaf" (hogaza) — la cabeza de la compacta (orejas + cara + bigotes)
+    // sobre un cuerpo redondeado de interior vacío (el tinte de fase resalta el contorno) con las
+    // patitas (")_(") asomando bajo la base. Diseño v0.3.6 (jurado de 3 lentes sobre 12 candidatos;
+    // motivos: pose loaf = "cómodo y a salvo", baby-schema cabeza ancha, ADN compartido con la
+    // compacta). El frame alterno parpadea Y saca un latigazo de cola (J) sin cambiar el ancho
+    // máximo (9 cols) ni el nº de líneas, para que la medida no baile entre frames.
     private static IReadOnlyList<string[]> Large(SessionPhase p)
     {
         var (baseF, altF) = Face(p);
-        static string[] Frame(string f) => new[]
+        static string[] Frame(string f, bool tail) => new[]
         {
             "  /\\_/\\",
             $" ( {f} )",
-            " ( =^= )",
-            " /|   |\\",
-            "( |   | )",
-            " \\|___|/",
-            " (_/ \\_)",
+            "  > ^ <",
+            " /     \\",
+            "(       )",
+            " \\_____/",
+            tail ? " (\")_(\")J" : " (\")_(\")",
         };
-        return Animated(p) ? new[] { Frame(baseF), Frame(altF) } : new[] { Frame(baseF) };
+        // Estáticas (Idle/Ended): cola en reposo. Vivas: el frame alterno = guiño + latigazo de cola.
+        return Animated(p) ? new[] { Frame(baseF, false), Frame(altF, true) } : new[] { Frame(baseF, false) };
     }
 }
