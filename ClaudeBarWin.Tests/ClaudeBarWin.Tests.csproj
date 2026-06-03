@@ -7,6 +7,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- NETSDK1187: locale "JA" mal escrita dentro del paquete NetSparkleUpdater.UI.WinForms.NetCore
+         (llega transitivo por la referencia al proyecto principal). Bug del paquete; silenciado. -->
+    <NoWarn>$(NoWarn);NETSDK1187</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

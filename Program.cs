@@ -510,6 +510,133 @@ internal static class Program
             Console.WriteLine($"celebracion: {i} frames -> {dir}");
         }
 
+        // 5) AJUSTES: el panel de ajustes haciendo SCROLL (feature v0.3.7: el alto se limita al 65% de la
+        //    pantalla y el contenido rueda). Loop elegante: hold arriba → barrido eased al scroll MÁXIMO →
+        //    hold abajo → barrido eased de vuelta arriba. ~30 ms/frame. A diferencia de las 4 secuencias de
+        //    motion (que inyectan RenderMotionOverride), aquí conducimos el scroll real del form vía los
+        //    ganchos internal SetSettingsScrollForRender/SettingsMaxScrollForRender.
+        {
+            var dir = Seq("ajustes");
+            int i = 0;
+
+            // Un único form reutilizado por toda la secuencia: ShowSettings() resetea el scroll a 0 UNA vez,
+            // y un primer DrawToBitmap puebla _settingsContentH/_settingsViewportTop para conocer el overflow.
+            using var form = new DashboardForm();
+            form.PrepareForRender(snap, Cfg(), plan, buckets, pct, ChartRange.Hours5);
+            form.ShowSettings(); // entra en modo ajustes y deja el scroll en 0 (NO volver a llamarlo en el bucle)
+            int fw = form.Width, fh = form.Height;
+
+            // Render de UN fotograma del panel de ajustes al scroll px indicado. Acota a [0, overflow] y
+            // captura. Devuelve el overflow vigente para el barrido (válido ya tras el 1er DrawToBitmap).
+            int ShotSettings(int scrollPx)
+            {
+                form.SetSettingsScrollForRender(scrollPx);
+                using var bmp = new Bitmap(fw, fh);
+                form.DrawToBitmap(bmp, new Rectangle(0, 0, fw, fh));
+                bmp.Save(Path.Combine(dir, $"frame_{i++:000}.png"));
+                return form.SettingsMaxScrollForRender;
+            }
+
+            // Fotograma 0 en el tope arriba: además de ser el primer hold, puebla los campos del viewport
+            // para que SettingsMaxScrollForRender devuelva el overflow real del contenido.
+            int maxScroll = ShotSettings(0);
+
+            const int holdFrames = 10;     // ~10 frames de hold arriba/abajo (a 30 ms ≈ 300 ms de pausa)
+            const int sweepFrames = 30;    // tramo de barrido (eased): 30 frames ≈ 900 ms por sentido
+
+            // Hold arriba (ya pintamos el frame 0, faltan holdFrames-1 para completar el respiro inicial).
+            for (int h = 1; h < holdFrames; h++) ShotSettings(0);
+
+            if (maxScroll > 0)
+            {
+                // Barrido suave ARRIBA→ABAJO con ease-in-out (arranca y frena lento, rápido en el medio):
+                // InOutQuad no existe en Easing, así que usamos InOutCubic (misma familia simétrica, gate F3).
+                for (int k = 1; k <= sweepFrames; k++)
+                {
+                    double e = Easing.InOutCubic((double)k / sweepFrames);
+                    ShotSettings((int)Math.Round(e * maxScroll));
+                }
+                // Hold abajo (en el scroll máximo) para que se lea el final del panel.
+                for (int h = 0; h < holdFrames; h++) ShotSettings(maxScroll);
+                // Barrido de vuelta ABAJO→ARRIBA (mismo easing) para cerrar el loop limpiamente.
+                for (int k = 1; k <= sweepFrames; k++)
+                {
+                    double e = Easing.InOutCubic((double)k / sweepFrames);
+                    ShotSettings((int)Math.Round((1.0 - e) * maxScroll));
+                }
+            }
+            Console.WriteLine($"ajustes: {i} frames (overflow {maxScroll}px) -> {dir}");
+        }
+
+        // 6) BANDEJA: ciclo del icono de bandeja. El badge del % sube 5→99 con el degradado verde→ámbar→rojo
+        //    y las FORMAS de accesibilidad apareciendo (triángulo al cruzar warn 70, rombo al cruzar critical
+        //    90); al final el punto ámbar de atención parpadea 3 veces (independiente del color de cuota). UN
+        //    solo icono grande centrado en un lienzo cuadrado con fondo de barra de tareas oscura.
+        {
+            var dir = Seq("bandeja");
+            int i = 0;
+
+            const double warn = 70, crit = 90;          // mismos umbrales por defecto que usa el dashboard
+            const int canvas = 180;                     // lienzo cuadrado
+            const int iconNative = 48;                  // tamaño nativo del badge
+            const int iconDraw = iconNative * 3;        // 48px ×3 = 144px (el icono ocupa el centro)
+            const int iconOff = (canvas - iconDraw) / 2; // offset para centrar el icono en el lienzo
+            var taskbarBg = Color.FromArgb(42, 42, 42); // gris de barra de tareas oscura (Color.FromArgb(42,42,42))
+
+            // Estado por forma según los umbrales (mismo mapeo que TrayAppContext.StatusFor): el % decide
+            // tanto el color (RiskColor) como la forma (Ok→círculo, Warn→triángulo, Critical→rombo).
+            UsageStatus StatusForPct(int pct) =>
+                pct >= crit ? UsageStatus.Critical : pct >= warn ? UsageStatus.Warn : UsageStatus.Ok;
+
+            // Pinta un icono ya renderizado, centrado y escalado ×3 con HighQualityBicubic (bordes suaves
+            // tipo "icono de app ampliado", sin moteado del anti-aliasing magnificado en bloques).
+            void ShotIcon(Icon ico)
+            {
+                using var frame = new Bitmap(canvas, canvas);
+                using (var g = Graphics.FromImage(frame))
+                {
+                    g.Clear(taskbarBg);
+                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                    using var b = ico.ToBitmap();
+                    g.DrawImage(b, new Rectangle(iconOff, iconOff, iconDraw, iconDraw));
+                }
+                frame.Save(Path.Combine(dir, $"frame_{i++:000}.png"));
+            }
+
+            // a) Rampa 5→99: ~60 frames con easing suave (OutQuad: arranca rápido y frena cerca del 99) para
+            //    que el cruce de umbrales (aparición de triángulo/rombo) se aprecie sin prisa al final.
+            const int rampFrames = 60;
+            for (int k = 0; k < rampFrames; k++)
+            {
+                double e = Easing.OutQuad((double)k / (rampFrames - 1));
+                int pctVal = (int)Math.Round(5 + e * (99 - 5)); // 5 → 99 (renombrado: 'pct' ya es el List<PctPoint> externo)
+                using var ico = TrayIconRenderer.Render(pctVal, Theme.Dark, warn, crit, StatusForPct(pctVal));
+                ShotIcon(ico);
+            }
+
+            // b) Parpadeo del punto ámbar de atención (pending): % FIJO en 18 (verde franco con el degradado)
+            //    para que se entienda que el punto es INDEPENDIENTE del color de cuota. 3 ciclos de 4 frames
+            //    ON + 4 OFF = 24 frames.
+            const int blinkPct = 18;
+            for (int cycle = 0; cycle < 3; cycle++)
+            {
+                for (int on = 0; on < 4; on++) // punto encendido
+                {
+                    using var ico = TrayIconRenderer.Render(blinkPct, Theme.Dark, warn, crit,
+                        StatusForPct(blinkPct), stale: false, pending: true);
+                    ShotIcon(ico);
+                }
+                for (int off = 0; off < 4; off++) // punto apagado
+                {
+                    using var ico = TrayIconRenderer.Render(blinkPct, Theme.Dark, warn, crit,
+                        StatusForPct(blinkPct), stale: false, pending: false);
+                    ShotIcon(ico);
+                }
+            }
+            Console.WriteLine($"bandeja: {i} frames -> {dir}");
+        }
+
         Console.WriteLine(root);
     }
 

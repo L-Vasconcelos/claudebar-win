@@ -58,7 +58,10 @@ Three themes — **Dark**, **Light**, and **CLI** (the CLI shot is in `Quota %` 
 gate their dependents (turn on live sessions, *then* the mascot control wakes up). The panel caps
 its height at ~65% of your screen and **scrolls with the mouse wheel** (thin scrollbar on the right):
 
-<p align="center"><img src="assets/settings.png" alt="Grouped settings panel — all options on one screen" width="300"></p>
+<p align="center">
+  <img src="assets/settings.png" alt="Grouped settings panel — all options on one screen" width="300">
+  <img src="assets/settings-scroll.gif" alt="Settings panel scrolling smoothly top→bottom→top with its thin scrollbar" width="300">
+</p>
 
 The **tray icon**, by status / pace — it shows the higher of your two windows and shades from
 green to amber to red as you climb:
@@ -107,6 +110,11 @@ single number always reflects your tightest limit.
   `⚠ previous data (offline)` line when the last fetch wasn't fresh, and a plain status message
   (`not signed in` / `session expired` / `rate limited` / `offline`) when there's no data at all.
   (Windows caps tray tooltips at 127 chars, so it's clipped to fit if needed.)
+
+<p align="center">
+  <img src="assets/tray-cycle.gif" alt="Tray badge climbing 5→99%: green→amber→red gradient, the warn-triangle (≥70) and critical-diamond (≥90) accessibility shapes appearing, and the amber attention dot blinking over a green badge" width="160">
+</p>
+<p align="center"><sub><em>The badge climbing 5→99%: the green→amber→red gradient, the colorblind triangle/diamond shapes kicking in, and the amber attention dot blinking independently of the quota color.</em></sub></p>
 
 > Click the icon to open/close the panel. Everything else lives in a deliberately minimal
 > right-click menu: **Dashboard · Settings · Live sessions · Check for updates · Exit**.
@@ -187,8 +195,8 @@ Windows toasts from the tray icon, all under one **Notifications** master switch
   繁體中文 (both theme and language default to your Windows settings).
 
 <p align="center">
-  <img src="assets/move.gif" alt="Drag the panel anywhere on screen" width="370">
-  <img src="assets/opacity.gif" alt="Adjustable window opacity" width="370">
+  <img src="assets/move.gif" alt="Cursor dragging the drop-shadowed panel across the screen and dropping it elsewhere" width="370">
+  <img src="assets/opacity.gif" alt="Panel opacity stepping 100→70→40% over terminal text visible behind it" width="370">
 </p>
 
 #### Microinteractions, reduce-motion, and ~0 CPU at rest
@@ -445,7 +453,7 @@ real quota.
 | `ClaudeBarWin.exe --report` | Print current quota + pace + spend to console and `%TEMP%\claudebar-report.txt` (no GUI) |
 | `ClaudeBarWin.exe --render-demo` | Render the theme screenshots (`dashboard-dark` / `-light` / `-cli`, `tray-icons`) |
 | `ClaudeBarWin.exe --render-test` | Render `data` / `settings` / `mascot` / `tray-badges` + microinteraction frames |
-| `ClaudeBarWin.exe --render-gif` | Dump README GIF frame sequences to `%TEMP%\claudebar-gif`, then assemble with ffmpeg (see [Building the GIFs](#building-the-gifs)). The settled "hold" frame of the `apertura/` sequence is the full expanded panel used for the `dashboard-full` hero. |
+| `ClaudeBarWin.exe --render-gif` | Dump README GIF frame sequences to `%TEMP%\claudebar-gif` (6 folders: `apertura/` · `mascota/` · `hover/` · `celebracion/` · `ajustes/` · `bandeja/`), then assemble with ffmpeg (see [Building the GIFs](#building-the-gifs)). The settled "hold" frame of the `apertura/` sequence is the full expanded panel used for the `dashboard-full` hero. |
 | `ClaudeBarWin.exe --notify-demo` | Fire the four milestone toasts 🟢🟡🟠🔴 in sequence, then exit |
 | `ClaudeBarWin.exe --db-test` | Smoke-test the SQLite history store |
 | `ClaudeBarWin.exe --dump-menu` | Print the right-click menu structure |
@@ -456,9 +464,10 @@ history), `last-state.json` (last good reading, for instant startup and offline)
 
 ### Building the GIFs
 
-`--render-gif` only dumps numbered `frame_###.png` sequences (one folder per animation:
-`apertura/` · `mascota/` · `hover/` · `celebracion/`) under `%TEMP%\claudebar-gif`. Turn each
-folder into a looping `.gif` with ffmpeg (palette pass for clean colors):
+`--render-gif` dumps numbered `frame_###.png` sequences (one folder per animation:
+`apertura/` · `mascota/` · `hover/` · `celebracion/` · `ajustes/` · `bandeja/`) under
+`%TEMP%\claudebar-gif`. Turn each folder into a looping `.gif` with ffmpeg (palette pass for clean
+colors):
 
 ```powershell
 $seq = "$env:TEMP\claudebar-gif\apertura"          # repeat per folder
@@ -467,10 +476,16 @@ ffmpeg -y -framerate 30 -i "$seq\frame_%03d.png" -i "$seq\pal.png" `
   -lavfi "paletteuse" "assets\f3-apertura.gif"
 ```
 
-Map the folders to `assets/f3-apertura.gif` · `assets/f3-mascota.gif` · `assets/f3-hover.gif` ·
-`assets/f3-celebracion.gif`. The **`dashboard-full` hero** is not its own command — grab a single
+Map the folders to their GIFs: `apertura/` → `assets/f3-apertura.gif`, `mascota/` →
+`assets/f3-mascota.gif`, `hover/` → `assets/f3-hover.gif`, `celebracion/` →
+`assets/f3-celebracion.gif`, `ajustes/` → `assets/settings-scroll.gif`, `bandeja/` →
+`assets/tray-cycle.gif`. The **`dashboard-full` hero** is not its own command — grab a single
 settled "hold" frame from the end of `apertura/` (the full expanded panel: mascot band + quota
 bars + per-model spend + chart) and save it as `assets/dashboard-full.png`.
+
+The **`move.gif` / `opacity.gif`** demos don't come from the app — they're synthetic. Generate
+their frames with `python scripts/marketing-gifs.py` (Pillow), then assemble them into
+`assets/move.gif` and `assets/opacity.gif` with the same ffmpeg palette pass shown above.
 
 ---
 

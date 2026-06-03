@@ -128,14 +128,16 @@ public static class TrayIconRenderer
             }
         }
 
+        // Clonamos el icono a 32bpp ARGB completo. El round-trip anterior (Icon.Save→new Icon(ms))
+        // recodificaba el .ico a la paleta VGA de 16 colores: el verde (22,163,74) caía a teal
+        // (0,128,128) y el verde-oliva del badge a oliva puro (128,128,0). En la bandeja a 16px casi no
+        // se nota, pero al MAGNIFICAR el icono para el GIF el aplanado de color se veía amateur. Con
+        // Icon.FromHandle preservamos color y alfa reales; clonamos para poder liberar el HICON.
         IntPtr hIcon = bmp.GetHicon();
         try
         {
             using var tmp = Icon.FromHandle(hIcon);
-            using var ms = new MemoryStream();
-            tmp.Save(ms);
-            ms.Position = 0;
-            return new Icon(ms);
+            return (Icon)tmp.Clone();
         }
         finally
         {

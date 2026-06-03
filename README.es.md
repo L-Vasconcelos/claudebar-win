@@ -60,7 +60,10 @@ filas maestras que controlan a sus dependientes (activa las sesiones en vivo y *
 despierta el control de la mascota). El panel limita su alto a ~65% de la pantalla y **se desplaza
 con la rueda del ratón** (barrita fina a la derecha):
 
-<p align="center"><img src="assets/settings.png" alt="Panel de ajustes agrupado — todas las opciones en una pantalla" width="300"></p>
+<p align="center">
+  <img src="assets/settings.png" alt="Panel de ajustes agrupado — todas las opciones en una pantalla" width="300">
+  <img src="assets/settings-scroll.gif" alt="Panel de ajustes desplazándose suavemente arriba→abajo→arriba con su barrita fina" width="300">
+</p>
 
 El **icono de bandeja**, por estado / ritmo — muestra la mayor de tus dos ventanas y va degradando
 de verde a ámbar a rojo según subes:
@@ -112,6 +115,11 @@ que un único número refleje siempre tu límite más ajustado.
   fresca, y un mensaje de estado simple (`No autenticado` / `Sesión caducada` / `Límite de
   peticiones` / `Sin conexión`) cuando no hay dato alguno. (Windows limita los tooltips de bandeja
   a 127 caracteres, así que se recorta si hace falta.)
+
+<p align="center">
+  <img src="assets/tray-cycle.gif" alt="La insignia de bandeja subiendo del 5 al 99%: degradado verde→ámbar→rojo, las formas de accesibilidad triángulo-aviso (≥70) y diamante-crítico (≥90) apareciendo, y el punto ámbar de atención parpadeando sobre una insignia verde" width="160">
+</p>
+<p align="center"><sub><em>La insignia subiendo del 5 al 99%: el degradado verde→ámbar→rojo, las formas triángulo/diamante para daltónicos entrando, y el punto ámbar de atención parpadeando independiente del color de la cuota.</em></sub></p>
 
 > Haz clic en el icono para abrir/cerrar el panel. Todo lo demás vive en un menú de clic derecho
 > deliberadamente minimal: **Panel · Ajustes · Sesiones en vivo · Buscar actualizaciones · Salir**.
@@ -196,8 +204,8 @@ Toasts de Windows desde el icono de bandeja, todos bajo un único interruptor ma
   繁體中文 (tanto el tema como el idioma siguen por defecto tu configuración de Windows).
 
 <p align="center">
-  <img src="assets/move.gif" alt="Arrastra el panel a cualquier sitio de la pantalla" width="370">
-  <img src="assets/opacity.gif" alt="Opacidad de ventana ajustable" width="370">
+  <img src="assets/move.gif" alt="El cursor arrastrando el panel con sombra por la pantalla y soltándolo en otro sitio" width="370">
+  <img src="assets/opacity.gif" alt="La opacidad del panel bajando 100→70→40% sobre texto de terminal visible por detrás" width="370">
 </p>
 
 #### Microinteracciones, reducir movimiento y ~0 CPU en reposo
@@ -462,7 +470,7 @@ real.
 | `ClaudeBarWin.exe --report` | Imprime la cuota + ritmo + gasto actuales a consola y a `%TEMP%\claudebar-report.txt` (sin GUI) |
 | `ClaudeBarWin.exe --render-demo` | Renderiza las capturas de los temas (`dashboard-dark` / `-light` / `-cli`, `tray-icons`) |
 | `ClaudeBarWin.exe --render-test` | Renderiza `data` / `settings` / `mascot` / `tray-badges` + fotogramas de microinteracciones |
-| `ClaudeBarWin.exe --render-gif` | Vuelca las secuencias de fotogramas de los GIF del README a `%TEMP%\claudebar-gif`, luego se ensamblan con ffmpeg (ver [Montar los GIF](#montar-los-gif)). El fotograma "hold" estabilizado de la secuencia `apertura/` es el panel completo expandido que se usa para el hero `dashboard-full`. |
+| `ClaudeBarWin.exe --render-gif` | Vuelca las secuencias de fotogramas de los GIF del README a `%TEMP%\claudebar-gif` (6 carpetas: `apertura/` · `mascota/` · `hover/` · `celebracion/` · `ajustes/` · `bandeja/`), luego se ensamblan con ffmpeg (ver [Montar los GIF](#montar-los-gif)). El fotograma "hold" estabilizado de la secuencia `apertura/` es el panel completo expandido que se usa para el hero `dashboard-full`. |
 | `ClaudeBarWin.exe --notify-demo` | Dispara los cuatro toasts de hitos 🟢🟡🟠🔴 en secuencia, luego sale |
 | `ClaudeBarWin.exe --db-test` | Prueba de humo del store SQLite del histórico |
 | `ClaudeBarWin.exe --dump-menu` | Imprime la estructura del menú de clic derecho |
@@ -473,9 +481,10 @@ real), `last-state.json` (última lectura buena, para arranque instantáneo y mo
 
 ### Montar los GIF
 
-`--render-gif` solo vuelca secuencias numeradas `frame_###.png` (una carpeta por animación:
-`apertura/` · `mascota/` · `hover/` · `celebracion/`) bajo `%TEMP%\claudebar-gif`. Convierte cada
-carpeta en un `.gif` en bucle con ffmpeg (pasada de paleta para colores limpios):
+`--render-gif` vuelca secuencias numeradas `frame_###.png` (una carpeta por animación:
+`apertura/` · `mascota/` · `hover/` · `celebracion/` · `ajustes/` · `bandeja/`) bajo
+`%TEMP%\claudebar-gif`. Convierte cada carpeta en un `.gif` en bucle con ffmpeg (pasada de paleta
+para colores limpios):
 
 ```powershell
 $seq = "$env:TEMP\claudebar-gif\apertura"          # repetir por cada carpeta
@@ -484,10 +493,16 @@ ffmpeg -y -framerate 30 -i "$seq\frame_%03d.png" -i "$seq\pal.png" `
   -lavfi "paletteuse" "assets\f3-apertura.gif"
 ```
 
-Mapea las carpetas a `assets/f3-apertura.gif` · `assets/f3-mascota.gif` · `assets/f3-hover.gif` ·
-`assets/f3-celebracion.gif`. El **hero `dashboard-full`** no tiene su propio comando — coge un único
+Mapea las carpetas a sus GIF: `apertura/` → `assets/f3-apertura.gif`, `mascota/` →
+`assets/f3-mascota.gif`, `hover/` → `assets/f3-hover.gif`, `celebracion/` →
+`assets/f3-celebracion.gif`, `ajustes/` → `assets/settings-scroll.gif`, `bandeja/` →
+`assets/tray-cycle.gif`. El **hero `dashboard-full`** no tiene su propio comando — coge un único
 fotograma "hold" estabilizado del final de `apertura/` (el panel completo expandido: banda de
 mascota + barras de cuota + gasto por modelo + gráfica) y guárdalo como `assets/dashboard-full.png`.
+
+Los demos **`move.gif` / `opacity.gif`** no salen de la app — son sintéticos. Genera sus fotogramas
+con `python scripts/marketing-gifs.py` (Pillow) y luego ensámblalos en `assets/move.gif` y
+`assets/opacity.gif` con la misma pasada de paleta de ffmpeg de arriba.
 
 ---
 

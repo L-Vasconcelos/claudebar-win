@@ -271,6 +271,36 @@ public sealed class DashboardForm : Form
     /// <summary>Cambia a la vista de ajustes (⚙). Resetea el scroll (y el acumulador de rueda), reajusta el alto y repinta.</summary>
     public void ShowSettings() { _viewMode = "settings"; _settingsScroll = 0; _settingsWheelAccum = 0; Relayout(); Invalidate(); }
 
+    // ---- Ganchos SOLO para el render de GIFs (--render-gif): conducir el scroll de ajustes a mano ----
+    // En vivo el scroll lo gobierna la rueda (OnMouseWheel); para el GIF de "ajustes" necesitamos barrer
+    // el desplazamiento fotograma a fotograma de forma determinista. Estos dos miembros internal exponen
+    // SOLO lo justo para eso, sin tocar el comportamiento en runtime: nada en la app llama a esto.
+
+    /// <summary>
+    /// Fija el scroll del panel de ajustes para el render (px desde arriba). NO resetea el acumulador de
+    /// rueda ni relayoutea: a diferencia de <see cref="ShowSettings"/> (que pone el scroll a 0), aquí solo
+    /// se siembra el valor y se repinta; el siguiente <c>DrawToBitmap</c> lo acota a [0, overflow] en
+    /// <see cref="LayoutContent"/> y dibuja el contenido desplazado. Llamar <see cref="ShowSettings"/> UNA
+    /// vez antes del barrido (resetea a 0) y luego este por cada fotograma.
+    /// </summary>
+    internal void SetSettingsScrollForRender(int px) { _settingsScroll = Math.Max(0, px); Invalidate(); }
+
+    /// <summary>
+    /// Overflow máximo de scroll del panel de ajustes = <c>max(0, contentH − viewportH)</c>, calculado con
+    /// los campos que ya puebla <see cref="LayoutContent"/> (alto real del contenido y top del viewport) y
+    /// el <see cref="Control.Height"/> ya acotado al tope. Solo es válido tras un primer
+    /// <c>DrawToBitmap</c> en modo ajustes (esos campos quedan poblados). 0 si el contenido cabe entero.
+    /// </summary>
+    internal int SettingsMaxScrollForRender
+    {
+        get
+        {
+            // Mismo viewportH que usan OnMouseWheel/LayoutContent: alto útil bajo el chrome + "‹ Ajustes".
+            int viewportH = Height - _settingsViewportTop - SettingsViewportBottomPad;
+            return Math.Max(0, _settingsContentH - viewportH);
+        }
+    }
+
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
