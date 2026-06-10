@@ -91,4 +91,26 @@ public class ThemeTokenTests
         // El tema claro SÍ lo oscurece (override presente).
         Assert.NotEqual(Theme.Light.Accent, Theme.Light.AccentText);
     }
+
+    // --- T3b: ticks de umbral de QuotaBar invisibles (Separator ≈ Track en los 3 temas) ---
+
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void Tick_on_track_meets_non_text_contrast_in_every_theme(Theme t)
+    {
+        // WCAG 1.4.11 (contraste no textual) exige ≥3:1 para indicadores gráficos. Los ticks de umbral
+        // usaban Separator, ≈ idéntico al Track en los 3 temas (CLI: exacto, ~1:1) → invisibles.
+        double r = ColorMath.ContrastRatio(t.TickOnTrack, t.Track);
+        Assert.True(r >= 3.0, $"[{t.Id}] TickOnTrack contrasta {r:0.00}:1 (< 3.0) sobre Track");
+    }
+
+    [Fact]
+    public void TickOnTrack_falls_back_to_text_muted()
+    {
+        // Sin override, el token cae a TextMuted (que ya cumple ≥3:1 sobre Track en los 3 temas);
+        // los temas importados heredan el fallback sin tener que mapear un campo nuevo.
+        Assert.Equal(Theme.Dark.TextMuted, Theme.Dark.TickOnTrack);
+        Assert.Equal(Theme.Light.TextMuted, Theme.Light.TickOnTrack);
+        Assert.Equal(Theme.Cli.TextMuted, Theme.Cli.TickOnTrack);
+    }
 }

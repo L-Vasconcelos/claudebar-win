@@ -32,6 +32,17 @@ public sealed class Theme
     public Color? AccentTextOverride { get; init; }
     public Color AccentText => AccentTextOverride ?? Accent;
 
+    /// <summary>
+    /// Color de las muescas de umbral (warn/critical) sobre el <see cref="Track"/> de las barras de
+    /// cuota (T3b). El valor histórico (<see cref="Separator"/>) era ≈ idéntico al Track en los 3 temas
+    /// (CLI: exactamente el mismo color, ~1:1) → ticks invisibles. Cae a <see cref="TextMuted"/>, que
+    /// cumple el contraste no textual WCAG 1.4.11 (≥3:1) sobre el Track en los 3 temas:
+    /// oscuro #8E8E93/#3A3A3C ≈ 3.4:1 · claro #6C6C72/#D4D4D8 ≈ 3.5:1 · CLI #00963C/#003214 ≈ 3.7:1.
+    /// Los temas importados heredan el fallback (su TextMuted); override disponible si un tema lo necesita.
+    /// </summary>
+    public Color? TickOnTrackOverride { get; init; }
+    public Color TickOnTrack => TickOnTrackOverride ?? TextMuted;
+
     // Alias semánticos sobre los campos existentes (sin romper consumidores).
     public Color TextPrimary => Foreground;
     public Color TextSecondary => Dim;

@@ -299,16 +299,22 @@ public static class DashboardDataView
 
             // Barrita de referencia (mini-cuota): track + relleno proporcional al %, color por riesgo —
             // mismo criterio que las barras de cuota, para que la mini-fila se lea como una de ellas.
+            // T3a (auditoría §3 #2): el track se corta un gap ANTES del % right-aligned — a todo el
+            // ancho tachaba el número (el Mono de 12pt baja hasta la banda de la barrita).
+            int trackW = QuotaBarGeometry.CompactTrackWidth(w, (int)Math.Ceiling(sz.Width), Spacing.Sm);
             int by = y + ModelLineTextH;
-            using (var track = new SolidBrush(theme.Track))
-                Shapes.FillRounded(g, track, new Rectangle(x, by, w, ModelBarH), ModelBarRadius);
-            double clamped = Math.Min(Math.Max(win.UtilizationPct, 0) / 100.0, 1.0);
-            int fw = (int)Math.Round(w * clamped);
-            if (fw > 1)
+            if (trackW > 0)
             {
-                Color c = ColorMath.RiskColor(win.UtilizationPct, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
-                using var fill = new SolidBrush(c);
-                Shapes.FillRounded(g, fill, new Rectangle(x, by, fw, ModelBarH), ModelBarRadius);
+                using (var track = new SolidBrush(theme.Track))
+                    Shapes.FillRounded(g, track, new Rectangle(x, by, trackW, ModelBarH), ModelBarRadius);
+                double clamped = Math.Min(Math.Max(win.UtilizationPct, 0) / 100.0, 1.0);
+                int fw = (int)Math.Round(trackW * clamped);
+                if (fw > 1)
+                {
+                    Color c = ColorMath.RiskColor(win.UtilizationPct, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
+                    using var fill = new SolidBrush(c);
+                    Shapes.FillRounded(g, fill, new Rectangle(x, by, fw, ModelBarH), ModelBarRadius);
+                }
             }
         }
         return y + ModelLineTextH + ModelBarH + Spacing.Sm;   // texto + barra + gap entre mini-filas

@@ -68,8 +68,9 @@ public static class QuotaBar
             }
 
             // Ticks de umbral: muescas finas (1px) en Warn/Critical, tras el relleno para no quedar
-            // tapadas por las esquinas redondeadas. Neutro (theme.Separator), nunca Accent.
-            using (var tickPen = new Pen(theme.Separator, 1f))
+            // tapadas por las esquinas redondeadas. Neutro (theme.TickOnTrack — Separator era ≈ Track
+            // en los 3 temas y el tick desaparecía, T3b), nunca Accent.
+            using (var tickPen = new Pen(theme.TickOnTrack, 1f))
             {
                 int wx = QuotaBarGeometry.TickX(x, w, cfg.WarnThresholdPct);
                 int cx = QuotaBarGeometry.TickX(x, w, cfg.CriticalThresholdPct);
@@ -77,21 +78,17 @@ public static class QuotaBar
                 g.DrawLine(tickPen, cx, y, cx, y + BarH - 1);
             }
 
-            // Pace marker: "dónde deberías ir" según el ritmo ideal. Sobresale 2px arriba/abajo y
-            // lleva un ▾ encima. Color theme.TextMuted (neutro). Solo cuando hay pace.
+            // Pace marker: "dónde deberías ir" según el ritmo ideal. Sobresale MarkerOvershoot (2px)
+            // arriba/abajo y lleva un ▾ clampado a esa misma altura: el triángulo antiguo subía hasta
+            // y-5 e invadía los descendentes de la fila etiqueta/% (T3c). Color theme.TextMuted
+            // (neutro). Solo cuando hay pace.
             if (pace is { } pm)
             {
                 int mx = QuotaBarGeometry.MarkerX(x, w, pm.IdealPct);
                 using var markerPen = new Pen(theme.TextMuted, 2f);
-                g.DrawLine(markerPen, mx, y - 2, mx, y + BarH + 1);
+                g.DrawLine(markerPen, mx, y - QuotaBarGeometry.MarkerOvershoot, mx, y + BarH + 1);
                 using var markerBrush = new SolidBrush(theme.TextMuted);
-                var tri = new[]
-                {
-                    new Point(mx - 3, y - 5),
-                    new Point(mx + 3, y - 5),
-                    new Point(mx, y - 2),
-                };
-                g.FillPolygon(markerBrush, tri);
+                g.FillPolygon(markerBrush, QuotaBarGeometry.PaceTriangle(mx, y));
             }
         }
         y += BarH + 3;
@@ -127,4 +124,29 @@ public static class QuotaBarGeometry
 
     /// <summary>X (px) de un tick de umbral; comparte la proyección de <see cref="MarkerX"/>.</summary>
     public static int TickX(int x, int w, double thresholdPct) => MarkerX(x, w, thresholdPct);
+
+    /// <summary>
+    /// Overshoot máximo del pace marker por encima de la barra (px): el mismo que ya usa la línea
+    /// vertical. Es el techo del clamp del ▾ (T3c): nada del marcador sube más que esto.
+    /// </summary>
+    public const int MarkerOvershoot = 2;
+
+    /// <summary>
+    /// Puntos del ▾ del pace marker, clampados a la fila de la barra (T3c): la base queda en
+    /// <c>barY - MarkerOvershoot</c> (donde ya arrancaba la línea) y la punta entra 1px en la barra,
+    /// apuntando hacia abajo. El triángulo antiguo (base en barY-5) invadía la fila del label.
+    /// </summary>
+    public static Point[] PaceTriangle(int mx, int barY) => new[]
+    {
+        new Point(mx - 3, barY - MarkerOvershoot),
+        new Point(mx + 3, barY - MarkerOvershoot),
+        new Point(mx, barY + 1),
+    };
+
+    /// <summary>
+    /// Ancho del track de una fila compacta (mini-cuota con el % right-aligned en la MISMA banda
+    /// vertical): el track se corta <paramref name="gap"/> px antes del texto para no tacharlo (T3a).
+    /// Nunca negativo (locales largos / panel estrecho ⇒ el track desaparece antes que pisar el texto).
+    /// </summary>
+    public static int CompactTrackWidth(int w, int rightTextW, int gap) => Math.Max(0, w - rightTextW - gap);
 }

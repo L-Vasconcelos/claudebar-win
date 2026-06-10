@@ -126,4 +126,37 @@ public class DashboardDataViewTests
             }
         Assert.True(foundFill, "la mini-fila de modelo debe pintar una barra de referencia rellena bajo el %");
     }
+
+    [Fact]
+    public void ModelLine_track_stops_before_the_percent_text()
+    {
+        // T3a (auditoría §3 #2): el track de la fila compacta cruzaba a todo el ancho por debajo del %
+        // right-aligned y lo tachaba (el Mono de 12pt baja hasta la banda de la barrita). Ahora el track
+        // se corta un gap ANTES del texto: la banda del gap debe ser fondo puro, sin píxeles de Track.
+        using var bmp = new Bitmap(360, 120);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        using var fg = new SolidBrush(Theme.Dark.TextPrimary);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var win = new UsageWindow(12, DateTimeOffset.UtcNow);     // 12% como en el render auditado
+        var cfg = new AppConfig();
+        var culture = Localization.Get("en").Culture;
+
+        const int x = 16, y0 = 30, w = 300;
+        DashboardDataView.DrawModelLine(g, draw: true, "Sonnet 7d", win, x, y0, w,
+            Typography.Caption, fg, dim, Theme.Dark, cfg, culture);
+
+        // Mide el % igual que producción para localizar dónde arranca el texto right-aligned.
+        string val = UsageFormat.Percent(win.UtilizationPct, culture);
+        int textLeft = (int)(x + w - g.MeasureString(val, Typography.Mono).Width);
+
+        var track = Theme.Dark.Track;
+        for (int py = y0 + 16; py <= y0 + 19; py++)               // banda de la barrita (ModelBarH=4)
+            for (int px = textLeft - 7; px <= textLeft - 1; px++) // el gap previo al texto
+            {
+                var p = bmp.GetPixel(px, py);
+                bool isTrack = Math.Abs(p.R - track.R) <= 6 && Math.Abs(p.G - track.G) <= 6 && Math.Abs(p.B - track.B) <= 6;
+                Assert.False(isTrack, $"track en ({px},{py}): la barrita sigue cruzando bajo el % (texto en x={textLeft})");
+            }
+    }
 }
