@@ -63,6 +63,17 @@ public sealed class Theme
     public Color? CriticalTextOverride { get; init; }
     public Color CriticalText => CriticalTextOverride ?? Critical;
 
+    /// <summary>
+    /// Fondo del realce de hover (T7b, §3 #6). El valor histórico (<see cref="BgElevated"/> puro) era
+    /// invisible en claro (#FFFFFF sobre #FAFAFA ≈ 1.03:1) y en CLI (#0A100A sobre negro ≈ 1.05:1).
+    /// Es decoración transitoria (no le aplica el 3:1 de WCAG 1.4.11) pero debe ser perceptible
+    /// (≥ ~1.1:1 sobre el fondo). Sin override cae a <c>lerp(Background, Foreground, 0.06)</c>:
+    /// oscuro #252528 ≈ 1.16:1 · claro #ECECED ≈ 1.13:1 — los temas importados heredan el fallback.
+    /// Solo el CLI lo sube (a 0.06 el verde casi no levanta del negro puro, ~1.06:1).
+    /// </summary>
+    public Color? HoverBgOverride { get; init; }
+    public Color HoverBg => HoverBgOverride ?? ColorMath.Lerp(Background, Foreground, 0.06);
+
     // Alias semánticos sobre los campos existentes (sin romper consumidores).
     public Color TextPrimary => Foreground;
     public Color TextSecondary => Dim;
@@ -130,6 +141,9 @@ public sealed class Theme
         Neutral = Color.FromArgb(90, 90, 90),
         Accent = Color.FromArgb(0, 217, 89),
         BgElevated = Color.FromArgb(10, 16, 10),
+        // Realce de hover subido a lerp(negro, #00D959, 0.12) = #001A0B (≈1.15:1 sobre el fondo):
+        // con el fallback 0.06 (#000D05, ~1.06:1) el verde casi no levanta del negro puro (T7b).
+        HoverBgOverride = Color.FromArgb(0, 26, 11),
         // Verde tenue subido (#00963C): el anterior #006E2C caía a ~3.3:1 sobre el negro del CLI
         // (subtítulos/footer/verbo de mascota ilegibles, P1 #3). Ahora ~5.4:1 (AA texto pequeño).
         TextMuted = Color.FromArgb(0, 0x96, 0x3C),

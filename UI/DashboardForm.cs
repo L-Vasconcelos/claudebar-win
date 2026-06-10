@@ -159,7 +159,7 @@ public sealed class DashboardForm : Form
     // Hover (Tarea 3): clave del rect interactivo bajo el cursor (o null). OnMouseMove la recalcula
     // sobre los diccionarios de rects ya existentes vía HoverHitTest; si cambia, repinta. La intensidad
     // del realce hace fade-in con OutQuad en FadeMs (un AnimatedValue 0→1). El realce es un fondo
-    // redondeado BgElevated DETRÁS del rect, dibujado solo en la pasada de pintado: nunca toca el layout.
+    // redondeado HoverBg DETRÁS del rect, dibujado solo en la pasada de pintado: nunca toca el layout.
     private string? _hoveredKey;
     private readonly AnimatedValue _hoverIntensity = new(0.0);
 
@@ -939,8 +939,11 @@ public sealed class DashboardForm : Form
     }
 
     /// <summary>
-    /// Pinta un fondo redondeado <c>theme.BgElevated</c> detrás del rect bajo el cursor, con la
+    /// Pinta un fondo redondeado <c>theme.HoverBg</c> detrás del rect bajo el cursor, con la
     /// intensidad eased del fade-in (alfa). Sin clave o intensidad ≈0 ⇒ no pinta. No altera el layout.
+    /// T7b (§3 #6): el token sustituye a BgElevated puro (invisible en claro y CLI) y, en la vista de
+    /// ajustes, el realce de las filas se recorta al viewport del scroll (la fila cortada arriba
+    /// sangraba ~2px sobre el chrome "‹ Ajustes" por el Inflate).
     /// </summary>
     private void DrawHoverHighlight(Graphics g)
     {
@@ -958,12 +961,24 @@ public sealed class DashboardForm : Form
             if (kv.Key == hovered) { target = kv.Value; break; }
         if (target is not { } r || r.Width <= 0 || r.Height <= 0) return;
 
-        // Alfa proporcional a la intensidad sobre BgElevated; un poco de aire alrededor del rect.
-        int alpha = (int)Math.Round(Math.Clamp(intensity, 0.0, 1.0) * _theme.BgElevated.A);
+        // Alfa proporcional a la intensidad sobre HoverBg; un poco de aire alrededor del rect.
+        int alpha = (int)Math.Round(Math.Clamp(intensity, 0.0, 1.0) * _theme.HoverBg.A);
         if (alpha <= 0) return;
-        var bg = Color.FromArgb(alpha, _theme.BgElevated);
+        var bg = Color.FromArgb(alpha, _theme.HoverBg);
         var padded = Rectangle.Inflate(r, Spacing.Xs, Spacing.Xs / 2);
         using var b = new SolidBrush(bg);
+
+        // Filas de ajustes: el rect ya viene intersecado con el viewport, pero el Inflate vuelve a
+        // sacarlo (±2px) → clip al MISMO viewport que usa LayoutContent para pintar el contenido.
+        if (_viewMode == "settings" && hovered?.StartsWith("set:", StringComparison.Ordinal) == true)
+        {
+            int viewportH = Math.Max(0, Height - _settingsViewportTop - SettingsViewportBottomPad);
+            var prevClip = g.Clip;
+            g.SetClip(new Rectangle(0, _settingsViewportTop, Width, viewportH));
+            try { Shapes.FillRounded(g, b, padded, Spacing.Sm); }
+            finally { g.Clip = prevClip; }
+            return;
+        }
         Shapes.FillRounded(g, b, padded, Spacing.Sm);
     }
 

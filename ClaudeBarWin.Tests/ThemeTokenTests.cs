@@ -13,7 +13,7 @@ public class ThemeTokenTests
     {
         var tokens = new[] { t.TextPrimary, t.TextSecondary, t.TextMuted, t.Separator, t.Track,
                              t.BgBase, t.BgElevated, t.Accent, t.Ok, t.Warn, t.Critical, t.Neutral,
-                             t.AccentText, t.TickOnTrack, t.WarnText, t.CriticalText };
+                             t.AccentText, t.TickOnTrack, t.WarnText, t.CriticalText, t.HoverBg };
         Assert.All(tokens, c => Assert.True(c.A > 0, "token transparente/sin setear"));
     }
 
@@ -168,6 +168,31 @@ public class ThemeTokenTests
         // conservan sus valores. Pin de regresión del "fills no cambian".
         Assert.Equal(Color.FromArgb(202, 138, 4), Theme.Light.Warn);
         Assert.Equal(Color.FromArgb(220, 38, 38), Theme.Dark.Critical);
+    }
+
+    // --- T7b: token HoverBg (el realce con BgElevated puro era invisible en claro y CLI) ---
+
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void Hover_bg_is_perceptibly_distinct_from_background_in_every_theme(Theme t)
+    {
+        // El realce de hover es decoración transitoria (no necesita el 3:1 de 1.4.11), pero SÍ debe
+        // ser perceptible. BgElevated puro daba claro #FFF/#FAFAFA ≈ 1.03:1 y CLI #0A100A/negro ≈
+        // 1.05:1 (invisibles); el token nuevo debe levantar ≥ ~1.1:1 del fondo en los 3 temas.
+        Assert.NotEqual(t.Background.ToArgb(), t.HoverBg.ToArgb());
+        double r = ColorMath.ContrastRatio(t.HoverBg, t.Background);
+        Assert.True(r >= 1.10, $"[{t.Id}] HoverBg contrasta {r:0.000}:1 (< 1.10) sobre el fondo: hover invisible");
+    }
+
+    [Fact]
+    public void HoverBg_falls_back_to_bg_fg_lerp_and_only_cli_overrides()
+    {
+        // Sin override el token cae a lerp(Background, Foreground, 0.06) — también para los temas
+        // importados, sin mapear un campo nuevo. El CLI sube la mezcla (a 0.06 el verde casi no
+        // levanta del negro puro: ~1.06:1).
+        Assert.Equal(ColorMath.Lerp(Theme.Dark.Background, Theme.Dark.Foreground, 0.06), Theme.Dark.HoverBg);
+        Assert.Equal(ColorMath.Lerp(Theme.Light.Background, Theme.Light.Foreground, 0.06), Theme.Light.HoverBg);
+        Assert.NotEqual(ColorMath.Lerp(Theme.Cli.Background, Theme.Cli.Foreground, 0.06), Theme.Cli.HoverBg);
     }
 
     [Theory]
