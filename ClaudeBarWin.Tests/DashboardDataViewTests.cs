@@ -307,6 +307,80 @@ public class DashboardDataViewTests
         Assert.Equal(measured, painted);
     }
 
+    // ================= T7a (§3 #5): tabs de rango 1H/5H/24H/7D/30D = chips DrawSegments =================
+
+    // Llama a DrawChart con datos vacíos (las tabs se registran igual) y devuelve los 3 dicts de rects.
+    private static (Dictionary<ChartRange, Rectangle> tabs, Dictionary<string, Rectangle> modes)
+        DrawChartTabs(Graphics g, bool draw, Theme theme)
+    {
+        var s = Localization.Get("en");
+        var cfg = new AppConfig();
+        using var tabFont = new Font("Segoe UI", 8f, FontStyle.Bold);
+        var tabRects = new Dictionary<ChartRange, Rectangle>();
+        var modeRects = new Dictionary<string, Rectangle>();
+        var pctWinRects = new Dictionary<string, Rectangle>();
+        using var dim = new SolidBrush(theme.TextSecondary);
+        DashboardDataView.DrawChart(g, draw, 10, 20, 320, s, theme, cfg, Typography.Caption, tabFont,
+            "spend", ChartRange.Hours5, "7d", new List<HistoryBucket>(), new List<PctPoint>(),
+            chartLoading: false, tabRects, modeRects, pctWinRects, dim);
+        return (tabRects, modeRects);
+    }
+
+    [Fact]
+    public void Chart_range_tabs_share_chip_geometry_with_mode_segments()
+    {
+        // §3 #5: las tabs de rango tenían geometría propia (alto 20, radio 5, padX 6, gap 4) distinta
+        // de los chips vecinos (Spend $/Quota % vía DrawSegments: alto 18, padX 7, gap 3). Unificadas:
+        // mismo alto que los segmentos del modo y mismo gap entre chips.
+        using var bmp = new Bitmap(360, 240);
+        using var g = Graphics.FromImage(bmp);
+        var (tabs, modes) = DrawChartTabs(g, draw: false, Theme.Dark);
+
+        Assert.Equal(5, tabs.Count);
+        Assert.All(tabs.Values, r => Assert.Equal(18, r.Height));
+        Assert.All(modes.Values, r => Assert.Equal(18, r.Height));
+
+        var ordered = tabs.Values.OrderBy(r => r.X).ToList();
+        for (int i = 1; i < ordered.Count; i++)
+            Assert.Equal(3, ordered[i].X - ordered[i - 1].Right);
+    }
+
+    [Fact]
+    public void Chart_inactive_range_tab_shows_border_in_light_theme()
+    {
+        // §3 #5: el chip inactivo era BgElevated puro (#FFF sobre #FAFAFA → invisible en claro). Debe
+        // llevar el borde Separator de DrawSegments: en el contorno superior del chip inactivo hay
+        // píxeles ≈ Separator (≠ relleno y ≠ fondo).
+        using var bmp = new Bitmap(360, 240);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Light.Background);
+        var (tabs, _) = DrawChartTabs(g, draw: true, Theme.Light);
+
+        var r = tabs[ChartRange.Hour1]; // 1H inactiva (la activa es 5H)
+        var sep = Theme.Light.Separator;
+        bool border = false;
+        for (int px = r.X + 4; px <= r.Right - 4 && !border; px++)
+        {
+            var p = bmp.GetPixel(px, r.Y);
+            if (Math.Abs(p.R - sep.R) <= 8 && Math.Abs(p.G - sep.G) <= 8 && Math.Abs(p.B - sep.B) <= 8)
+                border = true;
+        }
+        Assert.True(border, "la tab de rango inactiva debe llevar el borde Separator (era invisible en claro)");
+    }
+
+    [Fact]
+    public void Chart_tabs_measure_equals_paint()
+    {
+        // Invariante de 2 pasadas para DrawChart: medir y pintar registran los MISMOS rects de tabs.
+        using var bmp = new Bitmap(360, 240);
+        using var g = Graphics.FromImage(bmp);
+        var (measured, _) = DrawChartTabs(g, draw: false, Theme.Dark);
+        var (painted, _) = DrawChartTabs(g, draw: true, Theme.Dark);
+
+        Assert.Equal(measured.Count, painted.Count);
+        foreach (var (k, r) in measured) Assert.Equal(r, painted[k]);
+    }
+
     [Fact]
     public void ModelLine_track_stops_before_the_percent_text()
     {

@@ -384,25 +384,14 @@ public static class DashboardDataView
             x + w, y - 1, rightAlign: true, modeRects);
         y += 18;
 
-        // Range tabs (left)
+        // Range tabs (left) — T7a (§3 #5): mismos chips que el resto del panel vía DrawSegments (alto
+        // 18, radio 4, padX 7, gap 3 y borde Separator en el inactivo — antes BgElevated puro con
+        // geometría propia 20/5/6/4, invisible en tema claro). El avance de la fila (y += 26) no
+        // cambia → layout intacto y medir==pintar (los rects se registran en ambas pasadas).
         tabRects.Clear();
-        int tx = x;
-        foreach (var (range, label) in Tabs)
-        {
-            var sz = g.MeasureString(label, tabFont);
-            var rect = new Rectangle(tx, y, (int)sz.Width + 12, 20);
-            if (draw)
-            {
-                bool active = range == chartRange;
-                using var bg = new SolidBrush(active ? theme.Accent : theme.BgElevated);
-                Shapes.FillRounded(g, bg, rect, 5);
-                using var tb = new SolidBrush(active ? ColorMath.Contrast(theme.Accent) : theme.TextPrimary);
-                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                g.DrawString(label, tabFont, tb, rect, sf);
-            }
-            tabRects[range] = rect;
-            tx += rect.Width + 4;
-        }
+        DrawSegments(g, draw, tabFont, theme,
+            Tabs.Select(t => (t.label, t.range)).ToArray(), chartRange,
+            x, y, rightAlign: false, tabRects);
         // Window selector [5h|7d] (right, only in percent mode)
         pctWinRects.Clear();
         if (pct)
@@ -493,9 +482,15 @@ public static class DashboardDataView
         return new PointF(pxp, pyp);
     }
 
-    internal static void DrawSegments(Graphics g, bool draw, Font font, Theme theme,
-        (string label, string key)[] segs, string activeKey, int anchorX, int y,
-        bool rightAlign, Dictionary<string, Rectangle> rects)
+    /// <summary>
+    /// Hilera de chips de selección única (geometría canónica: alto 18, radio 4, padX 7, gap 3; activo
+    /// Accent + Contrast, inactivo BgElevated + borde Separator). Genérico en la CLAVE (T7a): el modo
+    /// $/% y la ventana 5h/7d usan string; las tabs de rango usan <see cref="ChartRange"/> directamente
+    /// — un único lenguaje de pill sin diccionarios puente.
+    /// </summary>
+    internal static void DrawSegments<TKey>(Graphics g, bool draw, Font font, Theme theme,
+        (string label, TKey key)[] segs, TKey activeKey, int anchorX, int y,
+        bool rightAlign, Dictionary<TKey, Rectangle> rects) where TKey : notnull
     {
         const int gap = 3, h = 18, padX = 7;
         var widths = segs.Select(seg => (int)g.MeasureString(seg.label, font).Width + padX * 2).ToArray();
@@ -507,7 +502,7 @@ public static class DashboardDataView
             var rect = new Rectangle(sx, y, widths[i], h);
             if (draw)
             {
-                bool active = key == activeKey;
+                bool active = EqualityComparer<TKey>.Default.Equals(key, activeKey);
                 using var bg = new SolidBrush(active ? theme.Accent : theme.BgElevated);
                 Shapes.FillRounded(g, bg, rect, 4);
                 // Borde sutil del chip inactivo (track) para que se lea como BOTÓN incluso cuando el
