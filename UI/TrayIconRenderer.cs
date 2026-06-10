@@ -58,12 +58,18 @@ public static class TrayIconRenderer
     public static Icon Render(int percent, Color bg, bool pending = false)
     {
         percent = Math.Clamp(percent, 0, 999);
-        return RenderBadge(percent >= 100 ? "99+" : percent.ToString(), bg, UsageStatus.Ok, stale: false, pending);
+        // Sin tema a mano: el punto de atención usa el ámbar Warn de la paleta base oscura (T9d).
+        return RenderBadge(percent >= 100 ? "99+" : percent.ToString(), bg, UsageStatus.Ok, stale: false,
+            pending, Theme.Dark.Warn);
     }
 
     /// <summary>Colorea el badge de forma continua por riesgo (Ok→Warn→Critical) según el tema y los umbrales.</summary>
     public static Icon Render(int percent, Theme theme, double warn, double crit, bool pending = false)
-        => Render(percent, ColorMath.RiskColor(percent, theme, warn, crit), pending);
+    {
+        percent = Math.Clamp(percent, 0, 999);
+        return RenderBadge(percent >= 100 ? "99+" : percent.ToString(),
+            ColorMath.RiskColor(percent, theme, warn, crit), UsageStatus.Ok, stale: false, pending, theme.Warn);
+    }
 
     /// <summary>
     /// Badge con estado por forma (overlay) + estado stale. El texto adapta su contraste al fondo
@@ -74,14 +80,15 @@ public static class TrayIconRenderer
     {
         percent = Math.Clamp(percent, 0, 999);
         var bg = ColorMath.RiskColor(percent, theme, warn, crit);
-        return RenderBadge(percent >= 100 ? "99+" : percent.ToString(), bg, status, stale, pending);
+        return RenderBadge(percent >= 100 ? "99+" : percent.ToString(), bg, status, stale, pending, theme.Warn);
     }
 
     /// <summary>Neutral badge for "no data / auth expired / offline".</summary>
     public static Icon RenderError(Color bg, bool pending = false)
-        => RenderBadge("!", bg, UsageStatus.Ok, stale: false, pending);
+        => RenderBadge("!", bg, UsageStatus.Ok, stale: false, pending, Theme.Dark.Warn);
 
-    private static Icon RenderBadge(string text, Color bg, UsageStatus status, bool stale, bool pending)
+    private static Icon RenderBadge(string text, Color bg, UsageStatus status, bool stale, bool pending,
+        Color pendingDot)
     {
         // Render at high resolution (48px) so Windows downscales to a crisp tray icon on any DPI.
         const int size = 48;
@@ -113,18 +120,30 @@ public static class TrayIconRenderer
                 g.DrawString(text, font, textBrush, new RectangleF(0, -2f, size, size), sf);
 
             // Estado por forma (a11y): overlay de forma en la esquina inferior derecha para Warn/Critical.
-            // Ok→círculo = sin overlay (el badge ya es el indicador). Reusa el patrón del badge "pending".
-            DrawShapeOverlay(g, Tray.ShapeFor(status), bg, textColor, size);
+            // Ok→círculo = sin overlay (el badge ya es el indicador). T9d (§3 #15): con el punto de
+            // atención la forma se SUPRIME — un solo elemento decorativo por esquina; dígito + forma
+            // + punto a 16-32px se solapaban en ruido ilegible.
+            if (!pending)
+                DrawShapeOverlay(g, Tray.ShapeFor(status), bg, textColor, size);
 
             if (pending)
             {
-                var amber = Color.FromArgb(0xF5, 0xA6, 0x23);
-                int d = 18;
-                var badge = new Rectangle(size - d - 1, 0, d, d);
-                using var fill = new SolidBrush(amber);
-                using var ring = new Pen(Color.FromArgb(0x1A, 0x1A, 0x1A), 2.5f);
-                g.FillEllipse(fill, badge);
-                g.DrawEllipse(ring, badge);
+                // Punto de atención (T9d): ámbar Warn de la paleta del tema (antes #F5A623 fuera de
+                // paleta con aro #1A1A1A). Más pequeño (d=10, antes 18: tapaba el dígito) y pegado a
+                // la esquina superior derecha, separado del relleno por un aro KNOCKOUT: se BORRA a
+                // transparente (SourceCopy), así delimita sobre cualquier color de badge y de barra
+                // de tareas sin introducir un color nuevo. La geometría deja libre la caja de tinta
+                // del dígito (verificado por test píxel a píxel con "88").
+                const int d = 10;
+                var dot = new Rectangle(size - d - 1, 1, d, d);
+                var gap = Rectangle.Inflate(dot, 2, 2);
+                var cm = g.CompositingMode;
+                g.CompositingMode = CompositingMode.SourceCopy;   // escribe transparencia real (borra)
+                using (var clear = new SolidBrush(Color.Transparent))
+                    g.FillEllipse(clear, gap);
+                g.CompositingMode = cm;
+                using var fill = new SolidBrush(pendingDot);
+                g.FillEllipse(fill, dot);
             }
         }
 
