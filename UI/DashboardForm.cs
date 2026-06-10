@@ -1138,7 +1138,8 @@ public sealed class DashboardForm : Form
             {
                 Color c = fl.Kind switch
                 {
-                    FooterLayout.LineKind.Stale => _theme.Warn,
+                    // Marcador stale = texto pequeño → variante AA del ámbar (T6b; en claro Warn caía a 2.8:1).
+                    FooterLayout.LineKind.Stale => _theme.WarnText,
                     FooterLayout.LineKind.Seal => _theme.TextMuted,
                     _ => _theme.TextSecondary,
                 };

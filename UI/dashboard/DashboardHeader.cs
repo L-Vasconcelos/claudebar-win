@@ -176,9 +176,10 @@ public static class DashboardHeader
             if (draw)
             {
                 // Estado por pace si lo hay, si no por umbral de riesgo (igual criterio que la barra).
+                // El glance es TEXTO (glifo + %): usa las variantes AA WarnText/CriticalText (T6b).
                 UsageStatus status = WindowStatus(crit, critPace, cfg);
                 Color c = critPace is { } ps2
-                    ? (ps2.Status == PaceStatus.Critical ? theme.Critical : ps2.Status == PaceStatus.Over ? theme.Warn : theme.Ok)
+                    ? Theme.PaceTextColor(theme, ps2.Status)
                     : ColorMath.RiskColor(crit.UtilizationPct, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
                 double shownPct = motion is not null ? motion.Display("num:crit", crit.UtilizationPct, reduceMotion) : crit.UtilizationPct;
                 string glyph = Tray.ShapeGlyph(Tray.ShapeFor(status));

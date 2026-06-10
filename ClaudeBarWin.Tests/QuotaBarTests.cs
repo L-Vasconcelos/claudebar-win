@@ -156,4 +156,44 @@ public class QuotaBarTests
         }
         Assert.True(visible, "el tick de warn no se distingue del track (necesita TickOnTrack, ≥3:1)");
     }
+
+    // ================= T6b: el % crítico usa la variante de TEXTO (CriticalText), el relleno no cambia =================
+
+    [Fact]
+    public void Draw_critical_percent_text_uses_critical_text_variant()
+    {
+        using var bmp = new Bitmap(360, 120);
+        using var g = Graphics.FromImage(bmp);
+        // AA en escala de grises (sin ClearType subpixel): cada píxel del texto queda EXACTAMENTE en la
+        // recta fondo→color del brush, así el muestreo por tolerancia es determinista.
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+        g.Clear(Theme.Dark.Background);
+        using var fg = new SolidBrush(Theme.Dark.TextPrimary);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var win = new UsageWindow(62, DateTimeOffset.UtcNow.AddHours(2));
+        var pace = new PaceResult("5h", 62, 1.5, 40.0, null, null, true, PaceStatus.Critical);
+        var cfg = new AppConfig();
+        var s = Localization.Get("en");
+
+        const int x = 16, y0 = 10, w = 300;
+        QuotaBar.Draw(g, draw: true, "Session (5h)", win, pace, x, y0, w,
+            cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
+
+        // La fila etiqueta/% ocupa [y0, y0+18); la barra (cuyo RELLENO sí sigue siendo Critical)
+        // arranca en y0+22. En la fila de texto: ni un píxel del rojo de relleno #DC2626 (3.7:1)
+        // y al menos uno del rojo de texto CriticalText (#F87171, 6.4:1).
+        var fill = Theme.Dark.Critical;
+        var txt = Theme.Dark.CriticalText;
+        bool foundText = false;
+        for (int py = y0; py < y0 + 18; py++)
+            for (int px = x; px < x + w; px++)
+            {
+                var p = bmp.GetPixel(px, py);
+                bool isFill = Math.Abs(p.R - fill.R) <= 10 && Math.Abs(p.G - fill.G) <= 10 && Math.Abs(p.B - fill.B) <= 10;
+                Assert.False(isFill, $"({px},{py}): el % crítico sigue pintado con el rojo de RELLENO #DC2626");
+                if (Math.Abs(p.R - txt.R) <= 10 && Math.Abs(p.G - txt.G) <= 10 && Math.Abs(p.B - txt.B) <= 10)
+                    foundText = true;
+            }
+        Assert.True(foundText, "el glifo/% crítico no usa CriticalText (#F87171) en tema oscuro");
+    }
 }

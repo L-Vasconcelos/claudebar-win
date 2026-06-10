@@ -12,7 +12,8 @@ public class ThemeTokenTests
     public void All_tokens_are_opaque(Theme t)
     {
         var tokens = new[] { t.TextPrimary, t.TextSecondary, t.TextMuted, t.Separator, t.Track,
-                             t.BgBase, t.BgElevated, t.Accent, t.Ok, t.Warn, t.Critical, t.Neutral };
+                             t.BgBase, t.BgElevated, t.Accent, t.Ok, t.Warn, t.Critical, t.Neutral,
+                             t.AccentText, t.TickOnTrack, t.WarnText, t.CriticalText };
         Assert.All(tokens, c => Assert.True(c.A > 0, "token transparente/sin setear"));
     }
 
@@ -112,5 +113,71 @@ public class ThemeTokenTests
         Assert.Equal(Theme.Dark.TextMuted, Theme.Dark.TickOnTrack);
         Assert.Equal(Theme.Light.TextMuted, Theme.Light.TickOnTrack);
         Assert.Equal(Theme.Cli.TextMuted, Theme.Cli.TickOnTrack);
+    }
+
+    // --- T6b: tokens de TEXTO Warn/Critical (patrón AccentText) + barrido global AA ≥ 4.5:1 ---
+
+    public static IEnumerable<object[]> TextTokens()
+    {
+        foreach (var t in new[] { Theme.Dark, Theme.Light, Theme.Cli })
+            foreach (var (name, c) in new (string, Color)[]
+            {
+                ("TextPrimary", t.TextPrimary), ("TextSecondary", t.TextSecondary),
+                ("TextMuted", t.TextMuted), ("AccentText", t.AccentText),
+                ("Ok(texto)", t.Ok),         // el verde Ok se usa directo como texto (pace, %, salud)
+                ("WarnText", t.WarnText), ("CriticalText", t.CriticalText),
+            })
+                yield return new object[] { t, name, c };
+    }
+
+    [Theory]
+    [MemberData(nameof(TextTokens))]
+    public void Every_text_token_meets_aa_small_text_contrast(Theme t, string name, Color c)
+    {
+        // Barrido global (T6b): TODO color que la UI pinta como texto pequeño debe cumplir AA (≥4.5:1)
+        // sobre el fondo del panel, en los 3 temas. Antes fallaban Light.Warn (2.8:1) y Dark.Critical
+        // (3.7:1) — el texto más crítico del panel era el de peor contraste.
+        double r = ColorMath.ContrastRatio(c, t.Background);
+        Assert.True(r >= 4.5, $"[{t.Id}] {name} contrasta {r:0.00}:1 (< 4.5) sobre el fondo");
+    }
+
+    [Fact]
+    public void WarnText_falls_back_to_warn_and_only_light_overrides()
+    {
+        // En oscuro (5.6:1) y CLI (12.3:1) el ámbar de relleno ya es legible como texto → sin override.
+        Assert.Equal(Theme.Dark.Warn, Theme.Dark.WarnText);
+        Assert.Equal(Theme.Cli.Warn, Theme.Cli.WarnText);
+        // El claro SÍ lo oscurece (#CA8A04 como texto = 2.8:1).
+        Assert.NotEqual(Theme.Light.Warn, Theme.Light.WarnText);
+    }
+
+    [Fact]
+    public void CriticalText_falls_back_to_critical_and_only_dark_overrides()
+    {
+        // En claro (4.6:1) y CLI (5.6:1) el rojo de relleno ya es legible como texto → sin override.
+        Assert.Equal(Theme.Light.Critical, Theme.Light.CriticalText);
+        Assert.Equal(Theme.Cli.Critical, Theme.Cli.CriticalText);
+        // El oscuro SÍ lo aclara (#DC2626 como texto = 3.7:1).
+        Assert.NotEqual(Theme.Dark.Critical, Theme.Dark.CriticalText);
+    }
+
+    [Fact]
+    public void Status_fill_tokens_do_not_change_with_t6()
+    {
+        // T6b toca SOLO las variantes de texto: los rellenos Warn/Critical (barras, dots, badges)
+        // conservan sus valores. Pin de regresión del "fills no cambian".
+        Assert.Equal(Color.FromArgb(202, 138, 4), Theme.Light.Warn);
+        Assert.Equal(Color.FromArgb(220, 38, 38), Theme.Dark.Critical);
+    }
+
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void Pace_text_color_maps_to_text_variants(Theme t)
+    {
+        // El selector de color de TEXTO por estado de pace (QuotaBar %, glance del header, línea de
+        // pace) usa las variantes AA, no los rellenos.
+        Assert.Equal(t.CriticalText, Theme.PaceTextColor(t, PaceStatus.Critical));
+        Assert.Equal(t.WarnText, Theme.PaceTextColor(t, PaceStatus.Over));
+        Assert.Equal(t.Ok, Theme.PaceTextColor(t, PaceStatus.Ok));
     }
 }

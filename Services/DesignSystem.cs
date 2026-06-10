@@ -37,11 +37,21 @@ public static class ColorMath
     }
 
     /// <summary>
-    /// Color de texto legible sobre <paramref name="bg"/>: blanco si el fondo es oscuro,
-    /// negro si es claro (luminancia perceptual 0.299/0.587/0.114, umbral 140).
+    /// Luminancia relativa a la que negro y blanco contrastan IGUAL sobre el fondo:
+    /// <c>(1.05)/(L+0.05) = (L+0.05)/0.05 ⇒ L = √(1.05·0.05) − 0.05 ≈ 0.1791</c>.
+    /// Por encima gana el negro; por debajo, el blanco.
+    /// </summary>
+    private const double TextFlipLuminance = 0.1791287;
+
+    /// <summary>
+    /// Color de texto legible sobre <paramref name="bg"/>: el lado (negro/blanco) que más contrasta
+    /// según la luminancia relativa WCAG (<see cref="RelativeLuminance"/>, T6a). La heurística antigua
+    /// (luma 0.299/0.587/0.114, umbral 140) elegía BLANCO sobre el verde CLI #00D959 (1.9:1, ilegible)
+    /// y sobre los rellenos Warn/Ok oscuros; con el punto de cruce WCAG (~0.179) el lado elegido nunca
+    /// contrasta peor que el descartado (negro 11.1:1 sobre el verde CLI).
     /// </summary>
     public static Color Contrast(Color bg)
-        => (bg.R * 0.299 + bg.G * 0.587 + bg.B * 0.114) < 140 ? Color.White : Color.Black;
+        => RelativeLuminance(bg) > TextFlipLuminance ? Color.Black : Color.White;
 
     /// <summary>
     /// Ratio de contraste WCAG 2.x entre dos colores: <c>(L1 + 0.05) / (L2 + 0.05)</c> con el más
@@ -56,7 +66,7 @@ public static class ColorMath
     }
 
     /// <summary>Luminancia relativa WCAG (sRGB linearizado). 0 = negro, 1 = blanco.</summary>
-    private static double RelativeLuminance(Color c)
+    public static double RelativeLuminance(Color c)
     {
         static double Chan(int v)
         {

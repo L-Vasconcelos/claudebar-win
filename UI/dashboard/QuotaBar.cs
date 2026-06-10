@@ -35,6 +35,9 @@ public static class QuotaBar
         Color c = pace is { } ps
             ? (ps.Status == PaceStatus.Critical ? theme.Critical : ps.Status == PaceStatus.Over ? theme.Warn : theme.Ok)
             : ColorMath.RiskColor(util, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
+        // El TEXTO (glifo + %) usa la variante AA del color de estado (T6b): el relleno de la barra no
+        // cambia, pero como texto pequeño Critical oscuro caía a 3.7:1 y Warn claro a 2.8:1.
+        Color textColor = pace is { } pt ? Theme.PaceTextColor(theme, pt.Status) : c;
         // Estado por forma (a11y, daltónicos): mismo mapeo color↔forma que el tray.
         UsageStatus status = pace is { } pst
             ? (pst.Status == PaceStatus.Critical ? UsageStatus.Critical
@@ -51,7 +54,7 @@ public static class QuotaBar
             // % con la cultura del idioma elegido (T2): "12.5%" en inglés, "12,5%" en español.
             string right = $"{glyph} {UsageFormat.Percent(shown, s.Culture)}";
             var sz = g.MeasureString(right, Typography.Mono);
-            using var valBrush = new SolidBrush(c);
+            using var valBrush = new SolidBrush(textColor);
             g.DrawString(right, Typography.Mono, valBrush, x + w - sz.Width, y);
         }
         y += 22;

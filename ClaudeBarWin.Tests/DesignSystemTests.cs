@@ -43,4 +43,57 @@ public class DesignSystemTests
         var c = Color.FromArgb(120, 130, 140);
         Assert.Equal(1.0, ColorMath.ContrastRatio(c, c), 6);
     }
+
+    // --- T6a: Contrast decide negro/blanco por luminancia relativa WCAG, no por luma 0.299/0.587/0.114 ---
+
+    [Fact]
+    public void Contrast_picks_black_on_cli_green()
+    {
+        // El verde CLI #00D959 tiene luminancia relativa ~0.50: el negro contrasta 11.1:1 y el blanco
+        // solo 1.9:1. La luma antigua (137.5 < umbral 140) elegía BLANCO → texto ilegible en los chips
+        // activos, el knob del TogglePill y el % del badge del tray con el tema CLI.
+        Assert.Equal(Color.Black, ColorMath.Contrast(Theme.Cli.Accent));
+    }
+
+    [Fact]
+    public void Contrast_picks_black_on_amber_and_green_fills()
+    {
+        // Ámbar #D97706 (negro 6.6:1 vs blanco 3.2:1) y verde #16A34A (negro 6.4:1 vs blanco 3.3:1):
+        // la luma antigua elegía blanco en ambos pese a ser el lado peor.
+        Assert.Equal(Color.Black, ColorMath.Contrast(Theme.Dark.Warn));
+        Assert.Equal(Color.Black, ColorMath.Contrast(Theme.Dark.Ok));
+    }
+
+    [Fact]
+    public void Contrast_keeps_white_on_red_and_dark_fills()
+    {
+        // El rojo #DC2626 (L≈0.167) y los fondos oscuros quedan bajo el punto de cruce (~0.179): blanco.
+        Assert.Equal(Color.White, ColorMath.Contrast(Theme.Dark.Critical));
+        Assert.Equal(Color.White, ColorMath.Contrast(Theme.Dark.Neutral));
+        Assert.Equal(Color.White, ColorMath.Contrast(Theme.Dark.Background));
+    }
+
+    public static IEnumerable<object[]> ThemeFills()
+    {
+        foreach (var t in new[] { Theme.Dark, Theme.Light, Theme.Cli })
+            foreach (var (name, c) in new (string, Color)[]
+            {
+                ("Background", t.Background), ("Foreground", t.Foreground), ("Accent", t.Accent),
+                ("Ok", t.Ok), ("Warn", t.Warn), ("Critical", t.Critical), ("Neutral", t.Neutral),
+                ("Track", t.Track), ("BgElevated", t.BgElevated),
+            })
+                yield return new object[] { $"{t.Id}.{name}", c };
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemeFills))]
+    public void Contrast_always_picks_the_better_of_black_and_white(string id, Color bg)
+    {
+        // Propiedad: para cualquier relleno de los 3 temas, el lado elegido (negro/blanco) nunca
+        // contrasta peor que el descartado. Con luma-140 fallaba en CLI.Accent/Ok y Dark.Warn/Ok.
+        Color chosen = ColorMath.Contrast(bg);
+        Color other = chosen.ToArgb() == Color.Black.ToArgb() ? Color.White : Color.Black;
+        double rc = ColorMath.ContrastRatio(bg, chosen), ro = ColorMath.ContrastRatio(bg, other);
+        Assert.True(rc >= ro, $"{id}: Contrast eligió el lado peor ({rc:0.00}:1 vs {ro:0.00}:1)");
+    }
 }

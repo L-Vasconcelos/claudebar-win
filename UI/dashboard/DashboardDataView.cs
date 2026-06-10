@@ -255,8 +255,9 @@ public static class DashboardDataView
         if (!draw) return y + 18;
 
         var worst = (PaceStatus)Math.Max((int)(pf?.Status ?? PaceStatus.Ok), (int)(ps?.Status ?? PaceStatus.Ok));
-        Color c = worst == PaceStatus.Critical ? theme.Critical
-                : worst == PaceStatus.Over ? theme.Warn : theme.Ok;
+        // Línea de pace = TEXTO pequeño: variantes AA WarnText/CriticalText (T6b), no los rellenos
+        // (#DC2626 sobre el fondo oscuro caía a 3.7:1 — el texto más crítico era el de peor contraste).
+        Color c = Theme.PaceTextColor(theme, worst);
 
         string text = "↗ ";
         if (pf is not null) text += $"5h {pf.PaceRatio * 100:0}%";

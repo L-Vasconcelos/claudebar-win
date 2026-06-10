@@ -43,6 +43,26 @@ public sealed class Theme
     public Color? TickOnTrackOverride { get; init; }
     public Color TickOnTrack => TickOnTrackOverride ?? TextMuted;
 
+    /// <summary>
+    /// Variante del ámbar Warn legible como TEXTO pequeño (patrón <see cref="AccentText"/>, T6b). Los
+    /// RELLENOS (barras, dots, badges) siguen usando <see cref="Warn"/>; este token solo aplica donde
+    /// el ámbar se pinta como texto (línea de pace, % de cuota, marcador stale del footer). Sin
+    /// override cae a <see cref="Warn"/>: oscuro #D97706 ≈ 5.6:1 y CLI #F2BF33 ≈ 12.3:1 ya cumplen
+    /// AA; solo el tema claro lo oscurece (su #CA8A04 como texto caía a ~2.8:1).
+    /// </summary>
+    public Color? WarnTextOverride { get; init; }
+    public Color WarnText => WarnTextOverride ?? Warn;
+
+    /// <summary>
+    /// Variante del rojo Critical legible como TEXTO pequeño (patrón <see cref="AccentText"/>, T6b).
+    /// Los RELLENOS siguen usando <see cref="Critical"/>; este token solo aplica al texto (el más
+    /// crítico del panel era el de peor contraste). Sin override cae a <see cref="Critical"/>: claro
+    /// #DC2626 ≈ 4.6:1 y CLI #F24040 ≈ 5.6:1 ya cumplen AA; solo el tema oscuro lo aclara (su
+    /// #DC2626 sobre el fondo caía a ~3.7:1).
+    /// </summary>
+    public Color? CriticalTextOverride { get; init; }
+    public Color CriticalText => CriticalTextOverride ?? Critical;
+
     // Alias semánticos sobre los campos existentes (sin romper consumidores).
     public Color TextPrimary => Foreground;
     public Color TextSecondary => Dim;
@@ -58,6 +78,10 @@ public sealed class Theme
         Ok = Color.FromArgb(22, 163, 74),
         Warn = Color.FromArgb(217, 119, 6),
         Critical = Color.FromArgb(220, 38, 38),
+        // Rojo crítico aclarado para TEXTO (#F87171, red-400): el relleno #DC2626 como texto pequeño
+        // caía a ~3.7:1 sobre el fondo oscuro (la línea de pace crítica ilegible). Como texto ≈6.4:1
+        // (AA, T6b). El relleno Critical de barras/badges no cambia.
+        CriticalTextOverride = Color.FromArgb(0xF8, 0x71, 0x71),
         Neutral = Color.FromArgb(82, 82, 91),
         Accent = Color.FromArgb(0xCC, 0x78, 0x5C),    // naranja Claude
         BgElevated = Color.FromArgb(44, 44, 46),      // #2C2C2E
@@ -76,6 +100,9 @@ public sealed class Theme
         // fondo claro (texto pequeño ilegible: línea de salud, badges). Ahora ~4.8:1 (AA, T9).
         Ok = Color.FromArgb(21, 128, 61),
         Warn = Color.FromArgb(202, 138, 4),
+        // Ámbar oscurecido para TEXTO (#A16207, yellow-700): el relleno #CA8A04 como texto pequeño
+        // caía a ~2.8:1 sobre el fondo claro. Como texto ≈4.7:1 (AA, T6b). El relleno Warn no cambia.
+        WarnTextOverride = Color.FromArgb(0xA1, 0x62, 0x07),
         Critical = Color.FromArgb(220, 38, 38),
         Neutral = Color.FromArgb(161, 161, 170),
         Accent = Color.FromArgb(0xCC, 0x78, 0x5C),
@@ -113,6 +140,19 @@ public sealed class Theme
     {
         UI.UsageStatus.Critical => t.Critical,
         UI.UsageStatus.Warn => t.Warn,
+        _ => t.Ok
+    };
+
+    /// <summary>
+    /// Color de TEXTO por estado de pace (T6b): como <see cref="StatusColor"/> pero con las variantes
+    /// legibles <see cref="CriticalText"/>/<see cref="WarnText"/> (AA ≥4.5:1 sobre el fondo del panel
+    /// en los 3 temas; Ok ya cumple como texto). Para texto pequeño (% de cuota, glance del header,
+    /// línea de pace); los rellenos siguen con <see cref="StatusColor"/>/<see cref="Warn"/>/<see cref="Critical"/>.
+    /// </summary>
+    public static Color PaceTextColor(Theme t, PaceStatus s) => s switch
+    {
+        PaceStatus.Critical => t.CriticalText,
+        PaceStatus.Over => t.WarnText,
         _ => t.Ok
     };
 }
