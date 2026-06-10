@@ -149,6 +149,8 @@ public sealed class UsageApiClient
     /// Refreshes the token directly via the OAuth endpoint and writes the new tokens
     /// back to ~/.claude/.credentials.json (preserving the rest of the file). Only runs
     /// when the stored token is already expired, so it coexists with Claude Code.
+    /// The write goes through <see cref="CredentialsWriter.WriteAtomic"/>: tmp+Replace
+    /// atómico y sin pisar un refresh concurrente más nuevo (P0 auditoría 2026-06-10).
     /// </summary>
     private static async Task<bool> TryOAuthRefreshAsync()
     {
@@ -188,9 +190,11 @@ public sealed class UsageApiClient
             oauth["refreshToken"] = newRefresh;
             oauth["expiresAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + expiresIn * 1000;
 
-            await File.WriteAllTextAsync(path, root!.ToJsonString(new JsonSerializerOptions { WriteIndented = true }))
-                .ConfigureAwait(false);
-            return true;
+            var write = CredentialsWriter.WriteAtomic(
+                path, root!.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            // SkippedNewerOnDisk también es éxito: otro proceso ya dejó un token más fresco
+            // en disco y FetchAsync re-lee el archivo justo después de este método.
+            return write is CredentialsWriteResult.Written or CredentialsWriteResult.SkippedNewerOnDisk;
         }
         catch
         {
