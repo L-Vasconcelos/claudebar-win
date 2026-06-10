@@ -157,25 +157,26 @@ public static class DashboardHeader
         }
         ty += 16;
 
-        // Glance de cuota crítica = ventana de mayor utilización entre 5h/7d, en UNA línea:
-        // "Sesión (5h)" a la izquierda + "◆ 87%" a la derecha (forma + % en color de estado), SIN barra,
-        // SIN línea de reset y SIN pace (esos viven enteros en la sección "Cuota"). El % usa el valor eased
-        // si hay motion, pero el alto reservado NO depende de draw → medir==pintar.
+        // Glance de cuota crítica = ventana de PEOR estado entre 5h/7d (T5a: Critical > Warn > Ok; a
+        // igualdad, mayor %. Antes era "mayor %" a secas y el header enseñaba la semana en verde al 84%
+        // mientras la sesión iba al 62% con pace CRÍTICO), en UNA línea: "Sesión (5h)" a la izquierda +
+        // "◆ 87%" a la derecha (forma + % en color de estado), SIN barra, SIN línea de reset y SIN pace
+        // (esos viven enteros en la sección "Cuota"). El % usa el valor eased si hay motion, pero el alto
+        // reservado NO depende de draw → medir==pintar.
+        // T5b: el glance solo aparece con la sección "Cuota" PLEGADA — expandida, sus barras completas
+        // van justo debajo y el glance duplicaba la fila "Week (7d) · 84%" (§3 jerarquía). La condición
+        // es de config (igual en ambas pasadas) → medir==pintar intacto.
         var w5 = snap?.Usage?.FiveHour; var w7 = snap?.Usage?.SevenDay;
-        var crit = PickCritical(w5, w7);
-        if (crit is not null)
+        var crit = PickWorst(w5, snap?.PaceFive, w7, snap?.PaceSeven, cfg);
+        if (crit is not null && cfg.CollapsedQuota)
         {
             bool isFive = ReferenceEquals(crit, w5);
             var critPace = isFive ? snap?.PaceFive : snap?.PaceSeven;
             string glanceLabel = isFive ? $"{s.SessionWord} (5h)" : $"{s.WeekWord} (7d)";
             if (draw)
             {
-                // Color de estado: por pace si lo hay, si no por umbral de riesgo (igual criterio que la barra).
-                UsageStatus status = critPace is { } pst
-                    ? (pst.Status == PaceStatus.Critical ? UsageStatus.Critical
-                       : pst.Status == PaceStatus.Over ? UsageStatus.Warn : UsageStatus.Ok)
-                    : crit.UtilizationPct >= cfg.CriticalThresholdPct ? UsageStatus.Critical
-                      : crit.UtilizationPct >= cfg.WarnThresholdPct ? UsageStatus.Warn : UsageStatus.Ok;
+                // Estado por pace si lo hay, si no por umbral de riesgo (igual criterio que la barra).
+                UsageStatus status = WindowStatus(crit, critPace, cfg);
                 Color c = critPace is { } ps2
                     ? (ps2.Status == PaceStatus.Critical ? theme.Critical : ps2.Status == PaceStatus.Over ? theme.Warn : theme.Ok)
                     : ColorMath.RiskColor(crit.UtilizationPct, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
@@ -206,10 +207,29 @@ public static class DashboardHeader
         return bottom + 10;
     }
 
-    private static UsageWindow? PickCritical(UsageWindow? a, UsageWindow? b)
+    /// <summary>
+    /// Estado de una ventana para el glance, con el MISMO criterio que <see cref="QuotaBar"/>: el pace
+    /// manda si existe (Critical→Critical, Over→Warn, resto Ok) y, sin pace, caen los umbrales de
+    /// riesgo de config. PURA y testeable (T5a).
+    /// </summary>
+    internal static UsageStatus WindowStatus(UsageWindow win, PaceResult? pace, AppConfig cfg) => pace is { } p
+        ? (p.Status == PaceStatus.Critical ? UsageStatus.Critical
+           : p.Status == PaceStatus.Over ? UsageStatus.Warn : UsageStatus.Ok)
+        : win.UtilizationPct >= cfg.CriticalThresholdPct ? UsageStatus.Critical
+          : win.UtilizationPct >= cfg.WarnThresholdPct ? UsageStatus.Warn : UsageStatus.Ok;
+
+    /// <summary>
+    /// Elige la ventana de PEOR estado para el glance del header (T5a, §3 jerarquía de la auditoría):
+    /// Critical > Warn > Ok y, a igualdad de estado, la de mayor %. Sustituye al viejo PickCritical
+    /// (solo mayor %), que elegía la semana en verde (84%) con la sesión al 62% y pace crítico.
+    /// </summary>
+    internal static UsageWindow? PickWorst(UsageWindow? a, PaceResult? paceA, UsageWindow? b, PaceResult? paceB, AppConfig cfg)
     {
         if (a is null) return b;
         if (b is null) return a;
+        UsageStatus sa = WindowStatus(a, paceA, cfg);
+        UsageStatus sb = WindowStatus(b, paceB, cfg);
+        if (sa != sb) return sa > sb ? a : b;
         return a.UtilizationPct >= b.UtilizationPct ? a : b;
     }
 

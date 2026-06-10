@@ -19,11 +19,14 @@ public class DashboardHeaderTests
     // Bitmap/Graphics reales para que MeasureString/GetHeight tengan un contexto válido.
     private static Bitmap NewBmp() => new(W + X * 2, 400);
 
-    private static AppConfig Cfg(bool showMascot, bool liveEnabled) => new()
+    private static AppConfig Cfg(bool showMascot, bool liveEnabled, bool collapsedQuota = false) => new()
     {
         ShowMascot = showMascot,
         LiveSessionsEnabled = liveEnabled,
         ShowHealth = true,
+        // T5b: el glance de cuota del header solo existe con la sección "Cuota" PLEGADA (expandida
+        // duplicaba su primera fila). Los tests que ejercitan el glance pasan collapsedQuota: true.
+        CollapsedQuota = collapsedQuota,
     };
 
     // Header con snapshot vacío: la columna derecha apenas aporta alto, así que el bloque de la
@@ -190,9 +193,10 @@ public class DashboardHeaderTests
         // que duplicaban la primera fila de "Cuota". Con usage presente el header solo añade UN glance de
         // una línea (~16px) respecto a sin usage: jamás el bloque de barra+reset+pace (~60px). Si se hubiera
         // dejado la barra duplicada, la diferencia sería mucho mayor.
+        // T5b: el glance solo vive con la sección Cuota PLEGADA → collapsedQuota: true.
         using var bmp = NewBmp();
         using var g = Graphics.FromImage(bmp);
-        var cfg = Cfg(showMascot: false, liveEnabled: false);
+        var cfg = Cfg(showMascot: false, liveEnabled: false, collapsedQuota: true);
 
         int withUsage = RunHeaderSnap(g, draw: false, cfg, FullSnap(DateTime.UtcNow));
         int noUsage = RunHeaderSnap(g, draw: false, cfg, new AppSnapshot
@@ -202,7 +206,7 @@ public class DashboardHeaderTests
         });
 
         int delta = withUsage - noUsage;
-        Assert.True(delta > 0, "con usage debe aparecer el glance de una línea");
+        Assert.True(delta > 0, "con usage (y Cuota plegada) debe aparecer el glance de una línea");
         Assert.True(delta <= 20, $"el header solo añade UN glance (~16px), no la barra+reset+pace duplicada (delta={delta})");
     }
 
@@ -211,9 +215,10 @@ public class DashboardHeaderTests
     {
         // Como el header ya NO pinta el pace, su alto es idéntico tenga o no el pace una ETA de
         // "agotamiento antes del reset" (lo que antes añadía/movía la línea de pace recortada "⚠ vie 1…").
+        // collapsedQuota: true para que el glance exista y el test siga siendo significativo (T5b).
         using var bmp = NewBmp();
         using var g = Graphics.FromImage(bmp);
-        var cfg = Cfg(showMascot: false, liveEnabled: false);
+        var cfg = Cfg(showMascot: false, liveEnabled: false, collapsedQuota: true);
         var now = DateTime.UtcNow;
 
         var withEta = FullSnap(now); // PaceFive.ExhaustsBeforeReset = true (ETA presente)
@@ -303,5 +308,108 @@ public class DashboardHeaderTests
             ref gear, motion: null, reduceMotion: false, mascotBounceOffsetY: 0, celebration: null);
 
         Assert.Equal(Run(false), Run(true));
+    }
+
+    // --- T5a: el glance elige la ventana de PEOR estado (Critical > Warn > Ok; a igualdad, mayor %) ---
+
+    private static UsageWindow Win(double pct) => new(pct, DateTimeOffset.UtcNow.AddHours(2));
+
+    private static PaceResult Pace(PaceStatus st, double util) =>
+        new("x", util, 1.0, util, null, DateTimeOffset.UtcNow.AddHours(2), st == PaceStatus.Critical, st);
+
+    [Fact]
+    public void PickWorst_prefers_critical_pace_over_higher_green_percent()
+    {
+        // El caso de la auditoría (§3 jerarquía): sesión 62% con pace CRÍTICO vs semana 84% en verde.
+        // Por mayor % ganaba la semana (84%, Ok) y el header enseñaba verde mientras la sesión ardía.
+        var cfg = new AppConfig();
+        var a = Win(62); var b = Win(84);
+
+        var worst = DashboardHeader.PickWorst(a, Pace(PaceStatus.Critical, 62), b, Pace(PaceStatus.Ok, 84), cfg);
+
+        Assert.Same(a, worst);
+    }
+
+    [Fact]
+    public void PickWorst_prefers_warn_pace_over_ok_with_higher_percent()
+    {
+        // Over (Warn) en la ventana baja gana a Ok en la alta: el estado manda sobre el %.
+        var cfg = new AppConfig();
+        var a = Win(30); var b = Win(60);
+
+        var worst = DashboardHeader.PickWorst(a, Pace(PaceStatus.Over, 30), b, null, cfg);
+
+        Assert.Same(a, worst);
+    }
+
+    [Fact]
+    public void PickWorst_falls_back_to_higher_percent_on_equal_status()
+    {
+        var cfg = new AppConfig();
+        // Ambas Ok (sin pace, bajo el umbral warn 70) → mayor % (comportamiento previo conservado).
+        var a = Win(40); var b = Win(60);
+        Assert.Same(b, DashboardHeader.PickWorst(a, null, b, null, cfg));
+
+        // Ambas Warn por pace → de nuevo mayor %.
+        var c = Win(50); var d = Win(72);
+        Assert.Same(d, DashboardHeader.PickWorst(c, Pace(PaceStatus.Over, 50), d, Pace(PaceStatus.Over, 72), cfg));
+    }
+
+    [Fact]
+    public void PickWorst_uses_config_thresholds_when_no_pace()
+    {
+        // Sin pace cae a los umbrales de config (mismo criterio que QuotaBar): 91% ≥ crit(90) → Critical.
+        var cfg = new AppConfig(); // warn 70 / crit 90 por defecto
+        var a = Win(91); var b = Win(84);
+
+        Assert.Equal(UsageStatus.Critical, DashboardHeader.WindowStatus(a, null, cfg));
+        Assert.Equal(UsageStatus.Warn, DashboardHeader.WindowStatus(b, null, cfg));
+        Assert.Same(a, DashboardHeader.PickWorst(a, null, b, null, cfg));
+    }
+
+    [Fact]
+    public void PickWorst_handles_missing_windows()
+    {
+        var cfg = new AppConfig();
+        var a = Win(10);
+
+        Assert.Same(a, DashboardHeader.PickWorst(a, null, null, null, cfg));
+        Assert.Same(a, DashboardHeader.PickWorst(null, null, a, null, cfg));
+        Assert.Null(DashboardHeader.PickWorst(null, null, null, null, cfg));
+    }
+
+    // --- T5b: el glance desaparece cuando la sección "Cuota" está EXPANDIDA (duplicaba su 1ª fila) ---
+
+    [Fact]
+    public void Glance_hidden_when_quota_section_expanded()
+    {
+        // Con Cuota expandida las barras completas van justo debajo del header: el glance duplicaba
+        // la fila "Week (7d) · 84%" (§3 jerarquía). Expandida (CollapsedQuota=false) el header debe
+        // medir lo MISMO con y sin usage (cero filas de glance).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg(showMascot: false, liveEnabled: false, collapsedQuota: false);
+
+        int withUsage = RunHeaderSnap(g, draw: false, cfg, FullSnap(DateTime.UtcNow));
+        int noUsage = RunHeaderSnap(g, draw: false, cfg, new AppSnapshot
+        {
+            Health = new HealthStatus(HealthLevel.Operational, "All Systems Operational"),
+            LatestState = UsageFetchState.Ok, UsageAtUtc = DateTime.UtcNow
+        });
+
+        Assert.Equal(noUsage, withUsage);
+    }
+
+    [Fact]
+    public void Glance_measure_equals_paint_when_quota_collapsed()
+    {
+        // medir==pintar con el glance VISIBLE (Cuota plegada): la condición de visibilidad no depende
+        // de la pasada (draw), así que ambas reservan la misma fila.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg(showMascot: false, liveEnabled: false, collapsedQuota: true);
+        var snap = FullSnap(DateTime.UtcNow);
+
+        Assert.Equal(RunHeaderSnap(g, draw: false, cfg, snap), RunHeaderSnap(g, draw: true, cfg, snap));
     }
 }

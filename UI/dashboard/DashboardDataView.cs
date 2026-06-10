@@ -363,7 +363,7 @@ public static class DashboardDataView
         _ => s.SessionPhaseIdle,
     };
 
-    // Cuerpo de DrawChart de DashboardForm.cs: título + toggle $/% , tabs de rango, selector 5h/7d y cuerpo.
+    // Cuerpo de DrawChart de DashboardForm.cs: toggle $/% , tabs de rango, selector 5h/7d y cuerpo.
     internal static int DrawChart(Graphics g, bool draw, int x, int y, int w, Strings s, Theme theme, AppConfig cfg,
         Font smallFont, Font tabFont,
         string chartMode, ChartRange chartRange, string chartPctWindow,
@@ -373,8 +373,10 @@ public static class DashboardDataView
     {
         bool pct = chartMode == "percent";
 
-        // Title + mode toggle (Spend $ | Quota %)
-        if (draw) g.DrawString(s.UsageChart, smallFont, dim, x, y);
+        // Toggle de modo (Spend $ | Quota %), right-aligned. T5c: AQUÍ ya no se pinta el título
+        // "Usage chart" — la cabecera plegable de la sección ("▾ Chart") ya nombra el bloque y el
+        // doble título era ruido (§3 jerarquía). La fila se conserva (y += 18) porque la ocupa el
+        // toggle; el layout no cambia → medir==pintar intacto.
         modeRects.Clear();
         DrawSegments(g, draw, tabFont, theme,
             new[] { (s.ChartTabSpend, "spend"), (s.ChartTabPct, "percent") }, chartMode,
