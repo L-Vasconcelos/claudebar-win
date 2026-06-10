@@ -698,6 +698,53 @@ public class DashboardSettingsViewTests
         Assert.False(isAccent, "un hito inactivo NO debe pintarse con Accent");
     }
 
+    // ---- T7c (auditoría §3 #8): estado on/off de los chips de hitos visible en LOS TRES temas ----
+    // El render auditado mostraba "los 4 idénticos" porque el default trae los 4 hitos ACTIVOS (todos
+    // Accent, estado real); este pin garantiza que cuando hay mezcla on/off el patrón del segmented
+    // Spend$/Quota% distingue ambos estados en dark/light/cli: relleno claramente distinto + borde
+    // Separator solo en el inactivo.
+
+    public static IEnumerable<object[]> ChipThemes =>
+        new[] { new object[] { Theme.Dark }, new object[] { Theme.Light }, new object[] { Theme.Cli } };
+
+    [Theory]
+    [MemberData(nameof(ChipThemes))]
+    public void MultiSegmentRow_active_and_inactive_chips_differ_in_every_theme(Theme theme)
+    {
+        const int x = 16, w = 308, y = 30;
+        using var bmp = new Bitmap(x + w + 40, 100);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(theme.Background);
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.MultiSegmentRow(g, draw: true, "milestone", "", MilestoneSegs,
+            new[] { 25 }, x, y, w, theme, Typography.Caption, rects);
+
+        Assert.True(rects.TryGetValue("milestone:25", out var on));
+        Assert.True(rects.TryGetValue("milestone:50", out var off));
+
+        // Relleno (x+4: dentro del chip, a la izquierda del texto que arranca en padX=7): el chip
+        // activo ≈ Accent; el inactivo ≈ BgElevated. Ambos estados deben verse distintos.
+        var pOn = bmp.GetPixel(on.X + 4, on.Y + on.Height / 2);
+        var pOff = bmp.GetPixel(off.X + 4, off.Y + off.Height / 2);
+        var acc = theme.Accent;
+        Assert.True(Math.Abs(pOn.R - acc.R) <= 10 && Math.Abs(pOn.G - acc.G) <= 10 && Math.Abs(pOn.B - acc.B) <= 10,
+            $"[{theme.Id}] el chip activo debe rellenarse con Accent (pintó {pOn})");
+        int delta = Math.Abs(pOn.R - pOff.R) + Math.Abs(pOn.G - pOff.G) + Math.Abs(pOn.B - pOff.B);
+        Assert.True(delta >= 60, $"[{theme.Id}] chips on/off casi idénticos (Δ={delta}): el estado no se lee");
+
+        // Borde del inactivo: en el contorno superior hay píxeles ≈ Separator (se lee como botón).
+        var sep = theme.Separator;
+        bool border = false;
+        for (int px = off.X + 4; px <= off.Right - 4 && !border; px++)
+        {
+            var p = bmp.GetPixel(px, off.Y);
+            if (Math.Abs(p.R - sep.R) <= 6 && Math.Abs(p.G - sep.G) <= 6 && Math.Abs(p.B - sep.B) <= 6)
+                border = true;
+        }
+        Assert.True(border, $"[{theme.Id}] el chip inactivo debe llevar el borde Separator");
+    }
+
     [Fact]
     public void MultiSegmentRow_no_chip_left_of_content_and_keeps_right_margin()
     {

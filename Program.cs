@@ -692,6 +692,39 @@ internal static class Program
             bmpS.Save(Path.Combine(dir, "settings.png"));
         }
 
+        // ---- QA T7: tabs de rango en claro, hover de ajustes con clip y chips de hitos con mezcla ----
+        // (a) §3 #5: tema claro con la gráfica expandida — las tabs 1H/5H/24H/7D/30D deben leerse como
+        //     chips (borde Separator en el inactivo; antes BgElevated puro invisible sobre #FAFAFA).
+        {
+            var cfgLight = AppConfig.Load();
+            cfgLight.Theme = "light";
+            cfgLight.CollapsedChart = false;
+            using var formC = new DashboardForm();
+            formC.PrepareForRender(snap, cfgLight, plan, buckets, pct, ChartRange.Hours5);
+            using var bmpC = new Bitmap(formC.Width, formC.Height);
+            formC.DrawToBitmap(bmpC, new Rectangle(0, 0, formC.Width, formC.Height));
+            bmpC.Save(Path.Combine(dir, "chart-tabs-light.png"));
+        }
+        // (b)+(c) §3 #6/#8: ajustes con scroll y hover en una fila cortada por el viewport (el realce
+        //     HoverBg debe recortarse, no sangrar sobre el chrome) + hitos 25/75 ON y 50/95 OFF para
+        //     ver el estado on/off de los chips (el default trae los 4 activos = 4 chips idénticos).
+        {
+            var cfgT7 = AppConfig.Load();
+            cfgT7.NotifyMilestones = new[] { 25, 75 };
+            using var formS = new DashboardForm();
+            // El hover cae en la fila CORTADA por el borde superior del viewport (toggle:ShowSpend con
+            // scroll 64): su realce inflado es el que sangraba sobre el chrome sin el clip.
+            formS.PrepareForRender(snap, cfgT7, plan, buckets, pct, ChartRange.Hours5,
+                new DashboardForm.RenderMotionOverride(TSinceOpenMs: 4000, HoveredKey: "set:toggle:ShowSpend"));
+            formS.ShowSettings();
+            formS.SetSettingsScrollForRender(64);
+            using var bmpH = new Bitmap(formS.Width, formS.Height);
+            // Dos pasadas: la 1ª puebla los rects de ajustes (el realce usa los de la pasada anterior).
+            formS.DrawToBitmap(bmpH, new Rectangle(0, 0, formS.Width, formS.Height));
+            formS.DrawToBitmap(bmpH, new Rectangle(0, 0, formS.Width, formS.Height));
+            bmpH.Save(Path.Combine(dir, "settings-hover-clip.png"));
+        }
+
         // Mascota: sesiones en vivo ON para verla en la cabecera.
         cfg.LiveSessionsEnabled = true;
         cfg.ShowMascot = true;
@@ -768,6 +801,7 @@ internal static class Program
         }
 
         Console.WriteLine("rendered data.png + settings.png + mascot.png + tray-badges.png");
+        Console.WriteLine("       + chart-tabs-light.png + settings-hover-clip.png");
         Console.WriteLine("       + motion-0/90/200.png + hover.png + mascot-*.png + celebration.png + reduce-motion.png");
         Console.WriteLine(dir);
     }
