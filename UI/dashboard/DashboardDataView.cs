@@ -410,7 +410,7 @@ public static class DashboardDataView
 
         return pct
             ? DrawPercentBody(g, draw, x, y, w, s, theme, cfg, smallFont, chartRange, chartPctWindow, pctData, chartLoading, dim)
-            : DrawSpendBody(g, draw, x, y, w, s, smallFont, chartData, chartLoading, dim);
+            : DrawSpendBody(g, draw, x, y, w, s, theme, smallFont, chartData, chartLoading, dim);
     }
 
     /// <summary>
@@ -425,6 +425,69 @@ public static class DashboardDataView
         if (lx + labelW > plotRight) lx = plotRight - labelW;  // última: no cortar por la derecha
         if (lx < plotLeft) lx = plotLeft;          // primera: no cortar por la izquierda (gana)
         return lx;
+    }
+
+    /// <summary>
+    /// Filtro de colisión de etiquetas del eje X (T4a, §3 #1), PURO y testeable. Recorre las etiquetas
+    /// de izquierda a derecha (con sus x ya resueltos por <see cref="AxisLabelX"/>) y devuelve los
+    /// índices de las que se pintan: una etiqueta solo se mantiene si arranca al menos
+    /// <paramref name="minGap"/> px después del borde derecho de la última MANTENIDA (la primera
+    /// siempre se mantiene). Antes el muestreo era solo por índice (cada n/8) sin medir: la 1ª anclada
+    /// a plotLeft y la 2ª centrada bajo su tick se superponían ("lun 1{2/2}h") y el resto iban pegadas.
+    /// </summary>
+    internal static List<int> VisibleAxisLabels(IReadOnlyList<(float x, float w)> labels, float minGap)
+    {
+        var keep = new List<int>(labels.Count);
+        float lastRight = float.NegativeInfinity;
+        for (int i = 0; i < labels.Count; i++)
+        {
+            if (keep.Count > 0 && labels[i].x < lastRight + minGap) continue;
+            keep.Add(i);
+            lastRight = labels[i].x + labels[i].w;
+        }
+        return keep;
+    }
+
+    // Marcador del pico: radio del punto (el FillEllipse de 5 px) y holgura mínima etiqueta↔punto (T4b).
+    private const float PeakMarkerR = 2.5f;
+    private const float PeakLabelGap = 2f;
+
+    /// <summary>
+    /// Posición de la etiqueta "peak …" (T4b, §3 #9), PURA y testeable. Parte de centrada sobre el
+    /// marcador con holgura real (el offset histórico <c>alto+1</c> dejaba el borde inferior DENTRO del
+    /// punto) y resuelve dos colisiones en orden: (1) la etiqueta fija superior izquierda (total $/%
+    /// actual): baja bajo el marcador y, si sigue chocando, se corre a su derecha (comportamiento
+    /// previo conservado); (2) el propio punto del pico: cuando el clamp superior deja el punto dentro
+    /// del rect (pico en el último bucket ⇒ etiqueta clavada al borde derecho con el punto ENCIMA del
+    /// texto), se desplaza a un lado del punto — izquierda si cabe, derecha si no. Nunca sale del plot.
+    /// </summary>
+    internal static PointF PeakLabelPos(float peakX, float peakY, SizeF label, int x, int w, int top, RectangleF avoid)
+    {
+        float pxp = Math.Clamp(peakX - label.Width / 2f, x, x + w - label.Width);
+        float pyp = Math.Max(top - 2, peakY - label.Height - PeakMarkerR - PeakLabelGap);
+        var rect = new RectangleF(pxp, pyp, label.Width, label.Height);
+
+        // (1) Etiqueta fija superior izquierda (total / % actual): bajo el marcador; si sigue, a su derecha.
+        if (rect.IntersectsWith(avoid))
+        {
+            pyp = peakY + 4;
+            rect = new RectangleF(pxp, pyp, label.Width, label.Height);
+            if (rect.IntersectsWith(avoid))
+                pxp = Math.Clamp(avoid.Right + 6, x, x + w - label.Width);
+            rect = new RectangleF(pxp, pyp, label.Width, label.Height);
+        }
+
+        // (2) El punto del pico: solo intersecta cuando manda el clamp superior (en modo $ el pico
+        // siempre cae en esa fila). A un lado del punto, sin pisar la etiqueta fija.
+        var marker = new RectangleF(peakX - PeakMarkerR, peakY - PeakMarkerR, PeakMarkerR * 2, PeakMarkerR * 2);
+        if (rect.IntersectsWith(marker))
+        {
+            float leftX = peakX - PeakMarkerR - PeakLabelGap - label.Width;
+            pxp = leftX >= x ? leftX : Math.Min(peakX + PeakMarkerR + PeakLabelGap, x + w - label.Width);
+            rect = new RectangleF(pxp, pyp, label.Width, label.Height);
+            if (rect.IntersectsWith(avoid)) pyp = peakY + 4;   // red de seguridad: nunca sobre la fija
+        }
+        return new PointF(pxp, pyp);
     }
 
     internal static void DrawSegments(Graphics g, bool draw, Font font, Theme theme,
@@ -459,8 +522,8 @@ public static class DashboardDataView
         }
     }
 
-    internal static int DrawSpendBody(Graphics g, bool draw, int x, int top, int w, Strings s, Font smallFont,
-        List<HistoryBucket> chartData, bool chartLoading, Brush dim)
+    internal static int DrawSpendBody(Graphics g, bool draw, int x, int top, int w, Strings s, Theme theme,
+        Font smallFont, List<HistoryBucket> chartData, bool chartLoading, Brush dim)
     {
         int bottom = top + ChartH;
         if (chartLoading)
@@ -513,17 +576,21 @@ public static class DashboardDataView
         int peakIdx = 0;
         for (int i = 1; i < n; i++)
             if (chartData[i].CostUsd > chartData[peakIdx].CostUsd) peakIdx = i;
-        AnnotatePeak(g, smallFont, theme: null, $"{s.ChartPeak} {UsageFormat.Money(max, s.Culture)}", X(peakIdx), Y(max), x, w, top, totalRect, dim);
+        AnnotatePeak(g, smallFont, theme, $"{s.ChartPeak} {UsageFormat.Money(max, s.Culture)}", X(peakIdx), Y(max), x, w, top, totalRect);
 
+        // Etiquetas del eje X: muestreo por índice + filtro de colisión midiendo cada etiqueta (T4a) —
+        // las que pisarían a la última pintada se saltan (antes "lun 1{2/2}h" y vecinas pegadas, §3 #1).
         int labelEvery = Math.Max(1, (int)Math.Ceiling(n / 8.0));
+        var axisLabels = new List<(string text, float lx, float lw)>();
         for (int i = 0; i < n; i += labelEvery)
         {
             var lbl = chartData[i].Label;
             var lsz = g.MeasureString(lbl, smallFont);
             // Ancla la 1ª/última etiqueta al borde del plot para que no se corten (auditoría visual, T9).
-            float labelX = AxisLabelX(X(i), lsz.Width, x, x + w);
-            g.DrawString(lbl, smallFont, dim, labelX, bottom + 2);
+            axisLabels.Add((lbl, AxisLabelX(X(i), lsz.Width, x, x + w), lsz.Width));
         }
+        foreach (int k in VisibleAxisLabels(axisLabels.Select(l => (l.lx, l.lw)).ToArray(), Spacing.Xs))
+            g.DrawString(axisLabels[k].text, smallFont, dim, axisLabels[k].lx, bottom + 2);
 
         int lx = x, ly = bottom + 16;
         for (int sIdx = 0; sIdx < Series.Length; sIdx++)
@@ -532,7 +599,10 @@ public static class DashboardDataView
             for (int i = 0; i < n; i++) if (SeriesValue(sIdx, chartData[i]) > 0) { any = true; break; }
             if (!any) continue;
             using var sw = new SolidBrush(Series[sIdx].color);
-            g.FillRectangle(sw, lx, ly + 2, 9, 9);
+            // T4c: swatch en ly+4 (antes ly+2) — quedaba ~2px alto respecto al centro óptico del texto
+            // de la leyenda (caja de mayúsculas del Caption ≈ [ly+4, ly+13]; el cuadrado centraba en
+            // ly+6.5 en vez de ≈ly+8.5). Mismo tamaño 9×9; solo baja el anclaje vertical.
+            g.FillRectangle(sw, lx, ly + 4, 9, 9);
             g.DrawString(Series[sIdx].name, smallFont, dim, lx + 12, ly);
             lx += 12 + (int)g.MeasureString(Series[sIdx].name, smallFont).Width + 10;
         }
@@ -594,45 +664,36 @@ public static class DashboardDataView
         // peak annotation
         int peakIdx = 0;
         for (int i = 1; i < n; i++) if (pts[i].v > pts[peakIdx].v) peakIdx = i;
-        AnnotatePeak(g, smallFont, theme, $"{s.ChartPeak} {UsageFormat.Percent(peak, s.Culture)}", X(peakIdx), Y(peak), x, w, top, curRect, dim);
+        AnnotatePeak(g, smallFont, theme, $"{s.ChartPeak} {UsageFormat.Percent(peak, s.Culture)}", X(peakIdx), Y(peak), x, w, top, curRect);
 
-        // x-axis time labels
+        // x-axis time labels — muestreo por índice + filtro de colisión midiendo cada etiqueta (T4a).
         int labelEvery = Math.Max(1, (int)Math.Ceiling(n / 6.0));
         bool longRange = chartRange is ChartRange.Week1 or ChartRange.Month1;
+        var axisLabels = new List<(string text, float lx, float lw)>();
         for (int i = 0; i < n; i += labelEvery)
         {
             string lbl = pts[i].TsUtc.ToLocalTime().ToString(longRange ? "dd/MM" : "HH:mm", s.Culture);
             var lsz = g.MeasureString(lbl, smallFont);
             // Ancla la 1ª/última etiqueta al borde del plot para que no se corten (auditoría visual, T9).
-            float lx = AxisLabelX(X(i), lsz.Width, x, x + w);
-            g.DrawString(lbl, smallFont, dim, lx, bottom + 2);
+            axisLabels.Add((lbl, AxisLabelX(X(i), lsz.Width, x, x + w), lsz.Width));
         }
+        foreach (int k in VisibleAxisLabels(axisLabels.Select(l => (l.lx, l.lw)).ToArray(), Spacing.Xs))
+            g.DrawString(axisLabels[k].text, smallFont, dim, axisLabels[k].lx, bottom + 2);
         return bottom + ChartFooter;
     }
 
-    // Cuerpo de AnnotatePeak de DashboardForm.cs. El marcador/etiqueta usan Foreground; en el body de
-    // gasto no se disponía de theme (usaba _theme.Foreground), así que aceptamos theme nullable y caemos
-    // al pincel dim cuando es null para preservar el aspecto sin acoplar de más.
-    private static void AnnotatePeak(Graphics g, Font font, Theme? theme, string text, float peakX, float peakY,
-        int x, int w, int top, RectangleF avoid, Brush dim)
+    // Cuerpo de AnnotatePeak de DashboardForm.cs. T4d: marcador y etiqueta usan SIEMPRE theme.Foreground
+    // — antes el body de gasto pasaba theme:null y caía al pincel dim mientras el modo % usaba
+    // Foreground: mismo dato, dos jerarquías visuales. La posición de la etiqueta la resuelve
+    // <see cref="PeakLabelPos"/> (pura): esquiva la etiqueta fija superior izquierda Y el propio punto.
+    private static void AnnotatePeak(Graphics g, Font font, Theme theme, string text, float peakX, float peakY,
+        int x, int w, int top, RectangleF avoid)
     {
-        using var marker = theme is not null ? new SolidBrush(theme.Foreground) : null;
-        Brush mb = marker ?? dim;
-        g.FillEllipse(mb, peakX - 2.5f, peakY - 2.5f, 5, 5);
+        using var mb = new SolidBrush(theme.Foreground);
+        g.FillEllipse(mb, peakX - PeakMarkerR, peakY - PeakMarkerR, PeakMarkerR * 2, PeakMarkerR * 2);
         var psz = g.MeasureString(text, font);
-        float pxp = Math.Clamp(peakX - psz.Width / 2f, x, x + w - psz.Width);
-        float pyp = Math.Max(top - 2, peakY - psz.Height - 1);
-        // Avoid colliding with the top-left label (total / current %): when the peak
-        // sits at the top-left, both labels land on the same row and become unreadable.
-        var rect = new RectangleF(pxp, pyp, psz.Width, psz.Height);
-        if (rect.IntersectsWith(avoid))
-        {
-            pyp = peakY + 4;                       // drop the peak label below its marker
-            rect = new RectangleF(pxp, pyp, psz.Width, psz.Height);
-            if (rect.IntersectsWith(avoid))        // still tight → shift right past the label
-                pxp = Math.Clamp(avoid.Right + 6, x, x + w - psz.Width);
-        }
-        g.DrawString(text, font, mb, pxp, pyp);
+        var pos = PeakLabelPos(peakX, peakY, psz, x, w, top, avoid);
+        g.DrawString(text, font, mb, pos.X, pos.Y);
     }
 
 }
