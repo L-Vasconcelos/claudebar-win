@@ -10,15 +10,57 @@ namespace ClaudeBarWin.UI;
 /// <summary>Cabecera de un vistazo: mascota + estado servicio + cuota crítica + pace. Sin estado.</summary>
 public static class DashboardHeader
 {
-    // Glifo de engranaje de la fuente de iconos del sistema (Segoe MDL2 Assets, Win10+): nítido y vectorial,
-    // a diferencia del carácter de texto "⚙" que sale diminuto/borroso. Cacheado (se crea una sola vez).
-    private const string GearGlyph = ""; // MDL2 "Settings"
-    private static readonly Font GearIconFont = new("Segoe MDL2 Assets", 15f, GraphicsUnit.Pixel);
-    private static readonly StringFormat CenterFormat = new()
+    /// <summary>
+    /// Contorno PURO del engranaje (T9c, §3 #12): polígono de 4 puntos por diente — 2 en la cresta
+    /// (radio exterior) y 2 en el valle (radio raíz) — con flancos radiales (cresta y valle comparten
+    /// ángulo en el salto). El primer diente queda centrado arriba (-90°) para que el icono se vea
+    /// simétrico en el botón. Determinista y sin GDI+ → testeable (misma entrada, mismos puntos).
+    /// </summary>
+    internal static PointF[] GearOutline(float cx, float cy, float rOuter, float rRoot, int teeth)
     {
-        Alignment = StringAlignment.Center,
-        LineAlignment = StringAlignment.Center
-    };
+        var pts = new PointF[teeth * 4];
+        double step = Math.PI * 2 / teeth;            // arco total por diente (cresta + valle)
+        double half = step / 2;                       // mitad cresta, mitad valle
+        double start = -Math.PI / 2 - half / 2;       // cresta del primer diente centrada arriba
+        static PointF Polar(float cx, float cy, float r, double a)
+            => new(cx + r * (float)Math.Cos(a), cy + r * (float)Math.Sin(a));
+        for (int i = 0; i < teeth; i++)
+        {
+            double a0 = start + i * step;
+            pts[i * 4 + 0] = Polar(cx, cy, rOuter, a0);          // arranque de cresta
+            pts[i * 4 + 1] = Polar(cx, cy, rOuter, a0 + half);   // fin de cresta
+            pts[i * 4 + 2] = Polar(cx, cy, rRoot, a0 + half);    // caída al valle (flanco radial)
+            pts[i * 4 + 3] = Polar(cx, cy, rRoot, a0 + step);    // fin de valle
+        }
+        return pts;
+    }
+
+    /// <summary>
+    /// Dibuja el engranaje como path GDI+ con anti-aliasing (T9c): silueta de 8 dientes + agujero
+    /// central perforado (FillMode.Alternate). Sustituye al glifo "Settings" de Segoe MDL2, que se
+    /// rasterizaba como texto ClearType (franjas de color, borroso sobre el botón, peor en tema
+    /// claro). Los radios escalan con <paramref name="bounds"/> (exterior ≈ 0.32·lado, como el glifo
+    /// de 15px en el botón de 24), así que el icono seguirá nítido cuando el layout escale con el
+    /// DPI (T11).
+    /// </summary>
+    internal static void DrawGear(Graphics g, Rectangle bounds, Color color)
+    {
+        float cx = bounds.X + bounds.Width / 2f, cy = bounds.Y + bounds.Height / 2f;
+        float rOuter = Math.Min(bounds.Width, bounds.Height) * 0.32f;
+        float rRoot = rOuter * 0.74f;   // dientes ≈ 26% del radio
+        float rHole = rOuter * 0.38f;   // agujero central
+        using var path = new GraphicsPath(FillMode.Alternate);
+        path.AddPolygon(GearOutline(cx, cy, rOuter, rRoot, teeth: 8));
+        path.AddEllipse(cx - rHole, cy - rHole, rHole * 2, rHole * 2); // Alternate → queda perforado
+        var sm = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        try
+        {
+            using var b = new SolidBrush(color);
+            g.FillPath(b, path);
+        }
+        finally { g.SmoothingMode = sm; }
+    }
 
     /// <summary>Dibuja la cabecera y devuelve el nuevo y. Registra el rect del ⚙ en gearRect.</summary>
     /// <param name="mascotBounceOffsetY">
@@ -37,8 +79,9 @@ public static class DashboardHeader
                            MotionState? motion = null, bool reduceMotion = false,
                            int mascotBounceOffsetY = 0, string? celebration = null)
     {
-        // 1) botón ⚙ arriba a la derecha (siempre): botón con fondo redondeado + glifo nítido,
-        //    para que se lea bien y parezca clicable (antes era un "⚙" diminuto y atenuado, sin fondo).
+        // 1) botón ⚙ arriba a la derecha (siempre): botón con fondo redondeado + engranaje como path
+        //    GDI+ con AA (T9c, §3 #12 — el glifo MDL2 se rasterizaba como texto ClearType: borroso y
+        //    con franjas de color, peor en tema claro).
         const int gearSize = 24;
         var gear = new Rectangle(x + w - gearSize, y, gearSize, gearSize);
         gearRect = gear;
@@ -46,8 +89,7 @@ public static class DashboardHeader
         {
             using (var bgBrush = new SolidBrush(theme.BgElevated))
                 Shapes.FillRounded(g, bgBrush, gear, 7);
-            using var glyphBrush = new SolidBrush(theme.TextPrimary);
-            g.DrawString(GearGlyph, GearIconFont, glyphBrush, gear, CenterFormat);
+            DrawGear(g, gear, theme.TextPrimary);
         }
 
         // 1b) destello de celebración de reset ("✓ cuota renovada"): chip in-panel breve en la fila

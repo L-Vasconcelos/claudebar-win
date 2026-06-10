@@ -105,6 +105,55 @@ public class DashboardHeaderTests
         Assert.Equal(noBounce, bounced);
     }
 
+    // --- T9c (§3 #12): engranaje ⚙ como path GDI+ (el glifo MDL2 salía borroso con franjas ClearType) ---
+
+    [Fact]
+    public void GearOutline_has_four_points_per_tooth_between_both_radii()
+    {
+        const float cx = 12f, cy = 12f, rOuter = 7.5f, rRoot = 5.6f;
+        const int teeth = 8;
+        var pts = DashboardHeader.GearOutline(cx, cy, rOuter, rRoot, teeth);
+
+        Assert.Equal(teeth * 4, pts.Length);
+        int atOuter = 0, atRoot = 0;
+        foreach (var p in pts)
+        {
+            double d = Math.Sqrt((p.X - cx) * (p.X - cx) + (p.Y - cy) * (p.Y - cy));
+            Assert.InRange(d, rRoot - 0.01, rOuter + 0.01);
+            if (Math.Abs(d - rOuter) < 0.01) atOuter++;
+            if (Math.Abs(d - rRoot) < 0.01) atRoot++;
+        }
+        // Cada diente aporta 2 puntos en la cresta (radio exterior) y 2 en el valle (radio raíz).
+        Assert.Equal(teeth * 2, atOuter);
+        Assert.Equal(teeth * 2, atRoot);
+    }
+
+    [Fact]
+    public void GearOutline_is_deterministic()
+    {
+        var a = DashboardHeader.GearOutline(10f, 10f, 7f, 5f, 8);
+        var b = DashboardHeader.GearOutline(10f, 10f, 7f, 5f, 8);
+        Assert.Equal(a, b); // misma entrada → mismos puntos (medir==pintar)
+    }
+
+    [Fact]
+    public void DrawGear_paints_a_ring_with_a_punched_hole()
+    {
+        // Path GDI+ con AA: anillo sólido del color del glifo, agujero central PERFORADO (se ve el
+        // fondo del botón) y nada fuera del radio exterior. Sustituye al glifo ClearType borroso.
+        using var bmp = new Bitmap(24, 24);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Color.Black);
+        DashboardHeader.DrawGear(g, new Rectangle(0, 0, 24, 24), Color.White);
+
+        var hole = bmp.GetPixel(12, 12);     // centro = agujero → fondo
+        Assert.True(hole.R < 40, $"el centro debe quedar perforado (fondo), fue R={hole.R}");
+        var ring = bmp.GetPixel(12 + 4, 12); // anillo sólido entre agujero y raíz
+        Assert.True(ring.R > 200, $"el anillo debe pintarse del color del glifo, fue R={ring.R}");
+        var outside = bmp.GetPixel(23, 12);  // fuera del radio exterior → fondo
+        Assert.True(outside.R < 40, $"fuera del engranaje debe verse el fondo, fue R={outside.R}");
+    }
+
     // --- T9: anti-corte de las líneas de la cabecera (salud / pace) con la mascota robando ancho ---
 
     // Medidor sintético: 10 px por carácter (la elipsis "…" mide 10). Determinista, sin GDI+/fuentes.
