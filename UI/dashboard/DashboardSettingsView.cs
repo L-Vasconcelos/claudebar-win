@@ -444,8 +444,13 @@ public static class DashboardSettingsView
             var knob = new Rectangle(cx - d / 2, track.Y + PillKnobInset, d, d);
             var sm = g.SmoothingMode;
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var kb = new SolidBrush(on ? ColorMath.Contrast(theme.Accent) : theme.TextPrimary))
+            // T9b (§3 #11): knob BLANCO con borde sutil en ambos estados y los 3 temas (estándar
+            // iOS/Fluent). Antes: TextPrimary en OFF (negro sobre el track claro = "agujero
+            // perforado") y Contrast(Accent) en ON (negro sobre el verde CLI).
+            using (var kb = new SolidBrush(theme.KnobFill))
                 g.FillEllipse(kb, knob);
+            using (var kp = new Pen(theme.KnobBorder))
+                g.DrawEllipse(kp, knob);
             g.SmoothingMode = sm;
         }
         return track;

@@ -195,6 +195,39 @@ public class ThemeTokenTests
         Assert.NotEqual(ColorMath.Lerp(Theme.Cli.Background, Theme.Cli.Foreground, 0.06), Theme.Cli.HoverBg);
     }
 
+    // --- T9b: knob del TogglePill blanco con borde sutil (§3 #11: "agujero perforado") ---
+
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void Knob_fill_is_white_in_every_theme(Theme t)
+    {
+        // Estándar iOS/Fluent: knob BLANCO en todos los temas. El histórico usaba el color del texto
+        // (negro sobre el track claro = "agujero perforado") o ColorMath.Contrast(Accent).
+        Assert.Equal(Color.White.ToArgb(), t.KnobFill.ToArgb());
+    }
+
+    [Fact]
+    public void Knob_border_is_a_translucent_scrim()
+    {
+        // El borde es un velo negro translúcido: delimita el círculo blanco sobre CUALQUIER track
+        // (claro u oscuro) sin introducir un color opaco nuevo por tema.
+        var b = Theme.Dark.KnobBorder;
+        Assert.True(b.A > 0 && b.A < 255, $"el borde del knob debe ser translúcido (alpha {b.A})");
+        Assert.Equal(Theme.Light.KnobBorder, Theme.Dark.KnobBorder);
+        Assert.Equal(Theme.Cli.KnobBorder, Theme.Dark.KnobBorder);
+    }
+
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void Knob_fill_meets_non_text_contrast_on_accent_track_or_border_compensates(Theme t)
+    {
+        // Sobre el track ON (Accent) el knob blanco da ~3.3:1 en oscuro/claro (≥3:1, WCAG 1.4.11).
+        // En CLI (verde #00D959) cae a ~1.9:1: ahí delimita el borde KnobBorder y el estado lo
+        // comunican posición + color del track. Documentamos el suelo real (~1.9:1) como pin.
+        double r = ColorMath.ContrastRatio(t.KnobFill, t.Accent);
+        Assert.True(r >= 1.85, $"[{t.Id}] knob sobre Accent contrasta {r:0.00}:1 (< 1.85)");
+    }
+
     [Theory]
     [MemberData(nameof(Themes))]
     public void Pace_text_color_maps_to_text_variants(Theme t)

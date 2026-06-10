@@ -1394,6 +1394,28 @@ public class DashboardSettingsViewTests
         Assert.True(lines.Count >= 2, "el subtítulo largo debe ocupar ≥2 líneas (envuelto, no cortado)");
     }
 
+    // -------- T9b: knob del TogglePill blanco con borde sutil (§3 #11) --------
+
+    [Fact]
+    public void TogglePill_knob_is_white_in_every_theme_and_state()
+    {
+        // El knob histórico usaba TextPrimary (OFF) y ColorMath.Contrast(Accent) (ON): en claro OFF
+        // salía NEGRO sobre el track gris ("agujero perforado") y en CLI ON negro sobre verde. El
+        // estándar es knob BLANCO con borde sutil, en los 3 temas y ambos estados.
+        foreach (var theme in new[] { Theme.Dark, Theme.Light, Theme.Cli })
+            foreach (var on in new[] { false, true })
+            {
+                using var bmp = new Bitmap(120, 40);
+                using var g = Graphics.FromImage(bmp);
+                g.Clear(theme.Background);
+                var track = DashboardSettingsView.TogglePill(g, draw: true, on, rightX: 100, y: 4, rowH: 24, theme);
+                int cx = DashboardSettingsView.PillKnobCenterX(track, on);
+                var px = bmp.GetPixel(cx, track.Y + track.Height / 2);
+                Assert.True(px.R > 220 && px.G > 220 && px.B > 220,
+                    $"[{theme.Id}, on={on}] el knob debe ser blanco, fue #{px.R:X2}{px.G:X2}{px.B:X2}");
+            }
+    }
+
     // -------- T8a: guards de truncamiento en ToggleRow / SegmentedRow / MultiSegmentRow --------
 
     // Etiqueta multi-palabra más ancha que la fila (estilo DE/FR): obliga a envolver, no a cortar.

@@ -74,6 +74,26 @@ public sealed class Theme
     public Color? HoverBgOverride { get; init; }
     public Color HoverBg => HoverBgOverride ?? ColorMath.Lerp(Background, Foreground, 0.06);
 
+    /// <summary>
+    /// Relleno del knob del TogglePill (T9b, §3 #11). El knob histórico usaba el color del texto
+    /// (negro sobre el track gris claro = "agujero perforado") o <c>ColorMath.Contrast(Accent)</c>
+    /// (negro sobre el verde CLI). El estándar (iOS/Fluent) es knob BLANCO con borde sutil en todos
+    /// los temas: sobre el track ON Accent #CC785C contrasta ~3.3:1 (≥3:1, WCAG 1.4.11) en
+    /// oscuro/claro; sobre el verde CLI #00D959 (~1.9:1) y el track OFF claro #D1D1D6 (~1.5:1)
+    /// delimita el borde <see cref="KnobBorder"/>, y el estado lo comunican posición + color del
+    /// track (el knob no es la señal). Sin override cae a blanco.
+    /// </summary>
+    public Color? KnobFillOverride { get; init; }
+    public Color KnobFill => KnobFillOverride ?? Color.White;
+
+    /// <summary>
+    /// Borde del knob (T9b): velo negro translúcido (25%, alpha 64) que delimita el círculo blanco
+    /// sobre CUALQUIER track sin introducir un opaco nuevo por tema. No es texto (no aplica 4.5:1);
+    /// compuesto sobre blanco da ≈#BFBFBF, que separa el knob incluso del track más parecido
+    /// (OFF claro #D1D1D6). Un único valor para los 3 temas.
+    /// </summary>
+    public Color KnobBorder => Color.FromArgb(64, 0, 0, 0);
+
     // Alias semánticos sobre los campos existentes (sin romper consumidores).
     public Color TextPrimary => Foreground;
     public Color TextSecondary => Dim;
