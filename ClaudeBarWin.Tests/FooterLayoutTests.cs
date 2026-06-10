@@ -71,6 +71,25 @@ public class FooterLayoutTests
     }
 
     [Fact]
+    public void Footer_and_seal_lines_never_start_or_end_with_the_separator()
+    {
+        // T9a (§3 #10): el footer ES envolvía dejando una línea que EMPEZABA por "· sin telemetría".
+        // Con la ruptura preferente en " · ", a CUALQUIER ancho ninguna línea Footer/Seal empieza ni
+        // termina con el separador (la línea Stale termina en "·" a propósito: es un prefijo).
+        var es = Localization.Get("es");
+        for (int wpx = 60; wpx <= 700; wpx += 10)
+        {
+            var lines = FooterLayout.Build(OkSnap(), es, stale: false, sticky: false,
+                nowUtc: Now, maxWidth: wpx, Measure);
+            foreach (var l in lines.Where(l => l.Kind != FooterLayout.LineKind.Stale))
+            {
+                Assert.False(l.Text.StartsWith("·"), $"ancho {wpx}: línea empieza por '·': '{l.Text}'");
+                Assert.False(l.Text.EndsWith("·"), $"ancho {wpx}: línea termina en '·': '{l.Text}'");
+            }
+        }
+    }
+
+    [Fact]
     public void Signature_changes_on_fresh_to_stale_transition()
     {
         // Es justo la condición que dispara el Relayout del tick (red de seguridad del alto).

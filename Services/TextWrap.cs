@@ -45,6 +45,49 @@ public static class TextWrap
         return lines;
     }
 
+    /// <summary>
+    /// Como <see cref="WordWrap"/>, pero trata el separador suelto (por defecto "·") como punto de
+    /// ruptura PREFERENTE (T9a, §3 #10): el texto se agrupa en segmentos entre separadores y, al no
+    /// caber el siguiente segmento CON su " · ", se rompe la línea ahí y el separador se OMITE (ni
+    /// cierra la línea anterior ni abre la nueva — antes el footer ES dejaba líneas que empezaban
+    /// por "· sin telemetría"). Un segmento más ancho que el máximo cae al wrap por palabras; el
+    /// segmento siguiente puede reengancharse a su última línea si cabe con separador. Puro y
+    /// determinista (misma entrada → misma salida) → medir==pintar.
+    /// </summary>
+    public static List<string> WordWrapSeparated(string text, double maxWidth,
+        Func<string, double> measure, string separator = "·")
+    {
+        // Tokeniza como WordWrap y agrupa en segmentos partiendo en cada separador SUELTO (token
+        // exacto). Separadores consecutivos / al borde no generan segmentos vacíos.
+        var segments = new List<List<string>> { new() };
+        foreach (var word in (text ?? string.Empty).Split(' ', '\t', '\n', '\r').Where(w => w.Length > 0))
+        {
+            if (word == separator) { if (segments[^1].Count > 0) segments.Add(new()); }
+            else segments[^1].Add(word);
+        }
+        segments.RemoveAll(seg => seg.Count == 0);
+        if (segments.Count == 0) return new List<string> { string.Empty };
+
+        var lines = new List<string>();
+        string current = string.Empty;
+        foreach (var seg in segments)
+        {
+            string segText = string.Join(' ', seg);
+            string joined = current.Length == 0 ? segText : current + " " + separator + " " + segText;
+            if (measure(joined) <= maxWidth) { current = joined; continue; }
+            // Ruptura preferente: el segmento entero pasa a la línea siguiente SIN el separador.
+            if (current.Length > 0) { lines.Add(current); current = string.Empty; }
+            if (measure(segText) <= maxWidth) { current = segText; continue; }
+            // Segmento más ancho que el máximo: wrap por palabras dentro del segmento; la última
+            // línea queda abierta por si el siguiente segmento cabe a su lado.
+            var inner = WordWrap(segText, maxWidth, measure);
+            for (int i = 0; i < inner.Count - 1; i++) lines.Add(inner[i]);
+            current = inner[^1];
+        }
+        if (current.Length > 0) lines.Add(current);
+        return lines;
+    }
+
     /// <summary>Elipsis Unicode (un solo glifo, más estrecho que "...").</summary>
     public const string Ellipsis = "…";
 

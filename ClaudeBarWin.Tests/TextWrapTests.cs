@@ -121,6 +121,85 @@ public class TextWrapTests
         Assert.Equal(a, b);
     }
 
+    // ---------------- T9a: " · " como punto de ruptura preferente (WordWrapSeparated) ----------------
+
+    [Fact]
+    public void WordWrapSeparated_keeps_separators_when_everything_fits()
+    {
+        // Si cabe en una línea, el texto sale INTACTO (separadores incluidos).
+        var lines = TextWrap.WordWrapSeparated("Actualizado · hace 2 min · clic para ocultar", 1000, Measure);
+        Assert.Equal(new[] { "Actualizado · hace 2 min · clic para ocultar" }, lines);
+    }
+
+    [Fact]
+    public void WordWrapSeparated_breaks_at_separator_and_omits_it()
+    {
+        // §3 #10: el wrap por palabras dejaba líneas que EMPIEZAN por "· sin telemetría" (o terminan
+        // en " ·"). El separador es punto de ruptura PREFERENTE: se rompe ahí y el "·" se omite
+        // (ni cierra la línea anterior ni abre la nueva).
+        var lines = TextWrap.WordWrapSeparated("Actualizado · hace 2 min · clic para ocultar", 300, Measure);
+        Assert.Equal(new[] { "Actualizado · hace 2 min", "clic para ocultar" }, lines);
+    }
+
+    [Fact]
+    public void WordWrapSeparated_never_starts_a_line_with_the_separator()
+    {
+        // Caso exacto de la auditoría: el sello ES a un ancho donde WordWrap rompía justo antes del
+        // "·" → línea que empezaba por "· sin telemetría".
+        const string seal = "Tus credenciales y datos no salen del equipo · sin telemetría";
+        var old = TextWrap.WordWrap(seal, 445, Measure);
+        Assert.Contains(old, l => l.StartsWith("·")); // el bug que motiva el método nuevo
+
+        var lines = TextWrap.WordWrapSeparated(seal, 445, Measure);
+        Assert.Equal(new[] { "Tus credenciales y datos no salen del equipo", "sin telemetría" }, lines);
+    }
+
+    [Fact]
+    public void WordWrapSeparated_never_ends_a_line_with_the_separator()
+    {
+        // A un ancho donde el "·" SÍ cabría colgando al final de la línea (460 px), la ruptura
+        // preferente lo omite igualmente: nada de líneas terminadas en " ·".
+        const string seal = "Tus credenciales y datos no salen del equipo · sin telemetría";
+        var lines = TextWrap.WordWrapSeparated(seal, 460, Measure);
+        Assert.Equal(new[] { "Tus credenciales y datos no salen del equipo", "sin telemetría" }, lines);
+    }
+
+    [Fact]
+    public void WordWrapSeparated_falls_back_to_word_wrap_inside_an_oversized_segment()
+    {
+        // Un segmento más ancho que el máximo cae al wrap por palabras; el siguiente segmento puede
+        // reengancharse a la última línea si cabe CON su separador.
+        var lines = TextWrap.WordWrapSeparated("uno dos tres · x", 80, Measure);
+        Assert.Equal(new[] { "uno dos", "tres · x" }, lines);
+    }
+
+    [Fact]
+    public void WordWrapSeparated_sweep_no_line_touches_a_separator_edge()
+    {
+        // Propiedad: a CUALQUIER ancho, ninguna línea empieza ni termina con el separador, y no se
+        // pierde ninguna palabra (las no-separador se conservan en orden).
+        const string seal = "Tus credenciales y datos no salen del equipo · sin telemetría";
+        string[] words = seal.Split(' ').Where(w => w != "·").ToArray();
+        for (int wpx = 50; wpx <= 700; wpx += 7)
+        {
+            var lines = TextWrap.WordWrapSeparated(seal, wpx, Measure);
+            Assert.All(lines, l =>
+            {
+                Assert.False(l.StartsWith("·"), $"ancho {wpx}: línea empieza por separador: '{l}'");
+                Assert.False(l.EndsWith("·"), $"ancho {wpx}: línea termina en separador: '{l}'");
+            });
+            var got = string.Join(" ", lines).Split(' ').Where(w => w != "·").ToArray();
+            Assert.Equal(words, got);
+        }
+    }
+
+    [Fact]
+    public void WordWrapSeparated_empty_yields_a_single_empty_line()
+    {
+        Assert.Equal(new[] { "" }, TextWrap.WordWrapSeparated("", 100, Measure));
+        Assert.Equal(new[] { "" }, TextWrap.WordWrapSeparated(" · ", 100, Measure));
+    }
+
     // ---------------- T8: FitLine (línea con tope derecho, generaliza FitHeaderLine) ----------------
 
     [Fact]

@@ -65,10 +65,12 @@ public static class FooterLayout
         }
         else footer = s.Loading;
 
-        foreach (var line in TextWrap.WordWrap(footer, maxWidth, measure))
+        // T9a (§3 #10): " · " es punto de ruptura preferente — al envolver se rompe en el separador
+        // y este se omite (antes el footer ES dejaba una línea que EMPEZABA por "· sin telemetría").
+        foreach (var line in TextWrap.WordWrapSeparated(footer, maxWidth, measure))
             lines.Add(new Line(line, LineKind.Footer));
 
-        foreach (var line in TextWrap.WordWrap(s.LocalSeal, maxWidth, measure))
+        foreach (var line in TextWrap.WordWrapSeparated(s.LocalSeal, maxWidth, measure))
             lines.Add(new Line(line, LineKind.Seal));
 
         return lines;
