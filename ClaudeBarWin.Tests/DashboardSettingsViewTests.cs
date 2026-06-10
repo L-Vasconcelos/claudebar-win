@@ -1394,6 +1394,142 @@ public class DashboardSettingsViewTests
         Assert.True(lines.Count >= 2, "el subtítulo largo debe ocupar ≥2 líneas (envuelto, no cortado)");
     }
 
+    // -------- T8a: guards de truncamiento en ToggleRow / SegmentedRow / MultiSegmentRow --------
+
+    // Etiqueta multi-palabra más ancha que la fila (estilo DE/FR): obliga a envolver, no a cortar.
+    private const string LongLabel =
+        "Benachrichtigungen für kritische Schwellenwerte vom System automatisch aktivieren";
+
+    [Fact]
+    public void ToggleRow_long_label_wraps_instead_of_passing_under_the_pill()
+    {
+        // §3 #13: ToggleRow pintaba el label en UNA línea sin acotar → en DE/FR pasaba por debajo del
+        // pill. Debe envolver dentro de [x, pillLeft - Md] (mismo patrón que MasterToggleRow): la fila
+        // con label largo CRECE respecto a una de 1 línea.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+
+        var rShort = new Dictionary<string, Rectangle>();
+        DashboardSettingsView.ToggleRow(g, draw: false, "k", "Notificaciones", null, true,
+            X, 0, W, Theme.Dark, Typography.Body, Typography.Caption, rShort);
+        int shortH = rShort["k"].Height;
+
+        var rects = new Dictionary<string, Rectangle>();
+        DashboardSettingsView.ToggleRow(g, draw: false, "k", LongLabel, null, true,
+            X, 0, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects["k"].Height > shortH,
+            $"el label largo debe ENVOLVER (fila más alta): h={rects["k"].Height}, ref={shortH}");
+    }
+
+    [Fact]
+    public void ToggleRow_long_label_and_subtitle_measure_equals_paint()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var rects = new Dictionary<string, Rectangle>();
+
+        int measured = DashboardSettingsView.ToggleRow(g, draw: false, "k", LongLabel, LongLabel, true,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+        rects.Clear();
+        int painted = DashboardSettingsView.ToggleRow(g, draw: true, "k", LongLabel, LongLabel, true,
+            X, 100, W, Theme.Dark, Typography.Body, Typography.Caption, rects);
+
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void SegmentedRow_long_label_wraps_and_drops_chips_below_the_label_block()
+    {
+        // §3 #13: la etiqueta de SegmentedRow se pintaba en 1 línea sin acotar → una etiqueta DE/FR más
+        // ancha que la fila rebasaba el borde del panel. Debe envolver dentro de [x, x+w-Sm] y los chips
+        // caer DEBAJO del bloque completo (≥2 líneas), no debajo de una sola.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var segs = new[] { ("a", "AA"), ("b", "BB") };
+
+        var rects = new Dictionary<string, Rectangle>();
+        int after = DashboardSettingsView.SegmentedRow(g, draw: false, "k", LongLabel, segs, "a",
+            X, 0, W, Theme.Dark, Typography.Caption, rects);
+
+        int lineH = (int)Math.Ceiling(g.MeasureString(LongLabel, Typography.Caption).Height);
+        Assert.All(segs, sg => Assert.True(rects[$"k:{sg.Item1}"].Y >= 2 * lineH,
+            $"chip '{sg.Item1}' en y={rects[$"k:{sg.Item1}"].Y}: debe caer bajo el bloque envuelto (≥{2 * lineH})"));
+
+        // medir==pintar con la etiqueta envuelta.
+        var rPaint = new Dictionary<string, Rectangle>();
+        int painted = DashboardSettingsView.SegmentedRow(g, draw: true, "k", LongLabel, segs, "a",
+            X, 0, W, Theme.Dark, Typography.Caption, rPaint);
+        Assert.Equal(after, painted);
+    }
+
+    [Fact]
+    public void SegmentedRow_long_label_never_paints_past_the_content_width()
+    {
+        // Pixel-check del defecto original: nada pintado a la derecha de x+w en la banda de la etiqueta.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+
+        DashboardSettingsView.SegmentedRow(g, draw: true, "k", LongLabel,
+            new[] { ("a", "AA") }, "a", X, 0, W, Theme.Dark, Typography.Caption,
+            new Dictionary<string, Rectangle>());
+
+        var bg = Theme.Dark.Background;
+        for (int px = X + W + 2; px < bmp.Width; px++)
+            for (int py = 0; py < 18; py++)
+            {
+                var p = bmp.GetPixel(px, py);
+                Assert.True(p.R == bg.R && p.G == bg.G && p.B == bg.B,
+                    $"píxel pintado en ({px},{py}), fuera del ancho de contenido (x+w={X + W})");
+            }
+    }
+
+    [Fact]
+    public void MultiSegmentRow_long_label_wraps_and_drops_chips_below_the_label_block()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var segs = new[] { ("25", "25%"), ("50", "50%") };
+
+        var rects = new Dictionary<string, Rectangle>();
+        int after = DashboardSettingsView.MultiSegmentRow(g, draw: false, "m", LongLabel, segs,
+            new[] { 25 }, X, 0, W, Theme.Dark, Typography.Caption, rects);
+
+        int lineH = (int)Math.Ceiling(g.MeasureString(LongLabel, Typography.Caption).Height);
+        Assert.All(segs, sg => Assert.True(rects[$"m:{sg.Item1}"].Y >= 2 * lineH,
+            $"chip '{sg.Item1}' en y={rects[$"m:{sg.Item1}"].Y}: debe caer bajo el bloque envuelto (≥{2 * lineH})"));
+
+        var rPaint = new Dictionary<string, Rectangle>();
+        int painted = DashboardSettingsView.MultiSegmentRow(g, draw: true, "m", LongLabel, segs,
+            new[] { 25 }, X, 0, W, Theme.Dark, Typography.Caption, rPaint);
+        Assert.Equal(after, painted);
+    }
+
+    // -------- T8d: el rect del "‹ Ajustes" se mide con el texto localizado (no 80×20 fijo) --------
+
+    [Fact]
+    public void BackHitRect_covers_the_localized_label_in_every_language()
+    {
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+
+        foreach (var lang in new[] { "en", "es", "nl", "fr", "de", "ja", "ko", "zh-Hant" })
+        {
+            var s = Localization.Get(lang);
+            string label = "‹ " + s.Settings;
+            var r = DashboardSettingsView.BackHitRect(g, label, Typography.Body, X, 50, W);
+            int textW = (int)Math.Ceiling(g.MeasureString(label, Typography.Body).Width);
+
+            Assert.Equal(X, r.X);
+            Assert.Equal(50, r.Y);
+            Assert.True(r.Width >= Math.Min(textW, W),
+                $"[{lang}] el rect (w={r.Width}) no cubre el texto medido ({textW}px): media etiqueta sin zona de clic");
+            Assert.True(r.Width <= W, $"[{lang}] el rect (w={r.Width}) rebasa el ancho de contenido ({W}px)");
+            Assert.True(r.Height >= 18, "el alto debe conservar una zona de clic cómoda");
+        }
+    }
+
     // -------- Draw completo: orden de secciones, sin duplicados, mascota como dependiente --------
 
     [Fact]

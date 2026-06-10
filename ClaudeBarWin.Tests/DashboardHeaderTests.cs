@@ -142,6 +142,61 @@ public class DashboardHeaderTests
         }
     }
 
+    // --- T8e: el chip de celebración se ELIDE en vez de desaparecer ---
+
+    [Fact]
+    public void CelebrationChip_keeps_short_text_intact_and_anchors_left_of_gear()
+    {
+        var (shown, chip) = DashboardHeader.CelebrationChip("✓ ok", x: 16, gearLeft: 300, y: 0,
+            gearSize: 24, textH: 15, M);
+
+        Assert.Equal("✓ ok", shown);
+        Assert.True(chip.X >= 16, $"chip.X={chip.X} se sale por la izquierda de x=16");
+        Assert.Equal(300 - Spacing.Sm, chip.Right);
+    }
+
+    [Fact]
+    public void CelebrationChip_elides_long_text_instead_of_disappearing()
+    {
+        // Antes: si el chip no cabía entre x y el ⚙ (chip.X < x), el destello NO se pintaba. Ahora el
+        // texto se elide con elipsis medida y el chip permanece dentro de [x, gearLeft - Sm].
+        var (shown, chip) = DashboardHeader.CelebrationChip(new string('w', 40), x: 16, gearLeft: 300, y: 0,
+            gearSize: 24, textH: 15, M);
+
+        Assert.NotEqual(string.Empty, shown);
+        Assert.EndsWith(TextWrap.Ellipsis, shown);
+        Assert.True(chip.X >= 16, $"chip.X={chip.X} se sale por la izquierda de x=16");
+        Assert.True(chip.Right <= 300 - Spacing.Sm, $"chip.Right={chip.Right} invade el gutter del ⚙");
+    }
+
+    [Fact]
+    public void Header_draws_an_elided_celebration_chip_when_the_text_is_too_long()
+    {
+        // Pixel-check del defecto: con un texto de celebración más ancho que la fila superior, antes no
+        // se pintaba NADA a la izquierda del ⚙; ahora debe haber chip (elidido).
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        Rectangle gear = Rectangle.Empty;
+        var cfg = Cfg(showMascot: false, liveEnabled: false);
+        const string longCeleb = "cuota semanal renovada por completo — a por otra semana de contexto";
+
+        DashboardHeader.Draw(g, draw: true, X, Y, W, snap: null, new LiveSessionsView(), cfg,
+            Localization.Get("es"), Theme.Dark, MascotAnimator.StaticState, Mood.Neutral,
+            Typography.Body, Typography.Caption, Typography.Mono, ref gear,
+            motion: null, reduceMotion: false, mascotBounceOffsetY: 0, celebration: longCeleb);
+
+        var bg = Theme.Dark.Background;
+        bool painted = false;
+        for (int px = X; px < gear.X - 2 && !painted; px++)
+            for (int py = Y; py < Y + 20 && !painted; py++)
+            {
+                var p = bmp.GetPixel(px, py);
+                if (p.R != bg.R || p.G != bg.G || p.B != bg.B) painted = true;
+            }
+        Assert.True(painted, "el chip de celebración desapareció con texto largo: debe elidirse y pintarse");
+    }
+
     // --- v0.3.5 P0 #4: el header NO duplica la "Sesión (5h)" (barra+reset+pace) de la sección "Cuota" ---
 
     // Snapshot completo (usage 5h/7d + pace con ETA que agota antes del reset) para ejercitar el glance.

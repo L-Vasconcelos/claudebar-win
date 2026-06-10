@@ -53,20 +53,21 @@ public static class DashboardHeader
         // 1b) destello de celebración de reset ("✓ cuota renovada"): chip in-panel breve en la fila
         //     superior, a la izquierda del ⚙. Solo en la pasada de pintado y SIN reservar alto (esa
         //     fila solo aloja el ⚙) → no rompe el invariante medir/pintar. NO es una notificación (F4).
+        //     T8e: si el texto no cabe entre x y el ⚙ se ELIDE con elipsis medida (antes chip.X < x
+        //     hacía desaparecer el destello entero con textos/locales largos).
         if (draw && !string.IsNullOrEmpty(celebration))
         {
             string flash = "✓ " + celebration;
-            var fsz = g.MeasureString(flash, smallFont);
-            int chipW = (int)Math.Ceiling(fsz.Width) + Spacing.Sm * 2;
-            int chipH = (int)Math.Ceiling(fsz.Height) + Spacing.Xs;
-            var chip = new Rectangle(gear.X - chipW - Spacing.Sm, y + (gearSize - chipH) / 2, chipW, chipH);
-            if (chip.X > x)
+            int textH = (int)Math.Ceiling(g.MeasureString(flash, smallFont).Height);
+            var (shown, chip) = CelebrationChip(flash, x, gear.X, y, gearSize, textH,
+                t => g.MeasureString(t, smallFont).Width);
+            if (shown.Length > 0)
             {
                 using var chipBg = new SolidBrush(Color.FromArgb(36, theme.Ok));
                 Shapes.FillRounded(g, chipBg, chip, Spacing.Sm);
                 using var okBrush = new SolidBrush(theme.Ok);
-                g.DrawString(flash, smallFont, okBrush,
-                    chip.X + Spacing.Sm, chip.Y + (chipH - (int)Math.Ceiling(fsz.Height)) / 2);
+                g.DrawString(shown, smallFont, okBrush,
+                    chip.X + Spacing.Sm, chip.Y + (chip.Height - textH) / 2);
             }
         }
 
@@ -236,13 +237,31 @@ public static class DashboardHeader
 
     /// <summary>
     /// Recorta una línea de la cabecera para que NO rebase <c>rightEdge - margin</c>, partiendo de
-    /// <paramref name="drawX"/>. PURA (delega en <see cref="TextWrap.Ellipsize"/> con el ancho útil) y
-    /// determinista: la misma entrada da la misma salida, así medir y pintar reservan lo mismo.
+    /// <paramref name="drawX"/>. PURA (delega en <see cref="TextWrap.FitLine"/>, la generalización T8
+    /// de este mismo guard) y determinista: la misma entrada da la misma salida, así medir y pintar
+    /// reservan lo mismo.
     /// </summary>
     internal static string FitHeaderLine(string text, int drawX, int rightEdge, int margin, Func<string, double> measure)
-    {
-        int avail = Math.Max(0, rightEdge - margin - drawX);
-        return TextWrap.Ellipsize(text, avail, measure);
-    }
+        => TextWrap.FitLine(text, drawX, rightEdge, margin, measure);
 
+    /// <summary>
+    /// Texto + geometría del chip de celebración (T8e): vive entre <paramref name="x"/> y el borde
+    /// izquierdo del ⚙ (<paramref name="gearLeft"/>) con gutter <c>Spacing.Sm</c> y padding interior
+    /// <c>Spacing.Sm</c> por lado. Si el texto no cabe se ELIDE con elipsis medida en vez de
+    /// desaparecer (antes un texto/locale largo dejaba <c>chip.X &lt; x</c> y el destello no se
+    /// pintaba). PURA (medición inyectada) y determinista. Devuelve el texto mostrado y el rect del
+    /// chip; texto vacío + <see cref="Rectangle.Empty"/> si ni la elipsis cabe.
+    /// </summary>
+    internal static (string shown, Rectangle chip) CelebrationChip(string flash, int x, int gearLeft,
+        int y, int gearSize, int textH, Func<string, double> measure)
+    {
+        // Techo del texto: chip.X ≥ x ⟺ chipW ≤ gearLeft - Sm - x ⟺ textoW ≤ eso - padding 2·Sm.
+        int maxTextW = gearLeft - Spacing.Sm - x - Spacing.Sm * 2;
+        string shown = TextWrap.Ellipsize(flash, maxTextW, measure);
+        if (shown.Length == 0) return (shown, Rectangle.Empty);
+        int chipW = (int)Math.Ceiling(measure(shown)) + Spacing.Sm * 2;
+        int chipH = textH + Spacing.Xs;
+        var chip = new Rectangle(gearLeft - chipW - Spacing.Sm, y + (gearSize - chipH) / 2, chipW, chipH);
+        return (shown, chip);
+    }
 }

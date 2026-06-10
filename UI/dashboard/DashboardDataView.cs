@@ -221,6 +221,22 @@ public static class DashboardDataView
         return motion.Display(key, win.UtilizationPct, reduceMotion);
     }
 
+    /// <summary>
+    /// Layout de una fila "texto izquierda + valor right-aligned" (T8b): el valor se ancla a
+    /// <c>x+w</c> y el texto izquierdo se ELIDE con elipsis medida (gutter <c>Spacing.Md</c>) para no
+    /// atravesarlo ni rebasar el panel — el patrón de <c>InfoRowLayout</c> de ajustes, compartido aquí
+    /// por las sesiones en vivo y las claves de gasto. Determinista (misma medición en draw=false/true).
+    /// </summary>
+    internal static (string shownLeft, int rightX) RowWithRightValue(Graphics g, string left, string right,
+        int x, int w, Font leftFont, Font rightFont)
+    {
+        int rightW = (int)Math.Ceiling(g.MeasureString(right, rightFont).Width);
+        int rightX = Math.Max(x, x + w - rightW);
+        string shown = TextWrap.FitLine(left, x, rightX, Spacing.Md,
+            t => g.MeasureString(t, leftFont).Width);
+        return (shown, rightX);
+    }
+
     /// <summary>Gasto estimado por modelo (cabecera con días + filas modelo/$$).</summary>
     private static int DrawSpendSection(Graphics g, bool draw, AppSnapshot? snap, Strings s,
         int x, int y, int w, Font labelFont, Font smallFont, Brush fg, Brush dim)
@@ -234,11 +250,12 @@ public static class DashboardDataView
         {
             if (draw)
             {
-                g.DrawString(kv.Key, labelFont, fg, x, y);
                 // Moneda con la cultura del idioma elegido (T2): "$420.50" en inglés, "$420,50" en español.
+                // T8b: la clave (nombre de modelo) se elide contra el $ right-aligned (gutter Md), no lo cruza.
                 string val = UsageFormat.Money(kv.Value, s.Culture);
-                var sz = g.MeasureString(val, Typography.Mono);
-                g.DrawString(val, Typography.Mono, dim, x + w - sz.Width, y);
+                var (shownKey, valX) = RowWithRightValue(g, kv.Key, val, x, w, labelFont, Typography.Mono);
+                g.DrawString(shownKey, labelFont, fg, x, y);
+                g.DrawString(val, Typography.Mono, dim, valX, y);
             }
             y += 20;
         }
@@ -268,6 +285,10 @@ public static class DashboardDataView
             .OrderBy(p => p!.EtaUtc).FirstOrDefault();
         if (exa is not null)
             text += $"   ⚠ {UsageFormat.ResetAbsolute(exa.EtaUtc, s.Culture)}";
+
+        // T8c: la línea entera (pace 5h+7d + ⚠ ETA) se elide al ancho útil — con locales/ETAs largos
+        // desbordaba el panel. Solo afecta al pintado (el alto reservado no cambia) → medir==pintar.
+        text = TextWrap.FitLine(text, x, x + w, 0, t => g.MeasureString(t, smallFont).Width);
 
         using var br = new SolidBrush(c);
         g.DrawString(text, smallFont, br, x, y);
@@ -342,10 +363,12 @@ public static class DashboardDataView
                 var rect = new Rectangle(x, y, w, 16);
                 if (draw)
                 {
-                    g.DrawString(inst.ProjectName, smallFont, fg, x, y);
+                    // T8b (§3 #14): el nombre de proyecto se elide contra la fase right-aligned
+                    // (gutter Md) — antes un nombre largo la atravesaba y rebasaba el panel.
                     var st = PhaseLabel(s, inst.Phase);
-                    var size = g.MeasureString(st, smallFont);
-                    g.DrawString(st, smallFont, dim, x + w - size.Width, y);
+                    var (shownName, phaseX) = RowWithRightValue(g, inst.ProjectName, st, x, w, smallFont, smallFont);
+                    g.DrawString(shownName, smallFont, fg, x, y);
+                    g.DrawString(st, smallFont, dim, phaseX, y);
                 }
                 liveRowRects[inst.SessionId] = rect;
                 y += 18;

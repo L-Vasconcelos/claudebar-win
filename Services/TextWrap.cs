@@ -70,4 +70,17 @@ public static class TextWrap
         }
         return Ellipsis; // solo la elipsis cabe
     }
+
+    /// <summary>
+    /// Acota una línea con tope derecho (T8): recorta <paramref name="text"/> (vía
+    /// <see cref="Ellipsize"/>) para que, pintada desde <paramref name="drawX"/>, NUNCA rebase
+    /// <paramref name="rightEdge"/> − <paramref name="margin"/>. Generaliza el <c>FitHeaderLine</c>
+    /// de la cabecera para cualquier línea right-bounded (plan del chrome, línea de pace, línea de
+    /// reset, nombres de sesión, claves de gasto). Pura y determinista → medir==pintar.
+    /// </summary>
+    public static string FitLine(string text, int drawX, int rightEdge, int margin, Func<string, double> measure)
+    {
+        int avail = Math.Max(0, rightEdge - margin - drawX);
+        return Ellipsize(text, avail, measure);
+    }
 }

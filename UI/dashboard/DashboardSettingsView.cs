@@ -95,6 +95,22 @@ public static class DashboardSettingsView
         return new Rectangle(trackX, thumbY, ScrollBarW, thumbH);
     }
 
+    // Zona de clic del "‹ Ajustes" (chrome de la vista de ajustes): mínimo cómodo y alto históricos
+    // (eran el 80×20 fijo); el ancho real ahora se MIDE con el texto localizado (T8d).
+    private const int BackMinHitW = 80, BackHitH = 20;
+
+    /// <summary>
+    /// Rect clicable del "‹ Ajustes" (T8d): ancho = texto localizado MEDIDO (con suelo
+    /// <see cref="BackMinHitW"/> para conservar la zona cómoda histórica y techo <paramref name="w"/>).
+    /// El 80×20 fijo dejaba media etiqueta DE/FR/NL fuera de la zona de clic. Determinista (misma
+    /// medición en ambas pasadas) → medir==pintar.
+    /// </summary>
+    internal static Rectangle BackHitRect(Graphics g, string label, Font f, int x, int y, int w)
+    {
+        int textW = (int)Math.Ceiling(g.MeasureString(label, f).Width);
+        return new Rectangle(x, y, Math.Min(Math.Max(BackMinHitW, textW), Math.Max(1, w)), BackHitH);
+    }
+
     /// <summary>Dibuja el panel y registra rects clicables con clave de acción. Devuelve nuevo y.
     /// <paramref name="version"/> es la versión a mostrar en "Acerca de"; si es null se resuelve desde
     /// el ensamblado en ejecución (inyectable para test).</summary>
@@ -642,31 +658,16 @@ public static class DashboardSettingsView
 
     /// <summary>
     /// Fila de toggle estilo Apple: título (<c>labelFont</c>/<c>TextPrimary</c>) a la izquierda + subtítulo
-    /// opcional debajo (<c>smallFont</c>/<c>TextMuted</c>, 1 línea corta) + <see cref="TogglePill"/> a la
-    /// derecha (sin glifos Unicode). El hit-test es el rect COMPLETO de la fila (clic en cualquier punto).
-    /// Alto = 1 línea, o título+subtítulo si hay subtítulo. Mide==pinta: el avance es idéntico en ambas pasadas.
+    /// opcional debajo (<c>smallFont</c>/<c>TextMuted</c>) + <see cref="TogglePill"/> a la derecha (sin
+    /// glifos Unicode). El hit-test es el rect COMPLETO de la fila (clic en cualquier punto).
+    /// T8a (§3 #13): delega en <see cref="MasterToggleRow"/> — título y subtítulo ENVUELVEN dentro de
+    /// <c>[x, pillLeft - Spacing.Md]</c> en vez de pintarse en una sola línea sin acotar que en DE/FR/NL
+    /// pasaba por debajo del pill (invariante anti-corte: envolver, JAMÁS cortar). Con textos de 1 línea
+    /// la geometría es idéntica a la histórica. Mide==pinta: el avance es igual en ambas pasadas.
     /// </summary>
     internal static int ToggleRow(Graphics g, bool draw, string key, string label, string? subtitle, bool on,
         int x, int y, int w, Theme theme, Font labelFont, Font smallFont, Dictionary<string, Rectangle> rects)
-    {
-        int titleH = (int)Math.Ceiling(g.MeasureString(label, labelFont).Height);
-        bool hasSub = !string.IsNullOrEmpty(subtitle);
-        int subH = hasSub ? (int)Math.Ceiling(g.MeasureString(subtitle, smallFont).Height) : 0;
-        int contentH = Math.Max(PillTrackH, titleH + subH);
-
-        var r = new Rectangle(x, y, w, contentH);
-        rects[key] = r;
-        if (draw)
-        {
-            using (var b = new SolidBrush(theme.TextPrimary))
-                g.DrawString(label, labelFont, b, x, y);
-            if (hasSub)
-                using (var sb = new SolidBrush(theme.TextMuted))
-                    g.DrawString(subtitle!, smallFont, sb, x, y + titleH);
-            TogglePill(g, draw: true, on, x + w, y, contentH, theme);
-        }
-        return y + contentH + RowGap;
-    }
+        => MasterToggleRow(g, draw, key, label, subtitle, on, x, y, w, theme, labelFont, smallFont, rects);
 
     /// <summary>Fila de acción simple (etiqueta clicable, sin estado on/off). Registra rects[key].</summary>
     private static int ActionRow(Graphics g, bool draw, string key, string label,
@@ -810,6 +811,32 @@ public static class DashboardSettingsView
     // afordancias del panel (segmented de Tema/Frecuencia/Icono/Mascota) comparten geometría y respiran.
     private const int SegGap = Spacing.Sm, SegPadX = 7;
 
+    /// <summary>
+    /// Etiqueta de una fila de segmentos ENVUELTA dentro de <c>[x, x+w-Spacing.Sm]</c> (T8a, §3 #13:
+    /// antes una etiqueta DE/FR más ancha que la fila se pintaba en una sola línea sin acotar y rebasaba
+    /// el borde del panel). Compartida por <see cref="SegmentedRow"/> y <see cref="MultiSegmentRow"/>.
+    /// Devuelve <c>(labelRight, labelBlockH)</c>: con 1 línea, <c>labelRight = x + ancho + Md</c>
+    /// (geometría histórica: los chips pueden ir a su derecha); con 2+ líneas, <c>labelRight = x + w</c>
+    /// (nada cabe al lado → los chips caen SIEMPRE debajo del bloque) y <c>labelBlockH</c> es el alto
+    /// del bloque envuelto. Determinista (misma decisión en draw=false/true) → medir==pintar.
+    /// </summary>
+    private static (int labelRight, int labelBlockH) SegmentRowLabel(Graphics g, bool draw, string? label,
+        int x, int y, int w, Theme theme, Font f)
+    {
+        if (string.IsNullOrEmpty(label)) return (x, 0);
+        var lines = TextWrap.WordWrap(label, w - Spacing.Sm, t => g.MeasureString(t, f).Width);
+        int lineH = (int)Math.Ceiling(g.MeasureString(label, f).Height);
+        if (draw)
+        {
+            using var b = new SolidBrush(theme.TextPrimary);
+            int ly = y;
+            foreach (var line in lines) { g.DrawString(line, f, b, x, ly); ly += lineH; }
+        }
+        return lines.Count == 1
+            ? (x + (int)Math.Ceiling(g.MeasureString(label, f).Width) + Spacing.Md, lineH)
+            : (x + w, lines.Count * lineH);
+    }
+
     /// <summary>Ancho total (incl. gaps) de una fila de segmentos con las etiquetas dadas.</summary>
     private static int SegmentsTotalWidth(Graphics g, Font f, IReadOnlyList<string> labels)
     {
@@ -839,15 +866,8 @@ public static class DashboardSettingsView
         (string val, string txt)[] segs, string active, int x, int y, int w, Theme theme, Font f,
         Dictionary<string, Rectangle> rects)
     {
-        if (draw && !string.IsNullOrEmpty(label))
-        {
-            using var b = new SolidBrush(theme.TextPrimary);
-            g.DrawString(label, f, b, x, y);
-        }
-
-        int labelRight = string.IsNullOrEmpty(label)
-            ? x
-            : x + (int)Math.Ceiling(g.MeasureString(label, f).Width) + Spacing.Md;
+        // T8a: la etiqueta envuelve dentro del ancho útil (con 2+ líneas los chips caen debajo del bloque).
+        var (labelRight, labelBlockH) = SegmentRowLabel(g, draw, label, x, y, w, theme, f);
         int rightEdge = x + w - Spacing.Sm;            // margen derecho de seguridad
 
         int total = SegmentsTotalWidth(g, f, segs.Select(s => s.txt).ToList());
@@ -860,12 +880,13 @@ public static class DashboardSettingsView
             return y + SegmentRowAdvance;
         }
 
-        // No cabe junto a la etiqueta. Si HAY etiqueta, los chips bajan a su PROPIO renglón (bajo la
-        // etiqueta) → NUNCA se solapan con su texto (regresión que aparecía al dar más aire entre opciones:
-        // "Umbral de color" + 3 chips dejaban de caber a la derecha y se pisaban). Mismo patrón que
-        // MultiSegmentRow. medir==pintar (misma decisión determinista en ambas pasadas).
+        // No cabe junto a la etiqueta. Si HAY etiqueta, los chips bajan a su PROPIO renglón (bajo el
+        // bloque COMPLETO de la etiqueta) → NUNCA se solapan con su texto (regresión que aparecía al dar
+        // más aire entre opciones: "Umbral de color" + 3 chips dejaban de caber a la derecha y se
+        // pisaban). Mismo patrón que MultiSegmentRow. medir==pintar (misma decisión determinista en
+        // ambas pasadas). Con etiqueta de 1 línea el avance histórico (SegmentHeight) se conserva.
         bool hasLabel = !string.IsNullOrEmpty(label);
-        int chipsY = hasLabel ? y + SegmentHeight + SegmentWrapGap : y;
+        int chipsY = hasLabel ? y + Math.Max(SegmentHeight, labelBlockH) + SegmentWrapGap : y;
         int rowWidth = w; // ancho útil del renglón empezando en contentLeft
         if (total <= rowWidth - Spacing.Sm)
         {
@@ -946,17 +967,11 @@ public static class DashboardSettingsView
         (string val, string txt)[] segs, IEnumerable<int> active, int x, int y, int w, Theme theme, Font f,
         Dictionary<string, Rectangle> rects)
     {
-        if (draw && !string.IsNullOrEmpty(label))
-        {
-            using var b = new SolidBrush(theme.TextPrimary);
-            g.DrawString(label, f, b, x, y);
-        }
+        // T8a: la etiqueta envuelve dentro del ancho útil (con 2+ líneas los chips caen debajo del bloque).
+        var (labelRight, labelBlockH) = SegmentRowLabel(g, draw, label, x, y, w, theme, f);
 
         var activeSet = new HashSet<string>((active ?? Enumerable.Empty<int>())
             .Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-        int labelRight = string.IsNullOrEmpty(label)
-            ? x
-            : x + (int)Math.Ceiling(g.MeasureString(label, f).Width) + Spacing.Md;
         int rightEdge = x + w - Spacing.Sm;            // margen derecho de seguridad
 
         // ANTI-TRUNCAMIENTO (igual que SegmentedRow): mide el ancho total; si los chips NO caben en el
@@ -975,12 +990,13 @@ public static class DashboardSettingsView
             return y + SegmentRowAdvance;
         }
 
-        // No cabe junto a la etiqueta. Los chips bajan a su PROPIO renglón (bajo la etiqueta, si la hay),
-        // alineados a contentLeft → nunca se solapan con la etiqueta ni con el borde. Desde ahí, si TODO el
-        // ancho de contenido tampoco basta, se reparten en 2 filas (split). Ningún chip a la izquierda de x
-        // ni más allá de rightEdge. medir==pintar (misma decisión determinista en ambas pasadas).
+        // No cabe junto a la etiqueta. Los chips bajan a su PROPIO renglón (bajo el bloque COMPLETO de
+        // la etiqueta, si la hay), alineados a contentLeft → nunca se solapan con la etiqueta ni con el
+        // borde. Desde ahí, si TODO el ancho de contenido tampoco basta, se reparten en 2 filas (split).
+        // Ningún chip a la izquierda de x ni más allá de rightEdge. medir==pintar (misma decisión
+        // determinista en ambas pasadas). Con etiqueta de 1 línea el avance histórico se conserva.
         bool hasLabel = !string.IsNullOrEmpty(label);
-        int chipsY = hasLabel ? y + SegmentHeight + SegmentWrapGap : y; // 1ª fila de chips bajo la etiqueta
+        int chipsY = hasLabel ? y + Math.Max(SegmentHeight, labelBlockH) + SegmentWrapGap : y; // chips bajo la etiqueta
         if (total <= w - Spacing.Sm)
         {
             // Caben todos en un renglón propio anclados a la izquierda.

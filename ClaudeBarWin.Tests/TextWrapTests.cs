@@ -120,4 +120,29 @@ public class TextWrapTests
         var b = TextWrap.Ellipsize("texto largo de prueba", maxWidth: 95, Measure);
         Assert.Equal(a, b);
     }
+
+    // ---------------- T8: FitLine (línea con tope derecho, generaliza FitHeaderLine) ----------------
+
+    [Fact]
+    public void FitLine_returns_text_unchanged_when_it_fits()
+    {
+        // drawX=0, rightEdge=200, margin=0 → 200 px útiles; "hola mundo" mide 100 → intacto.
+        Assert.Equal("hola mundo", TextWrap.FitLine("hola mundo", drawX: 0, rightEdge: 200, margin: 0, Measure));
+    }
+
+    [Fact]
+    public void FitLine_elides_to_right_edge_minus_margin()
+    {
+        // drawX=100, rightEdge=300, margin=20 → 180 px útiles (18 chars); 30 chars (300 px) no caben.
+        var shown = TextWrap.FitLine(new string('a', 30), drawX: 100, rightEdge: 300, margin: 20, Measure);
+        Assert.EndsWith(TextWrap.Ellipsis, shown);
+        Assert.True(Measure(shown) <= 180, $"el texto elidido debe caber en 180 px, midió {Measure(shown)}");
+    }
+
+    [Fact]
+    public void FitLine_with_no_room_returns_empty()
+    {
+        // Tope a la IZQUIERDA del punto de dibujo (ancho útil negativo): cadena vacía, sin reventar.
+        Assert.Equal(string.Empty, TextWrap.FitLine("texto", drawX: 300, rightEdge: 100, margin: 0, Measure));
+    }
 }

@@ -1004,8 +1004,13 @@ public sealed class DashboardForm : Form
         if (draw)
         {
             g.DrawString("ClaudeBar", titleFont, fg, x, y);
-            g.DrawString(_plan.Display, planFont, dim, x, y + 24);
             _closeRect = new Rectangle(Width - 26, 10, 18, 18);
+            // T8c: el plan ("Max 20x · resets…") se elide antes de la columna del ✕ — un display largo
+            // se pintaba de largo bajo el botón y rebasaba el borde del panel. Solo pintado (el avance
+            // y += 50 no cambia) → medir==pintar.
+            string planShown = TextWrap.FitLine(_plan.Display, x, _closeRect.X, Spacing.Sm,
+                t => g.MeasureString(t, planFont).Width);
+            g.DrawString(planShown, planFont, dim, x, y + 24);
             using var closeFont = new Font("Segoe UI", 11f, FontStyle.Bold);
             g.DrawString("✕", closeFont, dim, _closeRect.X, _closeRect.Y - 2);
         }
@@ -1020,12 +1025,15 @@ public sealed class DashboardForm : Form
         // el chrome. Con todo visible no hay barra ni scroll (comportamiento de siempre).
         if (_viewMode == "settings")
         {
+            string backLabel = "‹ " + _s.Settings;
             if (draw)
             {
                 using var bb = new SolidBrush(_theme.TextSecondary);
-                g.DrawString("‹ " + _s.Settings, labelFont, bb, x, y);
+                g.DrawString(backLabel, labelFont, bb, x, y);
             }
-            _backRect = new Rectangle(x, y, 80, 20);
+            // T8d: la zona de clic se mide con el texto localizado (el 80×20 fijo dejaba media
+            // etiqueta DE/FR/NL sin responder al clic).
+            _backRect = DashboardSettingsView.BackHitRect(g, backLabel, labelFont, x, y, w);
             y += 24;
             int contentTop = y;
             _settingsViewportTop = contentTop;

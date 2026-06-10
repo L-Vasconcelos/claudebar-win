@@ -1,4 +1,5 @@
 using ClaudeBarWin.Config;
+using ClaudeBarWin.Models;
 using ClaudeBarWin.Services;
 using ClaudeBarWin.UI;
 
@@ -379,6 +380,105 @@ public class DashboardDataViewTests
 
         Assert.Equal(measured.Count, painted.Count);
         foreach (var (k, r) in measured) Assert.Equal(r, painted[k]);
+    }
+
+    // ================= T8b/T8c: nada atraviesa el valor right-aligned ni rebasa el ancho =================
+
+    [Fact]
+    public void RowWithRightValue_elides_the_left_text_before_the_value()
+    {
+        // §3 #14: el nombre de proyecto de una sesión en vivo atravesaba la etiqueta de fase. El layout
+        // compartido elide el texto izquierdo con gutter Spacing.Md antes del valor right-aligned.
+        using var bmp = new Bitmap(360, 60);
+        using var g = Graphics.FromImage(bmp);
+        const int x = 16, w = 200;
+        const string longName = "proyecto-con-nombre-larguisimo-que-no-cabe-en-la-fila";
+
+        var (shown, rightX) = DashboardDataView.RowWithRightValue(g, longName, "esperando aprobación",
+            x, w, Typography.Caption, Typography.Caption);
+
+        Assert.EndsWith(TextWrap.Ellipsis, shown);
+        Assert.True(g.MeasureString(shown, Typography.Caption).Width <= rightX - Spacing.Md - x + 1,
+            "el nombre elidido debe respetar el gutter Md antes de la fase");
+        Assert.True(rightX <= x + w, $"el valor right-aligned arranca en {rightX}, fuera de x+w={x + w}");
+    }
+
+    [Fact]
+    public void RowWithRightValue_keeps_short_text_intact()
+    {
+        using var bmp = new Bitmap(360, 60);
+        using var g = Graphics.FromImage(bmp);
+
+        var (shown, _) = DashboardDataView.RowWithRightValue(g, "tkb", "inactiva",
+            16, 300, Typography.Caption, Typography.Caption);
+
+        Assert.Equal("tkb", shown);
+    }
+
+    [Fact]
+    public void LiveSessions_long_project_name_stays_within_the_row()
+    {
+        // Pixel-check del defecto original: con un nombre más ancho que la fila, nada se pinta a la
+        // derecha de x+w (antes el DrawString sin acotar seguía de largo).
+        using var bmp = new Bitmap(420, 80);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        using var fg = new SolidBrush(Theme.Dark.TextPrimary);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var s = Localization.Get("es");
+        var view = new LiveSessionsView
+        {
+            Instances = new[]
+            {
+                new SessionState
+                {
+                    SessionId = "s1", Cwd = @"C:\x",
+                    ProjectName = "proyecto-con-nombre-larguisimo-que-no-cabe-en-la-fila",
+                    Phase = SessionPhase.Processing,
+                }
+            }
+        };
+
+        const int x = 16, y0 = 10, w = 200;
+        DashboardDataView.DrawLiveSessionsBody(g, draw: true, view, s, x, y0, w,
+            Typography.Caption, fg, dim, new Dictionary<string, Rectangle>());
+
+        var bg = Theme.Dark.Background;
+        for (int px = x + w + 2; px < bmp.Width; px++)
+            for (int py = y0; py < y0 + 16; py++)
+            {
+                var p = bmp.GetPixel(px, py);
+                Assert.True(p.R == bg.R && p.G == bg.G && p.B == bg.B,
+                    $"píxel pintado en ({px},{py}), fuera del ancho w={w}: el nombre no se elide");
+            }
+    }
+
+    [Fact]
+    public void DrawPace_line_never_exceeds_the_content_width()
+    {
+        // T8c: la línea "↗ 5h 130% · 7d 95%   ⚠ jue 02:12" desbordaba el panel con locales/ETAs largos.
+        using var bmp = new Bitmap(420, 60);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        var s = Localization.Get("es");
+        var eta = DateTimeOffset.UtcNow.AddHours(3);
+        var snap = new AppSnapshot
+        {
+            PaceFive = new PaceResult("5h", 62, 1.30, 47.7, eta, null, true, PaceStatus.Critical),
+            PaceSeven = new PaceResult("7d", 84, 0.95, 88.4, null, null, false, PaceStatus.Ok),
+        };
+
+        const int x = 16, y0 = 10, w = 100;
+        DashboardDataView.DrawPace(g, draw: true, snap, s, Theme.Dark, x, y0, w, Typography.Caption);
+
+        var bg = Theme.Dark.Background;
+        for (int px = x + w + 2; px < bmp.Width; px++)
+            for (int py = y0; py < y0 + 18; py++)
+            {
+                var p = bmp.GetPixel(px, py);
+                Assert.True(p.R == bg.R && p.G == bg.G && p.B == bg.B,
+                    $"píxel pintado en ({px},{py}), fuera del ancho w={w}: la línea de pace no se elide");
+            }
     }
 
     [Fact]

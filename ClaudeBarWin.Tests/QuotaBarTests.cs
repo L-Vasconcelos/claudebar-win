@@ -157,6 +157,38 @@ public class QuotaBarTests
         Assert.True(visible, "el tick de warn no se distingue del track (necesita TickOnTrack, ≥3:1)");
     }
 
+    // ================= T8c: la línea de reset se elide al ancho de la fila =================
+
+    [Fact]
+    public void Draw_reset_line_stays_within_the_row_width()
+    {
+        // "resetea en 1d 5h · jue 02:12" es más ancha que una fila estrecha (locales largos / panel
+        // angosto): debe elidirse, no seguir de largo más allá de x+w.
+        using var bmp = new Bitmap(420, 120);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        using var fg = new SolidBrush(Theme.Dark.TextPrimary);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var win = new UsageWindow(40, DateTimeOffset.UtcNow.AddHours(29)); // countdown largo "1d 5h"
+        var cfg = new AppConfig();
+        var s = Localization.Get("es");
+
+        const int x = 16, y0 = 10, w = 100;
+        QuotaBar.Draw(g, draw: true, "5h", win, pace: null, x, y0, w,
+            cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
+
+        // Banda de la línea de reset: tras la fila label/% (22) y la barra (BarH 11 + 3).
+        int resetY = y0 + 22 + 11 + 3;
+        var bg = Theme.Dark.Background;
+        for (int px = x + w + 2; px < bmp.Width; px++)
+            for (int py = resetY; py < resetY + 14; py++)
+            {
+                var p = bmp.GetPixel(px, py);
+                Assert.True(p.R == bg.R && p.G == bg.G && p.B == bg.B,
+                    $"píxel pintado en ({px},{py}), fuera del ancho w={w}: la línea de reset no se elide");
+            }
+    }
+
     // ================= T6b: el % crítico usa la variante de TEXTO (CriticalText), el relleno no cambia =================
 
     [Fact]

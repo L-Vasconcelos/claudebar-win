@@ -101,8 +101,11 @@ public static class QuotaBar
         {
             // "resetea en 2h 13m · mar 18:42" — relativo (countdown) + hora local absoluta, con el
             // día abreviado del idioma elegido (T2: la UI inglesa mostraba "jue 02:12").
+            // T8c: la línea se elide al ancho de la fila (locales largos / panel angosto la
+            // desbordaban). Solo pintado: el alto reservado no cambia → medir==pintar.
             string abs = UsageFormat.ResetAbsolute(win?.ResetsAt, s.Culture);
             string line = abs.Length > 0 ? $"{s.ResetsIn} {cd} · {abs}" : $"{s.ResetsIn} {cd}";
+            line = TextWrap.FitLine(line, x, x + w, 0, t => g.MeasureString(t, smallFont).Width);
             g.DrawString(line, smallFont, dim, x, y);
         }
         return y + 14;
