@@ -181,7 +181,8 @@ public static class DashboardHeader
                     : ColorMath.RiskColor(crit.UtilizationPct, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
                 double shownPct = motion is not null ? motion.Display("num:crit", crit.UtilizationPct, reduceMotion) : crit.UtilizationPct;
                 string glyph = Tray.ShapeGlyph(Tray.ShapeFor(status));
-                string right = $"{glyph} {shownPct:0.#}%";
+                // % con la cultura del idioma elegido (T2), igual que QuotaBar.
+                string right = $"{glyph} {UsageFormat.Percent(shownPct, s.Culture)}";
                 // Etiqueta a la izquierda (anti-corte: deja sitio al valor con gutter Spacing.Md).
                 int valW = (int)Math.Ceiling(g.MeasureString(right, Typography.Mono).Width);
                 int valX = rightX - valW;

@@ -48,7 +48,8 @@ public static class QuotaBar
             // Glifo de forma de 1 carácter + % a la derecha, ambos en el color de estado.
             string glyph = Tray.ShapeGlyph(Tray.ShapeFor(status));
             // El número usa el valor eased (shown); el glifo/estado va por el objetivo (no parpadea).
-            string right = $"{glyph} {shown:0.#}%";
+            // % con la cultura del idioma elegido (T2): "12.5%" en inglés, "12,5%" en español.
+            string right = $"{glyph} {UsageFormat.Percent(shown, s.Culture)}";
             var sz = g.MeasureString(right, Typography.Mono);
             using var valBrush = new SolidBrush(c);
             g.DrawString(right, Typography.Mono, valBrush, x + w - sz.Width, y);
@@ -98,8 +99,9 @@ public static class QuotaBar
         string cd = UsageFormat.Countdown(win?.ResetsAt, s.Resetting);
         if (draw && cd.Length > 0)
         {
-            // "resetea en 2h 13m · mar 18:42" — relativo (countdown) + hora local absoluta.
-            string abs = UsageFormat.ResetAbsolute(win?.ResetsAt);
+            // "resetea en 2h 13m · mar 18:42" — relativo (countdown) + hora local absoluta, con el
+            // día abreviado del idioma elegido (T2: la UI inglesa mostraba "jue 02:12").
+            string abs = UsageFormat.ResetAbsolute(win?.ResetsAt, s.Culture);
             string line = abs.Length > 0 ? $"{s.ResetsIn} {cd} · {abs}" : $"{s.ResetsIn} {cd}";
             g.DrawString(line, smallFont, dim, x, y);
         }

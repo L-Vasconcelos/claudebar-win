@@ -299,13 +299,16 @@ internal static class Program
     {
         var list = new List<HistoryBucket>();
         var rnd = new Random(7);
+        // Los renders de demo/README usan Language="en": etiquetas en en-US, no en la cultura del SO
+        // (T2: los screenshots ingleses salían con "lun 18h" en máquinas españolas).
+        var ci = Localization.Get("en").Culture;
         for (int i = 0; i < 12; i++)
         {
             double op = 8 + i * 2.6 + 6 * Math.Abs(Math.Sin(i * 0.9)) + rnd.NextDouble() * 4; // rising, peak on the right
             double so = rnd.NextDouble() * 7;
             double ha = rnd.NextDouble() * 1.5;
             var t = now.AddHours(-5 * (12 - i)).ToLocalTime();
-            list.Add(new HistoryBucket(t, t.ToString("ddd HH'h'"), op, so, ha, 0));
+            list.Add(new HistoryBucket(t, t.ToString("ddd HH'h'", ci), op, so, ha, 0));
         }
         return list;
     }
@@ -672,7 +675,8 @@ internal static class Program
 
         var now = DateTime.UtcNow;
         var records = new TranscriptParser().Read(now - UsageHistory.Lookback(ChartRange.Hours5));
-        var buckets = UsageHistory.Build(records, ChartRange.Hours5, now);
+        // Etiquetas del eje X con la cultura del idioma configurado (T2), igual que hará la app real.
+        var buckets = UsageHistory.Build(records, ChartRange.Hours5, now, Localization.ForConfig(cfg).Culture);
         var pct = new UsageHistoryStore().QueryPercent(now - UsageHistory.Lookback(ChartRange.Hours5), now, 120);
         using (var form = new DashboardForm())
         {

@@ -188,13 +188,13 @@ public static class DashboardDataView
         y = QuotaBar.Draw(g, draw, $"{s.WeekWord} (7d)", usage.SevenDay, snap?.PaceSeven, x, y, w, cfg, s, theme, labelFont, smallFont, fg, dim, d7);
         y += 14;
 
-        y = DrawPace(g, draw, snap, theme, x, y, w, smallFont);
+        y = DrawPace(g, draw, snap, s, theme, x, y, w, smallFont);
 
         // Aire entre la línea de pace y el desglose por modelo (Opus/Sonnet): antes iban pegados y se
         // leían como una sola fila apretada (auditoría visual, T9). Constante en ambas pasadas (medir==pintar).
         y += Spacing.Sm;
-        y = DrawModelLine(g, draw, "Opus 7d", usage.SevenDayOpus, x, y, w, smallFont, fg, dim, theme, cfg);
-        y = DrawModelLine(g, draw, "Sonnet 7d", usage.SevenDaySonnet, x, y, w, smallFont, fg, dim, theme, cfg);
+        y = DrawModelLine(g, draw, "Opus 7d", usage.SevenDayOpus, x, y, w, smallFont, fg, dim, theme, cfg, s.Culture);
+        y = DrawModelLine(g, draw, "Sonnet 7d", usage.SevenDaySonnet, x, y, w, smallFont, fg, dim, theme, cfg, s.Culture);
 
         // Explicación honesta del rolling: la ventana de 5h corre desde tu 1ª petición, no a hora fija.
         // theme.TextMuted / Typography.Caption; suma su alto en ambas ramas (medir/pintar).
@@ -235,7 +235,8 @@ public static class DashboardDataView
             if (draw)
             {
                 g.DrawString(kv.Key, labelFont, fg, x, y);
-                string val = $"${kv.Value:0.00}";
+                // Moneda con la cultura del idioma elegido (T2): "$420.50" en inglés, "$420,50" en español.
+                string val = UsageFormat.Money(kv.Value, s.Culture);
                 var sz = g.MeasureString(val, Typography.Mono);
                 g.DrawString(val, Typography.Mono, dim, x + w - sz.Width, y);
             }
@@ -245,7 +246,8 @@ public static class DashboardDataView
     }
 
     // Cuerpo de DrawPace de DashboardForm.cs, adaptado a recibir snap/theme/font por parámetro.
-    internal static int DrawPace(Graphics g, bool draw, AppSnapshot? snap, Theme theme, int x, int y, int w, Font smallFont)
+    // Recibe Strings por la cultura de formato del ETA "ddd HH:mm" (T2).
+    internal static int DrawPace(Graphics g, bool draw, AppSnapshot? snap, Strings s, Theme theme, int x, int y, int w, Font smallFont)
     {
         var pf = snap?.PaceFive;
         var ps = snap?.PaceSeven;
@@ -264,7 +266,7 @@ public static class DashboardDataView
             .Where(p => p is { ExhaustsBeforeReset: true, EtaUtc: not null })
             .OrderBy(p => p!.EtaUtc).FirstOrDefault();
         if (exa is not null)
-            text += $"   ⚠ {exa.EtaUtc!.Value.ToLocalTime():ddd HH:mm}";
+            text += $"   ⚠ {UsageFormat.ResetAbsolute(exa.EtaUtc, s.Culture)}";
 
         using var br = new SolidBrush(c);
         g.DrawString(text, smallFont, br, x, y);
@@ -284,13 +286,14 @@ public static class DashboardDataView
     /// Mide==pinta: el alto reservado (texto + barra + gap) NO depende de <paramref name="draw"/>.
     /// </summary>
     internal static int DrawModelLine(Graphics g, bool draw, string label, UsageWindow? win, int x, int y, int w,
-        Font smallFont, Brush fg, Brush dim, Theme theme, AppConfig cfg)
+        Font smallFont, Brush fg, Brush dim, Theme theme, AppConfig cfg, System.Globalization.CultureInfo culture)
     {
         if (win is null) return y;
         if (draw)
         {
             g.DrawString(label, smallFont, dim, x, y);
-            string val = $"{win.UtilizationPct:0.#}%";
+            // % con la cultura del idioma elegido (T2), no la del SO.
+            string val = UsageFormat.Percent(win.UtilizationPct, culture);
             var sz = g.MeasureString(val, Typography.Mono);
             g.DrawString(val, Typography.Mono, fg, x + w - sz.Width, y);
 
@@ -470,7 +473,8 @@ public static class DashboardDataView
         if (!draw) return bottom + ChartFooter;
 
         double total = chartData.Sum(b => b.CostUsd);
-        var totalText = $"{s.ChartTotal} ${total:0.00}";
+        // Moneda con la cultura del idioma elegido (T2).
+        var totalText = $"{s.ChartTotal} {UsageFormat.Money(total, s.Culture)}";
         var totalSz = g.MeasureString(totalText, smallFont);
         g.DrawString(totalText, smallFont, dim, x, top - 1);
         var totalRect = new RectangleF(x, top - 1, totalSz.Width, totalSz.Height);
@@ -503,7 +507,7 @@ public static class DashboardDataView
         int peakIdx = 0;
         for (int i = 1; i < n; i++)
             if (chartData[i].CostUsd > chartData[peakIdx].CostUsd) peakIdx = i;
-        AnnotatePeak(g, smallFont, theme: null, $"{s.ChartPeak} ${max:0.00}", X(peakIdx), Y(max), x, w, top, totalRect, dim);
+        AnnotatePeak(g, smallFont, theme: null, $"{s.ChartPeak} {UsageFormat.Money(max, s.Culture)}", X(peakIdx), Y(max), x, w, top, totalRect, dim);
 
         int labelEvery = Math.Max(1, (int)Math.Ceiling(n / 8.0));
         for (int i = 0; i < n; i += labelEvery)
@@ -559,8 +563,8 @@ public static class DashboardDataView
 
         Color status = ColorMath.RiskColor(peak, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
 
-        // current value (top-left)
-        var curText = $"{current:0.#}%";
+        // current value (top-left) — % con la cultura del idioma elegido (T2).
+        var curText = UsageFormat.Percent(current, s.Culture);
         var curSz = g.MeasureString(curText, smallFont);
         g.DrawString(curText, smallFont, dim, x, top - 1);
         var curRect = new RectangleF(x, top - 1, curSz.Width, curSz.Height);
@@ -584,14 +588,14 @@ public static class DashboardDataView
         // peak annotation
         int peakIdx = 0;
         for (int i = 1; i < n; i++) if (pts[i].v > pts[peakIdx].v) peakIdx = i;
-        AnnotatePeak(g, smallFont, theme, $"{s.ChartPeak} {peak:0.#}%", X(peakIdx), Y(peak), x, w, top, curRect, dim);
+        AnnotatePeak(g, smallFont, theme, $"{s.ChartPeak} {UsageFormat.Percent(peak, s.Culture)}", X(peakIdx), Y(peak), x, w, top, curRect, dim);
 
         // x-axis time labels
         int labelEvery = Math.Max(1, (int)Math.Ceiling(n / 6.0));
         bool longRange = chartRange is ChartRange.Week1 or ChartRange.Month1;
         for (int i = 0; i < n; i += labelEvery)
         {
-            string lbl = pts[i].TsUtc.ToLocalTime().ToString(longRange ? "dd/MM" : "HH:mm");
+            string lbl = pts[i].TsUtc.ToLocalTime().ToString(longRange ? "dd/MM" : "HH:mm", s.Culture);
             var lsz = g.MeasureString(lbl, smallFont);
             // Ancla la 1ª/última etiqueta al borde del plot para que no se corten (auditoría visual, T9).
             float lx = AxisLabelX(X(i), lsz.Width, x, x + w);

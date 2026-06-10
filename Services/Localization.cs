@@ -4,8 +4,17 @@ using ClaudeBarWin.Config;
 namespace ClaudeBarWin.Services;
 
 /// <summary>All user-facing strings for one language.</summary>
-public sealed class Strings
+public sealed record Strings
 {
+    /// <summary>
+    /// Cultura de FORMATO del idioma (números/moneda/fechas/días abreviados). T2 de la auditoría
+    /// 2026-06-10: con Language=en la UI mezclaba locales ("$420,50", "jue 02:12") porque los format
+    /// strings caían en la CurrentCulture del SO. Cada idioma fija una cultura representativa
+    /// (en→en-US, es→es-ES…); con Language=system <see cref="Localization.ForConfig"/> la sustituye
+    /// por la CurrentCulture del SO (ahí sí debe mandar la configuración regional del usuario).
+    /// </summary>
+    public CultureInfo Culture { get; init; } = CultureInfo.GetCultureInfo("en-US");
+
     // Menu
     public string Dashboard { get; init; } = "Dashboard";
     public string Refresh { get; init; } = "Refresh now";
@@ -202,10 +211,11 @@ public static class Localization
 
     public static Strings ForConfig(AppConfig cfg)
     {
-        var code = string.IsNullOrEmpty(cfg.Language) || cfg.Language == "system"
-            ? ResolveSystemCode()
-            : cfg.Language;
-        return Get(code);
+        // Idioma "system": textos del idioma del SO pero FORMATOS con la CurrentCulture real del
+        // usuario (es-MX ≠ es-ES, etc.). Idioma explícito: textos Y formatos del idioma elegido (T2).
+        if (string.IsNullOrEmpty(cfg.Language) || cfg.Language == "system")
+            return Get(ResolveSystemCode()) with { Culture = CultureInfo.CurrentCulture };
+        return Get(cfg.Language);
     }
 
     /// <summary>Orden de ciclo del selector de idioma del panel: "system" + los 8 códigos.</summary>
@@ -261,6 +271,7 @@ public static class Localization
 
     private static readonly Strings Spanish = new()
     {
+        Culture = CultureInfo.GetCultureInfo("es-ES"),
         Dashboard = "Panel",
         Refresh = "Actualizar ahora",
         PanelWindow = "Ventana del panel",
@@ -389,6 +400,7 @@ public static class Localization
 
     private static readonly Strings Dutch = new()
     {
+        Culture = CultureInfo.GetCultureInfo("nl-NL"),
         Dashboard = "Dashboard",
         Refresh = "Nu verversen",
         PanelWindow = "Paneelvenster",
@@ -512,6 +524,7 @@ public static class Localization
 
     private static readonly Strings French = new()
     {
+        Culture = CultureInfo.GetCultureInfo("fr-FR"),
         Dashboard = "Tableau de bord",
         Refresh = "Actualiser maintenant",
         PanelWindow = "Fenêtre du panneau",
@@ -635,6 +648,7 @@ public static class Localization
 
     private static readonly Strings German = new()
     {
+        Culture = CultureInfo.GetCultureInfo("de-DE"),
         Dashboard = "Dashboard",
         Refresh = "Jetzt aktualisieren",
         PanelWindow = "Panel-Fenster",
@@ -758,6 +772,7 @@ public static class Localization
 
     private static readonly Strings Japanese = new()
     {
+        Culture = CultureInfo.GetCultureInfo("ja-JP"),
         Dashboard = "ダッシュボード",
         Refresh = "今すぐ更新",
         PanelWindow = "パネルウィンドウ",
@@ -881,6 +896,7 @@ public static class Localization
 
     private static readonly Strings Korean = new()
     {
+        Culture = CultureInfo.GetCultureInfo("ko-KR"),
         Dashboard = "대시보드",
         Refresh = "지금 새로고침",
         PanelWindow = "패널 창",
@@ -1004,6 +1020,7 @@ public static class Localization
 
     private static readonly Strings TradChinese = new()
     {
+        Culture = CultureInfo.GetCultureInfo("zh-TW"),
         Dashboard = "儀表板",
         Refresh = "立即重新整理",
         PanelWindow = "面板視窗",

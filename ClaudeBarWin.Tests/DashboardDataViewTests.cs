@@ -70,9 +70,9 @@ public class DashboardDataViewTests
         var cfg = new AppConfig();
 
         int measured = DashboardDataView.DrawModelLine(g, draw: false, "Sonnet 7d", win, 16, 30, 300,
-            Typography.Caption, fg, dim, Theme.Dark, cfg);
+            Typography.Caption, fg, dim, Theme.Dark, cfg, Localization.Get("en").Culture);
         int painted = DashboardDataView.DrawModelLine(g, draw: true, "Sonnet 7d", win, 16, 30, 300,
-            Typography.Caption, fg, dim, Theme.Dark, cfg);
+            Typography.Caption, fg, dim, Theme.Dark, cfg, Localization.Get("en").Culture);
 
         Assert.Equal(measured, painted);
     }
@@ -91,7 +91,7 @@ public class DashboardDataViewTests
 
         const int y0 = 30;
         int after = DashboardDataView.DrawModelLine(g, draw: false, "Opus 7d", win, 16, y0, 300,
-            Typography.Caption, fg, dim, Theme.Dark, cfg);
+            Typography.Caption, fg, dim, Theme.Dark, cfg, Localization.Get("en").Culture);
 
         // Crece más que una simple línea de 16px (texto + barra + gap).
         Assert.True(after - y0 > 16, $"la mini-fila debe reservar alto para la barra de referencia (avance={after - y0})");
@@ -113,7 +113,7 @@ public class DashboardDataViewTests
 
         const int x = 16, y0 = 30, w = 300;
         DashboardDataView.DrawModelLine(g, draw: true, "Sonnet 7d", win, x, y0, w,
-            Typography.Caption, fg, dim, Theme.Dark, cfg);
+            Typography.Caption, fg, dim, Theme.Dark, cfg, Localization.Get("en").Culture);
 
         // Banda de la barra: justo bajo la línea de texto (16px). Busca el color de riesgo cerca del inicio.
         bool foundFill = false;

@@ -1,3 +1,4 @@
+using System.Globalization;
 using ClaudeBarWin.Models;
 
 namespace ClaudeBarWin.Services;
@@ -42,7 +43,12 @@ public static class UsageHistory
         return sub * count + sub;
     }
 
-    public static List<HistoryBucket> Build(IEnumerable<UsageRecord> records, ChartRange range, DateTime nowUtc)
+    /// <summary>
+    /// <paramref name="culture"/>: cultura de FORMATO de las etiquetas del eje X ("ddd"/"dd/MM"), la del
+    /// idioma elegido en la UI (T2: con Language=en salían "lun"/"mié" de la CurrentCulture del SO).
+    /// </summary>
+    public static List<HistoryBucket> Build(IEnumerable<UsageRecord> records, ChartRange range, DateTime nowUtc,
+        CultureInfo culture)
     {
         var (sub, count) = Spec(range);
         var opus = new double[count];
@@ -72,18 +78,18 @@ public static class UsageHistory
         for (int i = 0; i < count; i++)
         {
             var startLocal = (nowUtc - sub * (count - i)).ToLocalTime();
-            list.Add(new HistoryBucket(startLocal, Label(range, startLocal), opus[i], sonnet[i], haiku[i], other[i]));
+            list.Add(new HistoryBucket(startLocal, Label(range, startLocal, culture), opus[i], sonnet[i], haiku[i], other[i]));
         }
         return list;
     }
 
-    private static string Label(ChartRange r, DateTime start) => r switch
+    private static string Label(ChartRange r, DateTime start, CultureInfo ci) => r switch
     {
-        ChartRange.Hour1 => start.ToString("HH:mm"),
-        ChartRange.Hours5 => start.ToString("HH:mm"),
-        ChartRange.Day1 => start.ToString("HH'h'"),
-        ChartRange.Week1 => start.ToString("ddd"),
-        ChartRange.Month1 => start.ToString("dd/MM"),
-        _ => start.ToString("dd/MM")
+        ChartRange.Hour1 => start.ToString("HH:mm", ci),
+        ChartRange.Hours5 => start.ToString("HH:mm", ci),
+        ChartRange.Day1 => start.ToString("HH'h'", ci),
+        ChartRange.Week1 => start.ToString("ddd", ci),
+        ChartRange.Month1 => start.ToString("dd/MM", ci),
+        _ => start.ToString("dd/MM", ci)
     };
 }

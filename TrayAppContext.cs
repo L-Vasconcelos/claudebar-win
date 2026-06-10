@@ -570,7 +570,8 @@ public sealed class TrayAppContext : ApplicationContext
 
     private void NotifyPace(PaceResult p, string windowName)
     {
-        string eta = p.EtaUtc?.ToLocalTime().ToString("ddd HH:mm") ?? "";
+        // ETA con el día abreviado del idioma elegido (T2), no el de la CurrentCulture del SO.
+        string eta = UsageFormat.ResetAbsolute(p.EtaUtc, _s.Culture);
         _tray.BalloonTipIcon = ToolTipIcon.Warning;
         _tray.BalloonTipTitle = _s.PaceAlertTitle;
         _tray.BalloonTipText = string.Format(_s.PaceAlertBodyFmt, windowName, eta);
@@ -579,7 +580,8 @@ public sealed class TrayAppContext : ApplicationContext
 
     // ---------- Helpers ----------
 
-    private static string Fmt(UsageWindow? w) => w is null ? "—" : $"{w.UtilizationPct:0.#}%";
+    // % del tooltip/notificaciones con la cultura del idioma elegido (T2): instancia porque lee _s.
+    private string Fmt(UsageWindow? w) => w is null ? "—" : UsageFormat.Percent(w.UtilizationPct, _s.Culture);
     private static string Suffix(string countdown) => countdown.Length > 0 ? $" (↻{countdown})" : "";
 
     private UsageStatus StatusFor(double pct) =>
@@ -605,7 +607,7 @@ public sealed class TrayAppContext : ApplicationContext
     private Task<List<HistoryBucket>> BuildHistoryAsync(ChartRange range) => Task.Run(() =>
     {
         var records = _parser.Read(DateTime.UtcNow - UsageHistory.Lookback(range));
-        return UsageHistory.Build(records, range, DateTime.UtcNow);
+        return UsageHistory.Build(records, range, DateTime.UtcNow, _s.Culture);
     });
 
     private Task<List<PctPoint>> BuildPercentAsync(ChartRange range) => Task.Run(() =>

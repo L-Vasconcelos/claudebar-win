@@ -1,7 +1,22 @@
+using System.Globalization;
+
 namespace ClaudeBarWin.Services;
 
 public static class UsageFormat
 {
+    /// <summary>
+    /// "$420.50" (en-US) / "$420,50" (es-ES): símbolo $ fijo (el coste API-equiv es siempre USD) +
+    /// decimales según la cultura del idioma elegido (T2). Antes el "0.00" inline caía en la
+    /// CurrentCulture del SO y la UI inglesa mostraba "$420,50".
+    /// </summary>
+    public static string Money(double usd, CultureInfo culture) => "$" + usd.ToString("0.00", culture);
+
+    /// <summary>
+    /// "12.5%" (en-US) / "12,5%" (es-ES): el patrón "0.#" de los % de la UI (barras, glance, tween,
+    /// mini-filas de modelo, peak de la gráfica) con el separador decimal de la cultura del idioma (T2).
+    /// </summary>
+    public static string Percent(double pct, CultureInfo culture) => pct.ToString("0.#", culture) + "%";
+
     /// <summary>"2h 13m", "1d 4h", "45m 12s", or the localized "resetting…" label.</summary>
     public static string Countdown(DateTimeOffset? resetsAt, string resettingLabel)
     {
@@ -13,9 +28,11 @@ public static class UsageFormat
         return $"{span.Minutes}m {span.Seconds}s";
     }
 
-    /// <summary>Hora local absoluta del reset en formato "ddd HH:mm" (p.ej. "mar 18:42"); "" si es null.</summary>
-    public static string ResetAbsolute(DateTimeOffset? resetsAt)
-        => resetsAt is { } r ? r.ToLocalTime().ToString("ddd HH:mm") : "";
+    /// <summary>Hora local absoluta del reset en formato "ddd HH:mm" (p.ej. "mar 18:42"), con el día
+    /// abreviado en la cultura del idioma elegido (T2: antes "jue 02:12" se colaba en la UI inglesa);
+    /// "" si es null.</summary>
+    public static string ResetAbsolute(DateTimeOffset? resetsAt, CultureInfo culture)
+        => resetsAt is { } r ? r.ToLocalTime().ToString("ddd HH:mm", culture) : "";
 
     /// <summary>Antigüedad de un dato UTC en texto relativo localizado ("hace 5 min" / "hace 30 s").
     /// Espejo de <see cref="Countdown"/>. Normaliza Kind=Unspecified como UTC.</summary>
