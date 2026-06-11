@@ -53,9 +53,10 @@ public static class QuotaBar
             // El número usa el valor eased (shown); el glifo/estado va por el objetivo (no parpadea).
             // % con la cultura del idioma elegido (T2): "12.5%" en inglés, "12,5%" en español.
             string right = $"{glyph} {UsageFormat.Percent(shown, s.Culture)}";
-            var sz = g.MeasureString(right, Typography.Mono);
             using var valBrush = new SolidBrush(textColor);
-            g.DrawString(right, Typography.Mono, valBrush, x + w - sz.Width, y);
+            // T10 (§3 #16): medida central tipográfica + pintado con el mismo formato → la tinta del %
+            // termina exacta en x+w y toda la columna derecha del panel queda alineada.
+            TextMetrics.DrawRight(g, right, Typography.Mono, valBrush, x + w, y);
         }
         y += 22;
 

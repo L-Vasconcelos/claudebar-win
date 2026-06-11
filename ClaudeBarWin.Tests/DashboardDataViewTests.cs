@@ -500,9 +500,10 @@ public class DashboardDataViewTests
         DashboardDataView.DrawModelLine(g, draw: true, "Sonnet 7d", win, x, y0, w,
             Typography.Caption, fg, dim, Theme.Dark, cfg, culture);
 
-        // Mide el % igual que producción para localizar dónde arranca el texto right-aligned.
+        // Mide el % igual que producción (T10: TextMetrics, tipográfico + Ceiling) para localizar
+        // dónde arranca el texto right-aligned.
         string val = UsageFormat.Percent(win.UtilizationPct, culture);
-        int textLeft = (int)(x + w - g.MeasureString(val, Typography.Mono).Width);
+        int textLeft = x + w - TextMetrics.MeasureWidth(g, val, Typography.Mono);
 
         var track = Theme.Dark.Track;
         for (int py = y0 + 16; py <= y0 + 19; py++)               // banda de la barrita (ModelBarH=4)
@@ -512,5 +513,40 @@ public class DashboardDataViewTests
                 bool isTrack = Math.Abs(p.R - track.R) <= 6 && Math.Abs(p.G - track.G) <= 6 && Math.Abs(p.B - track.B) <= 6;
                 Assert.False(isTrack, $"track en ({px},{py}): la barrita sigue cruzando bajo el % (texto en x={textLeft})");
             }
+    }
+
+    // ================= T10: la columna derecha (QuotaBar % + % de modelo) queda alineada (§3 #16) =================
+
+    [Fact]
+    public void ModelLine_percent_aligns_flush_with_the_QuotaBar_percent_column()
+    {
+        // El defecto auditado: cada fila medía su valor right-aligned con un criterio distinto
+        // ((int)/Ceiling/float, con o sin padding del formato default) y la columna quedaba "dentada"
+        // (3-6px). Con la medida central, el % de la barra grande y el % de la mini-fila de modelo
+        // terminan en la MISMA columna de píxeles (±1) y pegados a x+w.
+        using var bmp = new Bitmap(420, 160);
+        using var g = Graphics.FromImage(bmp);
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+        g.Clear(Theme.Dark.Background);
+        using var fg = new SolidBrush(Theme.Dark.TextPrimary);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var cfg = new AppConfig();
+        var s = Localization.Get("en");
+        var winBar = new UsageWindow(87, DateTimeOffset.UtcNow.AddHours(2));
+        var winModel = new UsageWindow(12, DateTimeOffset.UtcNow);
+
+        const int x = 16, yBar = 10, yModel = 90, w = 300;
+        QuotaBar.Draw(g, draw: true, "Session (5h)", winBar, pace: null, x, yBar, w,
+            cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
+        DashboardDataView.DrawModelLine(g, draw: true, "Sonnet 7d", winModel, x, yModel, w,
+            Typography.Caption, fg, dim, Theme.Dark, cfg, s.Culture);
+
+        int inkBar = TextMetricsTests.RightmostInk(bmp, Theme.Dark.Background, yBar, yBar + 18);
+        int inkModel = TextMetricsTests.RightmostInk(bmp, Theme.Dark.Background, yModel, yModel + 16);
+        Assert.True(inkBar >= 0 && inkModel >= 0, "no se pintó alguna de las dos filas");
+        Assert.True(Math.Abs(inkBar - inkModel) <= 1,
+            $"columna dentada: el % de la barra termina en {inkBar} y el de la mini-fila en {inkModel}");
+        Assert.InRange(inkBar, x + w - 3, x + w);
+        Assert.InRange(inkModel, x + w - 3, x + w);
     }
 }

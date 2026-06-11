@@ -229,7 +229,9 @@ public static class DashboardHeader
                 // % con la cultura del idioma elegido (T2), igual que QuotaBar.
                 string right = $"{glyph} {UsageFormat.Percent(shownPct, s.Culture)}";
                 // Etiqueta a la izquierda (anti-corte: deja sitio al valor con gutter Spacing.Md).
-                int valW = (int)Math.Ceiling(g.MeasureString(right, Typography.Mono).Width);
+                // T10 (§3 #16): medida central tipográfica + pintado con el mismo formato → el % del
+                // glance cae en la MISMA columna derecha que los % de las barras de la sección Cuota.
+                int valW = TextMetrics.MeasureWidth(g, right, Typography.Mono);
                 int valX = rightX - valW;
                 using (var fg = new SolidBrush(theme.TextPrimary))
                 {
@@ -238,7 +240,7 @@ public static class DashboardHeader
                     g.DrawString(labelShown, smallFont, fg, textX, ty);
                 }
                 using var valBrush = new SolidBrush(c);
-                g.DrawString(right, Typography.Mono, valBrush, valX, ty);
+                g.DrawString(right, Typography.Mono, valBrush, valX, ty, TextMetrics.Typographic);
             }
             ty += 16; // glance de UNA línea
         }

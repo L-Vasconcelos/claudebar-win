@@ -226,11 +226,14 @@ public static class DashboardDataView
     /// <c>x+w</c> y el texto izquierdo se ELIDE con elipsis medida (gutter <c>Spacing.Md</c>) para no
     /// atravesarlo ni rebasar el panel — el patrón de <c>InfoRowLayout</c> de ajustes, compartido aquí
     /// por las sesiones en vivo y las claves de gasto. Determinista (misma medición en draw=false/true).
+    /// T10: el valor se mide con <see cref="TextMetrics.MeasureWidth"/> (tipográfico + Ceiling) y el
+    /// llamador debe pintarlo en <c>rightX</c> con <see cref="TextMetrics.Typographic"/> para que la
+    /// tinta termine exacta en <c>x+w</c> (columna derecha alineada, §3 #16).
     /// </summary>
     internal static (string shownLeft, int rightX) RowWithRightValue(Graphics g, string left, string right,
         int x, int w, Font leftFont, Font rightFont)
     {
-        int rightW = (int)Math.Ceiling(g.MeasureString(right, rightFont).Width);
+        int rightW = TextMetrics.MeasureWidth(g, right, rightFont);
         int rightX = Math.Max(x, x + w - rightW);
         string shown = TextWrap.FitLine(left, x, rightX, Spacing.Md,
             t => g.MeasureString(t, leftFont).Width);
@@ -255,7 +258,7 @@ public static class DashboardDataView
                 string val = UsageFormat.Money(kv.Value, s.Culture);
                 var (shownKey, valX) = RowWithRightValue(g, kv.Key, val, x, w, labelFont, Typography.Mono);
                 g.DrawString(shownKey, labelFont, fg, x, y);
-                g.DrawString(val, Typography.Mono, dim, valX, y);
+                g.DrawString(val, Typography.Mono, dim, valX, y, TextMetrics.Typographic);
             }
             y += 20;
         }
@@ -315,15 +318,17 @@ public static class DashboardDataView
         {
             g.DrawString(label, smallFont, dim, x, y);
             // % con la cultura del idioma elegido (T2), no la del SO.
+            // T10 (§3 #16): medida central tipográfica + Ceiling, igual que QuotaBar → la columna
+            // derecha del % de modelo queda en la MISMA vertical que el % de las barras grandes.
             string val = UsageFormat.Percent(win.UtilizationPct, culture);
-            var sz = g.MeasureString(val, Typography.Mono);
-            g.DrawString(val, Typography.Mono, fg, x + w - sz.Width, y);
+            int valW = TextMetrics.MeasureWidth(g, val, Typography.Mono);
+            g.DrawString(val, Typography.Mono, fg, x + w - valW, y, TextMetrics.Typographic);
 
             // Barrita de referencia (mini-cuota): track + relleno proporcional al %, color por riesgo —
             // mismo criterio que las barras de cuota, para que la mini-fila se lea como una de ellas.
             // T3a (auditoría §3 #2): el track se corta un gap ANTES del % right-aligned — a todo el
             // ancho tachaba el número (el Mono de 12pt baja hasta la banda de la barrita).
-            int trackW = QuotaBarGeometry.CompactTrackWidth(w, (int)Math.Ceiling(sz.Width), Spacing.Sm);
+            int trackW = QuotaBarGeometry.CompactTrackWidth(w, valW, Spacing.Sm);
             int by = y + ModelLineTextH;
             if (trackW > 0)
             {
@@ -368,7 +373,7 @@ public static class DashboardDataView
                     var st = PhaseLabel(s, inst.Phase);
                     var (shownName, phaseX) = RowWithRightValue(g, inst.ProjectName, st, x, w, smallFont, smallFont);
                     g.DrawString(shownName, smallFont, fg, x, y);
-                    g.DrawString(st, smallFont, dim, phaseX, y);
+                    g.DrawString(st, smallFont, dim, phaseX, y, TextMetrics.Typographic);
                 }
                 liveRowRects[inst.SessionId] = rect;
                 y += 18;

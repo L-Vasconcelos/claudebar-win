@@ -228,4 +228,32 @@ public class QuotaBarTests
             }
         Assert.True(foundText, "el glifo/% crítico no usa CriticalText (#F87171) en tema oscuro");
     }
+
+    // ================= T10: el % right-aligned queda FLUSH con el borde derecho (§3 #16) =================
+
+    [Fact]
+    public void Draw_percent_value_is_flush_with_the_right_edge()
+    {
+        // Antes: medir con el StringFormat por defecto (padding ~1/6 em por lado) y pintar igual dejaba
+        // la tinta del % varios px antes de x+w, a una distancia distinta que las demás filas (columna
+        // "dentada"). Con la medida central tipográfica la tinta termina pegada a x+w (≤3px de bearing).
+        using var bmp = new Bitmap(420, 120);
+        using var g = Graphics.FromImage(bmp);
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+        g.Clear(Theme.Dark.Background);
+        using var fg = new SolidBrush(Theme.Dark.TextPrimary);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var win = new UsageWindow(87, DateTimeOffset.UtcNow.AddHours(2));
+        var cfg = new AppConfig();
+        var s = Localization.Get("en");
+
+        const int x = 16, y0 = 10, w = 300;
+        QuotaBar.Draw(g, draw: true, "Session (5h)", win, pace: null, x, y0, w,
+            cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
+
+        // Banda de la fila etiqueta/% (la barra arranca en y0+22): la tinta más a la derecha es el %.
+        int ink = TextMetricsTests.RightmostInk(bmp, Theme.Dark.Background, y0, y0 + 18);
+        Assert.True(ink >= 0, "no se pintó la fila etiqueta/%");
+        Assert.InRange(ink, x + w - 3, x + w);
+    }
 }

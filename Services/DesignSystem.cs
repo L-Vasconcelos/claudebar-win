@@ -78,6 +78,39 @@ public static class ColorMath
 }
 
 /// <summary>
+/// Medida de texto centralizada para los valores right-aligned (T10, auditoría §3 #16: QuotaBar %,
+/// $ de gasto, % de modelo, glance del header, fase de sesión en vivo). <c>MeasureString</c> con el
+/// StringFormat por defecto añade un padding (~1/6 em por lado) que NO es tinta, y cada call site lo
+/// truncaba con un criterio distinto ((int), Ceiling o float crudo): la columna derecha quedaba
+/// "dentada" (3-6px). Aquí se mide el avance tipográfico real (GenericTypographic) con un ÚNICO
+/// redondeo (Ceiling) y se pinta con el MISMO formato, así la tinta termina exacta en el borde pedido.
+/// </summary>
+public static class TextMetrics
+{
+    /// <summary>
+    /// Clon estático de <see cref="StringFormat.GenericTypographic"/> (vive toda la app, como las
+    /// fuentes de <see cref="Typography"/>). Medir y PINTAR deben compartirlo: medir tipográfico y
+    /// pintar con el default desplazaría la tinta ~1/6 em a la derecha del borde calculado.
+    /// </summary>
+    public static readonly StringFormat Typographic = (StringFormat)StringFormat.GenericTypographic.Clone();
+
+    /// <summary>Ancho tipográfico de <paramref name="text"/> en px, redondeado SIEMPRE hacia arriba.</summary>
+    public static int MeasureWidth(Graphics g, string text, Font font)
+        => (int)Math.Ceiling(g.MeasureString(text, font, int.MaxValue, Typographic).Width);
+
+    /// <summary>
+    /// Pinta <paramref name="text"/> right-aligned terminando en <paramref name="right"/> y devuelve la
+    /// X donde arrancó (<c>right - MeasureWidth</c>), por si el llamador acota el contenido izquierdo.
+    /// </summary>
+    public static int DrawRight(Graphics g, string text, Font font, Brush brush, int right, int y)
+    {
+        int x = right - MeasureWidth(g, text, font);
+        g.DrawString(text, font, brush, x, y, Typographic);
+        return x;
+    }
+}
+
+/// <summary>
 /// Fuentes del sistema de diseño: una familia (Segoe UI Variable) en 4 pasos + mono para números.
 /// Cacheadas estáticamente (viven toda la app); con fallback si la familia no está instalada.
 /// </summary>
