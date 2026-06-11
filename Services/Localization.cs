@@ -122,6 +122,14 @@ public sealed record Strings
     /// familia reconocible y el cubo que agrupa a las familias menores cuando hay más de 4. Aparece
     /// en las filas de gasto y en la leyenda de la gráfica.</summary>
     public string ModelFamilyOther { get; init; } = "Other";
+    /// <summary>Sufijo discreto de una fila de gasto cuya familia NO tiene tarifa en ninguna fuente
+    /// del catálogo (T13b): la fila pinta "— &lt;sufijo&gt;" y NO suma al total (no mentir con $0).</summary>
+    public string SpendNoRate { get; init; } = "no rate";
+    /// <summary>Toggle de ajustes (Sistema): refrescar el catálogo de tarifas desde models.dev (T13b).</summary>
+    public string PricingOnlineUpdate { get; init; } = "Update rates online";
+    /// <summary>Subtítulo honesto del toggle: solo precios públicos, no sale nada del usuario.</summary>
+    public string PricingOnlineUpdateSubtitle { get; init; } =
+        "Downloads public prices from models.dev · sends nothing of yours";
     public string Opacity { get; init; } = "Opacity";
 
     // Pace
@@ -354,6 +362,9 @@ public static class Localization
         ChartTabSpend = "Gasto $",
         ChartTabPct = "Cuota %",
         ModelFamilyOther = "Otros",
+        SpendNoRate = "sin tarifa",
+        PricingOnlineUpdate = "Actualizar tarifas online",
+        PricingOnlineUpdateSubtitle = "Descarga precios públicos de models.dev · no envía nada tuyo",
         Opacity = "Opacidad",
         IconMode = "Modo de icono",
         PaceAlerts = "Avisos de ritmo",
@@ -479,6 +490,9 @@ public static class Localization
         ChartTabSpend = "Uitgaven $",
         ChartTabPct = "Quota %",
         ModelFamilyOther = "Overig",
+        SpendNoRate = "geen tarief",
+        PricingOnlineUpdate = "Tarieven online bijwerken",
+        PricingOnlineUpdateSubtitle = "Downloadt publieke prijzen van models.dev · verstuurt niets van jou",
         Opacity = "Dekking",
         IconMode = "Pictogrammodus",
         PaceAlerts = "Tempo-meldingen",
@@ -604,6 +618,9 @@ public static class Localization
         ChartTabSpend = "Coût $",
         ChartTabPct = "Quota %",
         ModelFamilyOther = "Autres",
+        SpendNoRate = "sans tarif",
+        PricingOnlineUpdate = "Mettre à jour les tarifs en ligne",
+        PricingOnlineUpdateSubtitle = "Télécharge les prix publics de models.dev · n'envoie rien de toi",
         Opacity = "Opacité",
         IconMode = "Mode d'icône",
         PaceAlerts = "Alertes de rythme",
@@ -729,6 +746,9 @@ public static class Localization
         ChartTabSpend = "Kosten $",
         ChartTabPct = "Kontingent %",
         ModelFamilyOther = "Sonstige",
+        SpendNoRate = "kein Tarif",
+        PricingOnlineUpdate = "Tarife online aktualisieren",
+        PricingOnlineUpdateSubtitle = "Lädt öffentliche Preise von models.dev · sendet nichts von dir",
         Opacity = "Deckkraft",
         IconMode = "Symbolmodus",
         PaceAlerts = "Tempo-Warnungen",
@@ -854,6 +874,9 @@ public static class Localization
         ChartTabSpend = "コスト $",
         ChartTabPct = "クォータ %",
         ModelFamilyOther = "その他",
+        SpendNoRate = "料金不明",
+        PricingOnlineUpdate = "料金をオンラインで更新",
+        PricingOnlineUpdateSubtitle = "models.dev から公開価格を取得 · あなたのデータは送信しません",
         Opacity = "不透明度",
         IconMode = "アイコン表示",
         PaceAlerts = "ペース通知",
@@ -979,6 +1002,9 @@ public static class Localization
         ChartTabSpend = "비용 $",
         ChartTabPct = "할당량 %",
         ModelFamilyOther = "기타",
+        SpendNoRate = "요금 정보 없음",
+        PricingOnlineUpdate = "요금 온라인 업데이트",
+        PricingOnlineUpdateSubtitle = "models.dev에서 공개 가격을 받아옵니다 · 사용자 데이터는 보내지 않습니다",
         Opacity = "불투명도",
         IconMode = "아이콘 모드",
         PaceAlerts = "페이스 알림",
@@ -1104,6 +1130,9 @@ public static class Localization
         ChartTabSpend = "花費 $",
         ChartTabPct = "配額 %",
         ModelFamilyOther = "其他",
+        SpendNoRate = "無費率",
+        PricingOnlineUpdate = "線上更新費率",
+        PricingOnlineUpdateSubtitle = "從 models.dev 下載公開價格 · 不會傳送你的任何資料",
         Opacity = "不透明度",
         IconMode = "圖示模式",
         PaceAlerts = "用量速度提醒",

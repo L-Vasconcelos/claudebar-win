@@ -43,8 +43,9 @@ public class UsageAggregatorTests
     [Fact]
     public void Con_mas_de_cuatro_familias_las_menores_se_funden_en_Otros()
     {
-        // 3 con tarifa (Opus/Sonnet/Haiku) + 3 sin patrón/familia nueva → 6 familias. El cap deja
-        // como mucho 4 entradas: las 3 de mayor gasto con nombre + "Otros" con el resto fundido.
+        // 4 con tarifa (Fable/Opus/Sonnet/Haiku, T13b: el catálogo ya tarifica Fable) + 2 sin
+        // patrón/familia nueva → 6 familias. El cap deja como mucho 4 entradas: las 3 de mayor
+        // gasto con nombre + "Otros" con el resto fundido.
         var snap = Build(
             Rec("claude-opus-4-8", 1), Rec("claude-sonnet-4-5", 2), Rec("claude-haiku-4-5-20251001", 3),
             Rec("claude-fable-5", 4), Rec("claude-mythos-1", 5), Rec("<synthetic>", 6));
@@ -52,8 +53,9 @@ public class UsageAggregatorTests
         Assert.True(snap.Week.CostByModel.Count <= 4,
             $"el panel no debe crecer sin límite: {snap.Week.CostByModel.Count} familias tras el cap");
         Assert.Contains(ModelFamily.Other, snap.Week.CostByModel.Keys);
+        Assert.Contains("Fable", snap.Week.CostByModel.Keys);        // 50 $/Mtok out: top de gasto
         Assert.Contains("Opus", snap.Week.CostByModel.Keys);
-        Assert.DoesNotContain("Fable", snap.Week.CostByModel.Keys);  // fundida en Otros
+        Assert.DoesNotContain("Haiku", snap.Week.CostByModel.Keys);  // fundida en Otros
         Assert.DoesNotContain("Mythos", snap.Week.CostByModel.Keys); // fundida en Otros
     }
 
@@ -75,15 +77,58 @@ public class UsageAggregatorTests
     [Fact]
     public void Las_familias_conservadas_al_capar_son_las_de_mayor_gasto()
     {
-        // Opus factura ~75 $/Mtok de salida, Sonnet 15, Haiku 5; fable/mythos sin tarifa (0).
+        // Catálogo models.dev (T13b): Fable 50 $/Mtok de salida, Opus 4.8 = 25, Sonnet 15, Haiku 5;
+        // mythos sin tarifa (no suma). El cap conserva las 3 de mayor gasto + Otros.
         var snap = Build(
             Rec("claude-opus-4-8", 1), Rec("claude-sonnet-4-5", 2), Rec("claude-haiku-4-5-20251001", 3),
             Rec("claude-fable-5", 4), Rec("claude-mythos-1", 5));
 
         var ordered = snap.Week.CostByModel.OrderByDescending(kv => kv.Value).Select(kv => kv.Key).ToList();
-        Assert.Equal("Opus", ordered[0]);
-        Assert.Equal("Sonnet", ordered[1]);
-        Assert.Equal("Haiku", ordered[2]);
+        Assert.Equal("Fable", ordered[0]);
+        Assert.Equal("Opus", ordered[1]);
+        Assert.Equal("Sonnet", ordered[2]);
+    }
+
+    // ---- T13b: modelos sin tarifa en NINGUNA fuente (IsPriced=false) ----
+
+    [Fact]
+    public void Familia_sin_tarifa_no_suma_al_total_pero_su_fila_existe()
+    {
+        // "No mentir con 0": el gasto total solo suma lo TARIFADO; la familia sin tarifa queda
+        // presente (la UI pinta "—") y marcada como unpriced.
+        var snap = Build(Rec("claude-opus-4-8", 1), Rec("claude-mythos-1", 2));
+
+        double opusOnly = Pricing.CostUsd(Rec("claude-opus-4-8", 1));
+        Assert.Equal(opusOnly, snap.Week.CostUsd, 10);
+        Assert.Contains("Mythos", snap.Week.CostByModel.Keys);
+        Assert.Equal(0.0, snap.Week.CostByModel["Mythos"]);
+        Assert.True(snap.Week.IsUnpriced("Mythos"));
+        Assert.False(snap.Week.IsUnpriced("Opus"));
+    }
+
+    [Fact]
+    public void Fable_ya_no_computa_cero_el_bug_real()
+    {
+        // El usuario usa claude-fable-5 a diario y su gasto computaba 0 € (lista fija en código).
+        var snap = Build(Rec("claude-fable-5", 1));
+
+        Assert.True(snap.Week.CostUsd > 0, "claude-fable-5 debe tener tarifa vía catálogo");
+        Assert.False(snap.Week.IsUnpriced("Fable"));
+    }
+
+    [Fact]
+    public void Al_capar_una_familia_sin_tarifa_el_marcador_pasa_a_Otros_solo_si_Otros_queda_a_cero()
+    {
+        // 4 tarifadas + mythos sin tarifa → mythos (gasto 0) se funde en Otros. Otros hereda el
+        // marcador unpriced, pero IsUnpriced solo lo expone si Otros NO tiene gasto tarifado
+        // (aquí Haiku también cae en Otros con gasto > 0 ⇒ Otros muestra su $ real, no "—").
+        var snap = Build(
+            Rec("claude-opus-4-8", 1), Rec("claude-sonnet-4-5", 2), Rec("claude-haiku-4-5-20251001", 3),
+            Rec("claude-fable-5", 4), Rec("claude-mythos-1", 5));
+
+        Assert.Contains(ModelFamily.Other, snap.Week.CostByModel.Keys);
+        Assert.True(snap.Week.CostByModel[ModelFamily.Other] > 0);
+        Assert.False(snap.Week.IsUnpriced(ModelFamily.Other));
     }
 
     [Fact]

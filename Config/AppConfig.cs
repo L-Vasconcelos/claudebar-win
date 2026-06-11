@@ -43,6 +43,13 @@ public sealed class AppConfig
     public bool ShowSpendEstimate { get; set; } = true;
     public int SpendWindowDays { get; set; } = 7;
 
+    /// <summary>
+    /// T13b: refrescar el catálogo de tarifas desde models.dev (GET anónimo de precios públicos; no
+    /// sale NINGÚN dato del usuario — el sello de privacidad del footer sigue siendo verdad). OFF ⇒
+    /// solo caché local + snapshot embebido. Default ON.
+    /// </summary>
+    public bool PricingOnlineUpdate { get; set; } = true;
+
     // Dashboard window placement & behaviour
     /// <summary>BottomRight | BottomLeft | TopRight | TopLeft | Center | Custom</summary>
     public string DashboardPosition { get; set; } = "BottomRight";

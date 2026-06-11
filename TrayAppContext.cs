@@ -369,6 +369,10 @@ public sealed class TrayAppContext : ApplicationContext
             int desiredInterval = Math.Max(15, _config.RefreshSeconds) * 1000;
             if (_timer.Interval != desiredInterval) _timer.Interval = desiredInterval;
 
+            // T13b: refresh del catálogo de tarifas en background — fire-and-forget, JAMÁS bloquea
+            // este refresh de UI. No-op si la caché tiene <7 días o el toggle de privacidad está OFF.
+            PricingCatalog.Default.RefreshInBackground(_config.PricingOnlineUpdate);
+
             var cfg = _config;
             var now = DateTime.UtcNow;
 

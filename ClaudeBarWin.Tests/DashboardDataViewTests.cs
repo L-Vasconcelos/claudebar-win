@@ -631,4 +631,37 @@ public class DashboardDataViewTests
         Assert.InRange(inkBar, x + w - 3, x + w);
         Assert.InRange(inkModel, x + w - 3, x + w);
     }
+
+    // ================= T13b: fila de gasto de una familia SIN tarifa =================
+
+    [Fact]
+    public void Fila_sin_tarifa_muestra_em_dash_con_sufijo_localizado_no_cero()
+    {
+        // "No mentir con 0": una familia sin tarifa en ninguna fuente pinta "— <sufijo>" (string
+        // localizada), nunca "$0.00"; las tarifadas siguen pintando su moneda con la cultura del idioma.
+        var spend = new WindowStats();
+        spend.CostByModel["Mythos"] = 0;
+        spend.UnpricedModels.Add("Mythos");
+        spend.CostByModel["Opus"] = 12.5;
+
+        var es = Localization.Get("es");
+        Assert.Equal("— " + es.SpendNoRate, DashboardDataView.SpendValueText(spend, "Mythos", es));
+        Assert.Equal(UsageFormat.Money(12.5, es.Culture), DashboardDataView.SpendValueText(spend, "Opus", es));
+
+        var en = Localization.Get("en");
+        Assert.Equal("— " + en.SpendNoRate, DashboardDataView.SpendValueText(spend, "Mythos", en));
+    }
+
+    [Fact]
+    public void Familia_con_gasto_tarifado_y_marcador_residual_muestra_su_dinero()
+    {
+        // El marcador unpriced solo manda si la familia NO tiene gasto tarifado (p.ej. "Otros" tras
+        // fundir una familia sin tarifa junto a otra con gasto real): se enseña el $ real, no "—".
+        var spend = new WindowStats();
+        spend.CostByModel[ModelFamily.Other] = 3.2;
+        spend.UnpricedModels.Add(ModelFamily.Other);
+
+        var s = Localization.Get("en");
+        Assert.Equal(UsageFormat.Money(3.2, s.Culture), DashboardDataView.SpendValueText(spend, ModelFamily.Other, s));
+    }
 }

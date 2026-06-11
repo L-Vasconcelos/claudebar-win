@@ -50,6 +50,17 @@ public static class DashboardDataView
     internal static string FamilyLabel(string family, Strings s)
         => family == ModelFamily.Other ? s.ModelFamilyOther : family;
 
+    /// <summary>
+    /// Valor de la fila de gasto de una familia (T13b), PURO y testeable: con tarifa, la moneda con la
+    /// cultura del idioma (<see cref="UsageFormat.Money"/>); SIN tarifa en ninguna fuente del catálogo
+    /// (<see cref="WindowStats.IsUnpriced"/>), "— &lt;sufijo&gt;" localizado — nunca "$0.00", que
+    /// mentiría (esa familia tampoco suma al total).
+    /// </summary>
+    internal static string SpendValueText(WindowStats spend, string family, Strings s)
+        => spend.IsUnpriced(family)
+            ? "— " + s.SpendNoRate
+            : UsageFormat.Money(spend.CostByModel.GetValueOrDefault(family), s.Culture);
+
     /// <summary>Color del slot asignado a una familia (módulo: nunca se sale de la gama del tema).</summary>
     private static Color SeriesColor(Theme theme, IReadOnlyDictionary<string, int> slots, string family)
         => theme.ChartSeries[slots[family] % theme.ChartSeries.Count];
@@ -278,7 +289,8 @@ public static class DashboardDataView
                 // Moneda con la cultura del idioma elegido (T2): "$420.50" en inglés, "$420,50" en español.
                 // T8b: la clave (nombre de modelo) se elide contra el $ right-aligned (gutter Md), no lo cruza.
                 // T13a: las claves son familias dinámicas; la canónica "Otros" se localiza al pintar.
-                string val = UsageFormat.Money(kv.Value, s.Culture);
+                // T13b: familia sin tarifa en el catálogo → "— <sufijo>" localizado, nunca "$0.00".
+                string val = SpendValueText(spend, kv.Key, s);
                 var (shownKey, valX) = RowWithRightValue(g, FamilyLabel(kv.Key, s), val, x, w, labelFont, Typography.Mono);
                 g.DrawString(shownKey, labelFont, fg, x, y);
                 g.DrawString(val, Typography.Mono, dim, valX, y, TextMetrics.Typographic);

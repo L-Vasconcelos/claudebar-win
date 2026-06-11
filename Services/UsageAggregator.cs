@@ -13,6 +13,16 @@ public sealed class WindowStats
     public Dictionary<string, double> CostByModel { get; } = new();
     public Dictionary<string, long> TokensByModel { get; } = new();
 
+    /// <summary>Familias con registros SIN tarifa en ninguna fuente del catálogo (T13b): su fila
+    /// existe en <see cref="CostByModel"/> (con el gasto tarifado que tenga, normalmente 0) pero la
+    /// parte sin tarifa NO suma a <see cref="CostUsd"/> — no se miente con $0.</summary>
+    public HashSet<string> UnpricedModels { get; } = new();
+
+    /// <summary>La UI pinta "—" para una familia marcada SOLO si no tiene gasto tarifado: si la
+    /// familia (p.ej. "Otros" tras un cap) acumula $ reales, se enseña su dinero, no el guion.</summary>
+    public bool IsUnpriced(string family)
+        => UnpricedModels.Contains(family) && CostByModel.GetValueOrDefault(family) == 0;
+
     public long TotalTokens => Input + Output + CacheWrite + CacheRead;
 }
 
@@ -57,13 +67,17 @@ public static class UsageAggregator
         w.CacheRead += r.CacheReadTokens;
         w.Messages++;
 
-        var cost = Pricing.CostUsd(r);
-        w.CostUsd += cost;
+        // T13b: tarifa vía catálogo (caché → models.dev → snapshot). Un modelo SIN tarifa en ninguna
+        // fuente no suma al total (no mentir con $0): su familia queda presente con gasto 0 y marcada
+        // en UnpricedModels para que la fila pinte "—" con sufijo localizado.
+        var (cost, priced) = Pricing.Cost(r);
+        if (priced) w.CostUsd += cost;
 
         // T13a: familia DINÁMICA derivada del id (claude-fable-5 → "Fable"), no lista fija — antes
         // ModelLabel hacía Contains(opus/sonnet/haiku) y cualquier modelo nuevo caía en "other".
         var key = ModelFamily.FromId(r.Model);
-        w.CostByModel[key] = w.CostByModel.GetValueOrDefault(key) + cost;
+        w.CostByModel[key] = w.CostByModel.GetValueOrDefault(key) + (priced ? cost : 0);
+        if (!priced) w.UnpricedModels.Add(key);
         w.TokensByModel[key] = w.TokensByModel.GetValueOrDefault(key) + r.TotalTokens;
     }
 
@@ -84,6 +98,9 @@ public static class UsageAggregator
                 w.TokensByModel.GetValueOrDefault(ModelFamily.Other) + w.TokensByModel.GetValueOrDefault(key);
             w.CostByModel.Remove(key);
             w.TokensByModel.Remove(key);
+            // T13b: el marcador "sin tarifa" viaja con la fusión; IsUnpriced solo lo expone si Otros
+            // queda sin gasto tarifado (si acumula $ reales se enseña el dinero, no "—").
+            if (w.UnpricedModels.Remove(key)) w.UnpricedModels.Add(ModelFamily.Other);
         }
     }
 }

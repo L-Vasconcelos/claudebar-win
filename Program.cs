@@ -194,7 +194,8 @@ internal static class Program
             sb.AppendLine($"-- estimated spend ({snap.SpendDays}d, API-equiv) --");
             sb.AppendLine($"  total: ${s.CostUsd:0.00}  ({s.Messages} turns)");
             foreach (var kv in s.CostByModel.OrderByDescending(k => k.Value))
-                sb.AppendLine($"     {kv.Key,-7}: ${kv.Value:0.00}");
+                // T13b: familia sin tarifa en el catálogo → "—" (no mentir con $0.00), como en la UI.
+                sb.AppendLine($"     {kv.Key,-7}: " + (s.IsUnpriced(kv.Key) ? "— (no rate)" : $"${kv.Value:0.00}"));
         }
 
         var text = sb.ToString();
@@ -282,6 +283,10 @@ internal static class Program
         spend.CostByModel[ModelFamily.FromId("claude-sonnet-4-5")] = 35.20;
         spend.CostByModel[ModelFamily.FromId("claude-fable-5")] = 24.10;
         spend.CostByModel[ModelFamily.FromId("claude-haiku-4-5-20251001")] = 1.10;
+        // T13b: familia SIN tarifa en ninguna fuente del catálogo — la fila pinta "— <sin tarifa>"
+        // y NO suma al total (no se miente con $0).
+        spend.CostByModel[ModelFamily.FromId("claude-mythos-1")] = 0;
+        spend.UnpricedModels.Add(ModelFamily.FromId("claude-mythos-1"));
 
         var paceFive = new PaceResult("5h", 62, 1.30, 47.7,
             new DateTimeOffset(now.AddHours(1).AddMinutes(10), TimeSpan.Zero),
@@ -754,6 +759,19 @@ internal static class Program
             bmpF.Save(Path.Combine(dir, "families-dynamic.png"));
         }
 
+        // ---- QA T13b: toggle "Actualizar tarifas online" (sección SISTEMA, al fondo de ajustes) ----
+        // Scroll al máximo para ver el toggle de privacidad del catálogo de tarifas con su subtítulo.
+        {
+            using var formP = new DashboardForm();
+            formP.PrepareForRender(snap, AppConfig.Load(), plan, buckets, pct, ChartRange.Hours5);
+            formP.ShowSettings();
+            using var bmpP = new Bitmap(formP.Width, formP.Height);
+            formP.DrawToBitmap(bmpP, new Rectangle(0, 0, formP.Width, formP.Height)); // 1ª pasada: puebla el overflow
+            formP.SetSettingsScrollForRender(formP.SettingsMaxScrollForRender);
+            formP.DrawToBitmap(bmpP, new Rectangle(0, 0, formP.Width, formP.Height));
+            bmpP.Save(Path.Combine(dir, "settings-system-pricing.png"));
+        }
+
         // Mascota: sesiones en vivo ON para verla en la cabecera.
         cfg.LiveSessionsEnabled = true;
         cfg.ShowMascot = true;
@@ -833,6 +851,7 @@ internal static class Program
 
         Console.WriteLine("rendered data.png + settings.png + mascot.png + tray-badges.png");
         Console.WriteLine("       + chart-tabs-light.png + settings-hover-clip.png + families-dynamic.png");
+        Console.WriteLine("       + settings-system-pricing.png");
         Console.WriteLine("       + motion-0/90/200.png + hover.png + mascot-*.png + celebration.png + reduce-motion.png");
         Console.WriteLine(dir);
     }

@@ -190,6 +190,10 @@ public static class DashboardSettingsView
         // (el ciclo de idioma se trae aquí desde su antigua sección suelta: una sola pantalla, menos cabeceras).
         y = SectionHeader(g, draw, s.MenuSystem, x, y, w, theme, smallFont);
         y = ToggleRow(g, draw, "toggle:Startup", s.StartWithWindows, null, StartupManager.IsEnabled(), x, y, w, theme, labelFont, smallFont, rects);
+        // T13b: toggle de privacidad del catálogo de tarifas. Subtítulo honesto: solo se descargan
+        // precios públicos de models.dev, no sale nada del usuario (el sello del footer no cambia).
+        y = ToggleRow(g, draw, "toggle:PricingOnline", s.PricingOnlineUpdate, s.PricingOnlineUpdateSubtitle,
+            cfg.PricingOnlineUpdate, x, y, w, theme, labelFont, smallFont, rects);
         y = CycleRow(g, draw, "cycle:lang", s.Language,
             Localization.LanguageDisplayName(cfg.Language, s), x, y, w, theme, smallFont, rects);
 
@@ -232,6 +236,7 @@ public static class DashboardSettingsView
             case "toggle:Sticky": return c => c.DashboardSticky = !c.DashboardSticky;
             case "toggle:OnTop": return c => c.DashboardAlwaysOnTop = !c.DashboardAlwaysOnTop;
             case "toggle:ReduceMotion": return c => c.ReduceMotion = !c.ReduceMotion;
+            case "toggle:PricingOnline": return c => c.PricingOnlineUpdate = !c.PricingOnlineUpdate;
             case "toggle:Startup": return _ => StartupManager.Toggle();
 
             case "theme:system": return c => c.Theme = "system";

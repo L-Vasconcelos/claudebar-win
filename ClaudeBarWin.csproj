@@ -32,6 +32,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="hooks\claudebar-hook.ps1" />
+    <!-- T13b: snapshot de tarifas (models.dev, provider anthropic) — respaldo offline del catálogo. -->
+    <EmbeddedResource Include="Resources\models-pricing-snapshot.json" />
   </ItemGroup>
 
   <!-- The test project lives in a subfolder; exclude it from the root project's default glob. -->

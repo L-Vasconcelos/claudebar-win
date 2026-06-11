@@ -2237,4 +2237,37 @@ public class DashboardSettingsViewTests
                 $"{grp}: el chip más a la derecha no respeta el margen de seguridad (right={rightmost})");
         }
     }
+
+    // ---------------- T13b: toggle de privacidad "Actualizar tarifas online" ----------------
+
+    [Fact]
+    public void Draw_pricing_online_toggle_lives_in_system_section()
+    {
+        // El toggle vive en SISTEMA (debajo de Arrancar con Windows, como Idioma) y registra su rect.
+        using var bmp = NewBmp();
+        using var g = Graphics.FromImage(bmp);
+        var cfg = Cfg();
+        var s = Localization.Get("es");
+        var rects = new Dictionary<string, Rectangle>();
+
+        DashboardSettingsView.Draw(g, draw: true, X, 0, W, cfg, s, Theme.Dark,
+            Typography.Body, Typography.Caption, rects);
+
+        Assert.True(rects.TryGetValue("toggle:PricingOnline", out var pricing),
+            "falta el toggle de tarifas online en ajustes");
+        Assert.True(rects.TryGetValue("toggle:Startup", out var startup));
+        Assert.True(pricing.Y > startup.Y, "Tarifas online va dentro de SISTEMA, debajo de Arrancar con Windows");
+    }
+
+    [Fact]
+    public void ActionFor_pricing_online_alterna_la_config()
+    {
+        var cfg = new AppConfig();
+        Assert.True(cfg.PricingOnlineUpdate); // default ON (precios públicos; no sale nada del usuario)
+
+        DashboardSettingsView.ActionFor("toggle:PricingOnline")!(cfg);
+        Assert.False(cfg.PricingOnlineUpdate);
+        DashboardSettingsView.ActionFor("toggle:PricingOnline")!(cfg);
+        Assert.True(cfg.PricingOnlineUpdate);
+    }
 }
