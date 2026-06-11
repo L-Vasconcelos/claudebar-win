@@ -93,6 +93,91 @@ public static class TrayIconRenderer
     /// <summary>Opacidad del velo de atenuación del badge stale (sobre 255).</summary>
     private const int StaleAlpha = 150;
 
+    /// <summary>Lado del lienzo del badge en px (alta resolución; Windows lo reescala al tray).</summary>
+    private const int BadgeSize = 48;
+
+    /// <summary>
+    /// Tamaño de fuente (px) de un número de 1-2 dígitos: llena la altura del badge sin desbordar.
+    /// El caso de 3 caracteres ("99+") NO usa un literal fijo (antes 18px, el peor caso de
+    /// legibilidad): se calcula por fit-to-box (<see cref="FitFontPx"/>) para llenar la caja igual
+    /// que un número normal en vez de quedar diminuto.
+    /// </summary>
+    private const float BadgeFontPx = 30f;
+
+    /// <summary>
+    /// Caja útil (px) que la ALTURA del texto del badge debe llenar dentro del lienzo de
+    /// <see cref="BadgeSize"/>: deja margen para el redondeo del relleno y los overlays de esquina
+    /// (forma/punto). El fit-to-box de "99+" ajusta el tamaño de fuente para que la tinta ocupe ~este
+    /// alto sin desbordar el ancho del rectángulo de dibujo.
+    /// </summary>
+    private const float BadgeTextBox = 40f;
+
+    /// <summary>
+    /// Ancho máximo (px) que la cadena DIBUJADA puede ocupar = el lado del rectángulo de dibujo
+    /// (<see cref="BadgeSize"/>) menos un pequeño margen de seguridad. Es el límite que evita que GDI+
+    /// recorte el '+' de "99+": el ancho se mide con el MISMO formato del dibujo (side bearing real).
+    /// </summary>
+    private const float BadgeTextMaxWidth = BadgeSize - 2f;
+
+    /// <summary>Suelo del fit-to-box: nunca por debajo del 18px histórico aunque la caja sea estrecha.</summary>
+    private const float BadgeFontMinPx = 18f;
+
+    /// <summary>
+    /// Mayor tamaño de fuente (px) con el que <paramref name="text"/> llena una caja de alto
+    /// <paramref name="box"/> px SIN que la cadena, al dibujarse, desborde el ancho del rectángulo del
+    /// badge. Parte de <see cref="BadgeFontPx"/> hacia abajo y nunca baja de <see cref="BadgeFontMinPx"/>.
+    /// Para 1-2 dígitos cabe de sobra y devuelve <see cref="BadgeFontPx"/>; para "99+" se reescala para
+    /// llenar la caja (~22-24px) en lugar del 18px fijo histórico.
+    /// <para>
+    /// CRÍTICO (regresión v039 g4): el ANCHO se mide con el MISMO <see cref="StringFormat"/> con el que
+    /// luego se DIBUJA (<see cref="DrawBadgeFormat"/>, derivado de <c>GenericDefault</c> → incluye el
+    /// side bearing real ≈1/6 em por lado) y se limita al ancho del rectángulo de dibujo
+    /// (<see cref="BadgeTextMaxWidth"/>), NO a una caja artificial de 40px. Antes el ancho se medía con
+    /// <c>GenericTypographic</c> (sin side bearing) contra 40px: al subir la fuente, la cadena dibujada
+    /// desbordaba el rectángulo por la derecha y GDI+ RECORTABA el '+', dejando "99" indistinguible de un
+    /// 99% real y anulando el indicador de overflow. El ALTO se mide tipográficamente (tinta ceñida) para
+    /// que "llenar la caja" no quede a merced del leading de la fuente.
+    /// </para>
+    /// </summary>
+    public static float FitFontPx(Graphics g, string text, float box)
+    {
+        using var sf = DrawBadgeFormat();
+        return FitFontPx(g, text, box, sf);
+    }
+
+    /// <summary>
+    /// Variante que mide el ANCHO con el <paramref name="drawFormat"/> exacto del dibujo (mismas
+    /// métricas de side bearing) para que el tamaño elegido no haga que GDI+ recorte el texto, y el
+    /// ALTO tipográficamente (ceñido a la tinta) para llenar la caja del badge.
+    /// </summary>
+    public static float FitFontPx(Graphics g, string text, float box, StringFormat drawFormat)
+    {
+        using var probe = new Font("Segoe UI", BadgeFontPx, FontStyle.Bold, GraphicsUnit.Pixel);
+        // Ancho: con el formato REAL del dibujo → refleja lo que GDI+ va a pintar (side bearing incl.).
+        float drawnWidth = g.MeasureString(text, probe, int.MaxValue, drawFormat).Width;
+        // Alto: tipográfico (ceñido a la tinta) → llenar la caja sin que el leading lo encoja de más.
+        float inkHeight = g.MeasureString(text, probe, int.MaxValue, StringFormat.GenericTypographic).Height;
+        if (drawnWidth <= 0 || inkHeight <= 0) return BadgeFontPx;
+        // El factor limitante: o el alto no llena la caja, o el ancho dibujado desbordaría el badge.
+        float scale = Math.Min(box / inkHeight, BadgeTextMaxWidth / drawnWidth);
+        // Solo encogemos: un número de 1-2 dígitos ya cabe (scale ≥ 1) y conserva BadgeFontPx.
+        float fontPx = scale >= 1f ? BadgeFontPx : BadgeFontPx * scale;
+        return Math.Max(BadgeFontMinPx, fontPx);
+    }
+
+    /// <summary>
+    /// <see cref="StringFormat"/> con el que se MIDE el ancho y se DIBUJA el texto del badge (deben
+    /// coincidir): centrado H/V y NoWrap (deja "99+" en una sola línea, no "99 / +"). Basado en
+    /// <c>GenericDefault</c> — el que usa <c>DrawString</c> por defecto, con el side bearing que el
+    /// fit-to-box debe contemplar para no recortar. El llamador lo libera (<c>using</c>).
+    /// </summary>
+    private static StringFormat DrawBadgeFormat() => new(StringFormat.GenericDefault)
+    {
+        Alignment = StringAlignment.Center,
+        LineAlignment = StringAlignment.Center,
+        FormatFlags = StringFormatFlags.NoWrap
+    };
+
     /// <summary>
     /// Relleno EFECTIVO del badge stale: el velo translúcido (<see cref="StaleAlpha"/>) PRE-COMPUESTO
     /// a opaco contra el color asumido de la barra de tareas (<see cref="TaskbarColors"/>). Pintar con
@@ -109,7 +194,7 @@ public static class TrayIconRenderer
         Color pendingDot, bool taskbarLight = false)
     {
         // Render at high resolution (48px) so Windows downscales to a crisp tray icon on any DPI.
-        const int size = 48;
+        const int size = BadgeSize;
         using var bmp = new Bitmap(size, size);
         using (var g = Graphics.FromImage(bmp))
         {
@@ -129,15 +214,14 @@ public static class TrayIconRenderer
             // clara/oscura también cuando el badge está atenuado por stale.
             Color textColor = ColorMath.Contrast(fillColor);
             // Larger glyph that fills more of the badge → readable even when shrunk into the tray.
-            // 3-char ("99+") gets a smaller size and NoWrap so it stays on a single line (no "99 / +").
-            float fontPx = text.Length >= 3 ? 18f : 30f;
+            // Fit-to-box: 1-2 dígitos llenan a BadgeFontPx; "99+" (3 chars) se REESCALA para llenar la
+            // caja (~22-24px) en vez del 18px fijo histórico — su peor caso de legibilidad. NoWrap deja
+            // "99+" en una sola línea (no "99 / +"). El tamaño ya no es un literal mágico (F9).
+            // El MISMO sf mide y dibuja: el fit contempla el side bearing real, así "99+" no se recorta
+            // por la derecha (regresión v039 g4: con métricas distintas GDI+ comía el '+').
+            using var sf = DrawBadgeFormat();
+            float fontPx = FitFontPx(g, text, BadgeTextBox, sf);
             using var font = new Font("Segoe UI", fontPx, FontStyle.Bold, GraphicsUnit.Pixel);
-            using var sf = new StringFormat
-            {
-                Alignment = StringAlignment.Center,
-                LineAlignment = StringAlignment.Center,
-                FormatFlags = StringFormatFlags.NoWrap
-            };
             using (var textBrush = new SolidBrush(textColor))
                 g.DrawString(text, font, textBrush, new RectangleF(0, -2f, size, size), sf);
 
@@ -164,8 +248,17 @@ public static class TrayIconRenderer
                 using (var clear = new SolidBrush(Color.Transparent))
                     g.FillEllipse(clear, gap);
                 g.CompositingMode = cm;
-                using var fill = new SolidBrush(pendingDot);
-                g.FillEllipse(fill, dot);
+                using (var fill = new SolidBrush(pendingDot))
+                    g.FillEllipse(fill, dot);
+
+                // F8 (§3 #15 redux): el punto de atención SUPRIMÍA la forma daltónica, así que un
+                // Critical+pend (caso real: TrayAppContext pasa status + pending a la vez) quedaba
+                // distinguible SOLO por color. Recuperamos la redundancia no-cromática dibujando la
+                // silueta del estado (▲ Warn / ◆ Critical) DENTRO del punto, en el color de contraste
+                // del ámbar. Ok→círculo = sin glifo (el punto ya es un círculo). Pequeña (cabe en d=10)
+                // y centrada en el punto: no toca el dígito (vive en la esquina superior, fuera de la
+                // caja de tinta) ni descuadra el badge.
+                DrawPendShape(g, Tray.ShapeFor(status), pendingDot, dot);
             }
         }
 
@@ -214,6 +307,44 @@ public static class TrayIconRenderer
                 new Point(cx + s, cy + s / 2),
                 new Point(cx + s / 2, cy + s),
                 new Point(cx, cy + s / 2),
+            };
+            g.FillPolygon(brush, rho);
+        }
+    }
+
+    /// <summary>
+    /// F8: dibuja la silueta del estado (▲ Warn / ◆ Critical) DENTRO del punto de atención, en el color
+    /// que contrasta con el ámbar del punto, para que un badge "pending" siga siendo distinguible por
+    /// forma y no solo por color. Circle (Ok) no dibuja glifo: el propio punto ya es un círculo, así que
+    /// la redundancia no-cromática ya existe. La forma es pequeña (cabe holgada en el punto de d≈10) y se
+    /// centra en él con anti-aliasing en float; queda en la esquina superior derecha, lejos del dígito.
+    /// </summary>
+    private static void DrawPendShape(Graphics g, TrayShape shape, Color dotColor, Rectangle dot)
+    {
+        if (shape == TrayShape.Circle) return; // Ok: el punto ya ES un círculo, redundancia cubierta.
+
+        float cx = dot.Left + dot.Width / 2f;
+        float cy = dot.Top + dot.Height / 2f;
+        float r = dot.Width * 0.30f; // radio de la silueta: ~3px en un punto de 10px → cabe sin tocar el aro
+        using var brush = new SolidBrush(ColorMath.Contrast(dotColor));
+        if (shape == TrayShape.Triangle)
+        {
+            var tri = new[]
+            {
+                new PointF(cx, cy - r),
+                new PointF(cx + r, cy + r),
+                new PointF(cx - r, cy + r),
+            };
+            g.FillPolygon(brush, tri);
+        }
+        else // Rhombus
+        {
+            var rho = new[]
+            {
+                new PointF(cx, cy - r),
+                new PointF(cx + r, cy),
+                new PointF(cx, cy + r),
+                new PointF(cx - r, cy),
             };
             g.FillPolygon(brush, rho);
         }
