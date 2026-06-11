@@ -36,8 +36,10 @@ public static class DashboardDataView
         0 => b.Opus, 1 => b.Sonnet, 2 => b.Haiku, _ => b.Other
     };
 
-    internal const int ChartH = 92;
-    internal const int ChartFooter = 32;
+    // T11: alto del plot y del pie de la gráfica en px de diseño (96 DPI) proyectados al DPI vigente
+    // (las etiquetas del eje/leyenda crecen con la fuente; el plot debe crecer con ellas).
+    internal static int ChartH => Dpi.Scale(92);
+    internal static int ChartFooter => Dpi.Scale(32);
 
     /// <summary>
     /// Número de secciones de datos realmente visibles (cuota siempre; sesiones/gasto/gráfica según
@@ -145,21 +147,22 @@ public static class DashboardDataView
         if (shift) g.TranslateTransform(0, offsetY);
         try
         {
-            var r = new Rectangle(x, y, w, 18);
+            // T11: la fila de cabecera plegable (hit-rect + avance) escala con el DPI.
+            var r = new Rectangle(x, y, w, Dpi.Scale(18));
             rects[key] = r;
             if (draw)
             {
                 using var b = new SolidBrush(theme.TextPrimary);
                 g.DrawString((expanded ? "▾ " : "▸ ") + title, f, b, x, y);
             }
-            y += 22;
+            y += Dpi.Scale(22);
             if (expanded) y = body(y);
         }
         finally
         {
             if (shift) g.TranslateTransform(0, -offsetY);
         }
-        return y + 6;
+        return y + Dpi.Scale(6);
     }
 
     // ---------------- Cuerpos de sección (movidos de DashboardForm.cs, lógica intacta) ----------------
@@ -177,16 +180,17 @@ public static class DashboardDataView
                 string msg = snap is null ? s.Loading : UsageFormat.StateMessage(snap.LatestState, s);
                 g.DrawString(msg, labelFont, dim, x, y);
             }
-            return y + 24;
+            return y + Dpi.Scale(24);
         }
 
         // Override eased del ancho/número (color por objetivo): muestrea el MotionState por clave de barra.
         double? d5 = SampledUtil(motion, "bar:5h", usage.FiveHour, reduceMotion);
         double? d7 = SampledUtil(motion, "bar:7d", usage.SevenDay, reduceMotion);
+        // T11: el aire entre barras escala con el DPI (los px del plan de auditoría: 22/16/14/BarH).
         y = QuotaBar.Draw(g, draw, $"{s.SessionWord} (5h)", usage.FiveHour, snap?.PaceFive, x, y, w, cfg, s, theme, labelFont, smallFont, fg, dim, d5);
-        y += 16;
+        y += Dpi.Scale(16);
         y = QuotaBar.Draw(g, draw, $"{s.WeekWord} (7d)", usage.SevenDay, snap?.PaceSeven, x, y, w, cfg, s, theme, labelFont, smallFont, fg, dim, d7);
-        y += 14;
+        y += Dpi.Scale(14);
 
         y = DrawPace(g, draw, snap, s, theme, x, y, w, smallFont);
 
@@ -203,7 +207,7 @@ public static class DashboardDataView
             using var muted = new SolidBrush(theme.TextMuted);
             g.DrawString(s.RollingHint, Typography.Caption, muted, x, y);
         }
-        y += 16;
+        y += Dpi.Scale(16);
         // Aire extra al cierre de la sección Cuota: despega el bloque de modelos/hint del ACORDEÓN de abajo
         // (la mini-fila Sonnet 7d ya no queda pegada a la siguiente cabecera plegable). P2 #4.
         y += Spacing.Sm;
@@ -248,7 +252,7 @@ public static class DashboardDataView
         if (spend is null || spend.CostByModel.Count == 0) return y;
 
         if (draw) g.DrawString(string.Format(s.SpendHeaderFormat, snap!.SpendDays), smallFont, dim, x, y);
-        y += 18;
+        y += Dpi.Scale(18); // T11: filas de texto del gasto escalan con el DPI
         foreach (var kv in spend.CostByModel.OrderByDescending(k => k.Value))
         {
             if (draw)
@@ -260,7 +264,7 @@ public static class DashboardDataView
                 g.DrawString(shownKey, labelFont, fg, x, y);
                 g.DrawString(val, Typography.Mono, dim, valX, y, TextMetrics.Typographic);
             }
-            y += 20;
+            y += Dpi.Scale(20);
         }
         return y;
     }
@@ -272,7 +276,7 @@ public static class DashboardDataView
         var pf = snap?.PaceFive;
         var ps = snap?.PaceSeven;
         if (pf is null && ps is null) return y;
-        if (!draw) return y + 18;
+        if (!draw) return y + Dpi.Scale(18); // T11: misma fila escalada que la rama de pintado
 
         var worst = (PaceStatus)Math.Max((int)(pf?.Status ?? PaceStatus.Ok), (int)(ps?.Status ?? PaceStatus.Ok));
         // Línea de pace = TEXTO pequeño: variantes AA WarnText/CriticalText (T6b), no los rellenos
@@ -295,13 +299,14 @@ public static class DashboardDataView
 
         using var br = new SolidBrush(c);
         g.DrawString(text, smallFont, br, x, y);
-        return y + 18;
+        return y + Dpi.Scale(18);
     }
 
     // Mini-fila de modelo (Opus/Sonnet 7d): alto de la línea de texto + barrita de referencia + su gap.
-    private const int ModelLineTextH = 16;   // alto de la línea etiqueta/%
-    private const int ModelBarH = 4;         // barrita de referencia fina (mini-cuota)
-    private const int ModelBarRadius = 2;
+    // T11: en px de diseño (96 DPI), proyectados al DPI vigente (a factor 1.0, idénticos a los const).
+    private static int ModelLineTextH => Dpi.Scale(16);   // alto de la línea etiqueta/%
+    private static int ModelBarH => Dpi.Scale(4);         // barrita de referencia fina (mini-cuota)
+    private static int ModelBarRadius => Dpi.Scale(2);
 
     /// <summary>
     /// Mini-fila de cuota por modelo (Opus/Sonnet 7d): etiqueta a la izquierda + % a la derecha y, debajo,
@@ -359,13 +364,13 @@ public static class DashboardDataView
         if (view.Instances.Count == 0)
         {
             if (draw) g.DrawString(s.NoActiveSessions, smallFont, dim, x, y);
-            y += 18;
+            y += Dpi.Scale(18);
         }
         else
         {
             foreach (var inst in view.Instances)
             {
-                var rect = new Rectangle(x, y, w, 16);
+                var rect = new Rectangle(x, y, w, Dpi.Scale(16)); // T11: fila clicable escalada
                 if (draw)
                 {
                     // T8b (§3 #14): el nombre de proyecto se elide contra la fase right-aligned
@@ -376,7 +381,7 @@ public static class DashboardDataView
                     g.DrawString(st, smallFont, dim, phaseX, y, TextMetrics.Typographic);
                 }
                 liveRowRects[inst.SessionId] = rect;
-                y += 18;
+                y += Dpi.Scale(18);
             }
         }
         return y;
@@ -410,7 +415,7 @@ public static class DashboardDataView
         DrawSegments(g, draw, tabFont, theme,
             new[] { (s.ChartTabSpend, "spend"), (s.ChartTabPct, "percent") }, chartMode,
             x + w, y - 1, rightAlign: true, modeRects);
-        y += 18;
+        y += Dpi.Scale(18); // T11: fila del toggle de modo escalada
 
         // Range tabs (left) — T7a (§3 #5): mismos chips que el resto del panel vía DrawSegments (alto
         // 18, radio 4, padX 7, gap 3 y borde Separator en el inactivo — antes BgElevated puro con
@@ -426,7 +431,7 @@ public static class DashboardDataView
             DrawSegments(g, draw, tabFont, theme,
                 new[] { ("5h", "5h"), ("7d", "7d") }, chartPctWindow,
                 x + w, y, rightAlign: true, pctWinRects);
-        y += 26;
+        y += Dpi.Scale(26); // T11: fila de tabs de rango escalada
 
         return pct
             ? DrawPercentBody(g, draw, x, y, w, s, theme, cfg, smallFont, chartRange, chartPctWindow, pctData, chartLoading, dim)
@@ -520,7 +525,8 @@ public static class DashboardDataView
         (string label, TKey key)[] segs, TKey activeKey, int anchorX, int y,
         bool rightAlign, Dictionary<TKey, Rectangle> rects) where TKey : notnull
     {
-        const int gap = 3, h = 18, padX = 7;
+        const int gap = 3, padX = 7;
+        int h = Dpi.Scale(18); // T11: el alto del chip escala con el DPI (el texto centrado ya crecía)
         var widths = segs.Select(seg => (int)g.MeasureString(seg.label, font).Width + padX * 2).ToArray();
         int total = widths.Sum() + gap * (segs.Length - 1);
         int sx = rightAlign ? anchorX - total : anchorX;
@@ -575,7 +581,7 @@ public static class DashboardDataView
         var totalRect = new RectangleF(x, top - 1, totalSz.Width, totalSz.Height);
 
         float X(int i) => n == 1 ? x + w / 2f : x + (float)i * w / (n - 1);
-        float Y(double v) => bottom - (float)(v / max) * (ChartH - 14);
+        float Y(double v) => bottom - (float)(v / max) * (ChartH - Dpi.Scale(14)); // T11: headroom escalado
 
         var baseline = new double[n];
         for (int sIdx = 0; sIdx < Series.Length; sIdx++)
@@ -618,7 +624,9 @@ public static class DashboardDataView
         foreach (int k in VisibleAxisLabels(axisLabels.Select(l => (l.lx, l.lw)).ToArray(), Spacing.Xs))
             g.DrawString(axisLabels[k].text, smallFont, dim, axisLabels[k].lx, bottom + 2);
 
-        int lx = x, ly = bottom + 16;
+        // T11: la leyenda escala con el DPI (la fila del eje X crece con la fuente; sin escalar, la
+        // leyenda a bottom+16 fijos se montaría sobre las etiquetas a 125/150%).
+        int lx = x, ly = bottom + Dpi.Scale(16);
         for (int sIdx = 0; sIdx < Series.Length; sIdx++)
         {
             bool any = false;
@@ -627,10 +635,11 @@ public static class DashboardDataView
             using var sw = new SolidBrush(Series[sIdx].color);
             // T4c: swatch en ly+4 (antes ly+2) — quedaba ~2px alto respecto al centro óptico del texto
             // de la leyenda (caja de mayúsculas del Caption ≈ [ly+4, ly+13]; el cuadrado centraba en
-            // ly+6.5 en vez de ≈ly+8.5). Mismo tamaño 9×9; solo baja el anclaje vertical.
-            g.FillRectangle(sw, lx, ly + 4, 9, 9);
-            g.DrawString(Series[sIdx].name, smallFont, dim, lx + 12, ly);
-            lx += 12 + (int)g.MeasureString(Series[sIdx].name, smallFont).Width + 10;
+            // ly+6.5 en vez de ≈ly+8.5). Mismo tamaño 9×9; solo baja el anclaje vertical. (T11: todo
+            // en px de diseño escalados — a factor 1.0, idéntico.)
+            g.FillRectangle(sw, lx, ly + Dpi.Scale(4), Dpi.Scale(9), Dpi.Scale(9));
+            g.DrawString(Series[sIdx].name, smallFont, dim, lx + Dpi.Scale(12), ly);
+            lx += Dpi.Scale(12) + (int)g.MeasureString(Series[sIdx].name, smallFont).Width + Dpi.Scale(10);
         }
         return bottom + ChartFooter;
     }
@@ -661,7 +670,7 @@ public static class DashboardDataView
         double current = pts[^1].v;
 
         float X(int i) => n == 1 ? x + w / 2f : x + (float)i * w / (n - 1);
-        float Y(double v) => bottom - (float)(Math.Clamp(v, 0, 100) / 100.0) * (ChartH - 14);
+        float Y(double v) => bottom - (float)(Math.Clamp(v, 0, 100) / 100.0) * (ChartH - Dpi.Scale(14)); // T11
 
         Color status = ColorMath.RiskColor(peak, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
 

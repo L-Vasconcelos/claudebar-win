@@ -35,8 +35,10 @@ public static class DashboardSettingsView
     public const int MaxPanelHeightPct = 65;
     /// <summary>Píxeles de desplazamiento por "diente" de rueda (delta 120).</summary>
     public const int WheelStepPx = 48;
-    /// <summary>Ancho de la barrita de scroll (px) y su margen al borde derecho.</summary>
-    public const int ScrollBarW = 4, ScrollBarMargin = 4;
+    /// <summary>Ancho de la barrita de scroll y su margen al borde derecho (T11: px de diseño a
+    /// 96 DPI proyectados al DPI vigente; a factor 1.0 valen 4/4 como las const históricas).</summary>
+    public static int ScrollBarW => Dpi.Scale(4);
+    public static int ScrollBarMargin => Dpi.Scale(4);
 
     /// <summary>Acota el scroll a [0, contentH - viewportH]; 0 si el contenido cabe entero.</summary>
     internal static int ClampScroll(int scroll, int contentH, int viewportH)
@@ -86,7 +88,7 @@ public static class DashboardSettingsView
     internal static Rectangle ThumbRect(int trackX, int trackTop, int viewportH, int contentH, int scroll)
     {
         if (contentH <= viewportH || viewportH <= 0) return Rectangle.Empty;
-        int thumbH = Math.Max(24, (int)((long)viewportH * viewportH / contentH));
+        int thumbH = Math.Max(Dpi.Scale(24), (int)((long)viewportH * viewportH / contentH)); // T11: mínimo agarrable escalado
         thumbH = Math.Min(thumbH, viewportH);
         int maxScroll = contentH - viewportH;
         int maxThumbTravel = viewportH - thumbH;
@@ -107,8 +109,10 @@ public static class DashboardSettingsView
     /// </summary>
     internal static Rectangle BackHitRect(Graphics g, string label, Font f, int x, int y, int w)
     {
+        // T11: la zona cómoda mínima y el alto escalan con el DPI (el texto medido ya crece solo).
         int textW = (int)Math.Ceiling(g.MeasureString(label, f).Width);
-        return new Rectangle(x, y, Math.Min(Math.Max(BackMinHitW, textW), Math.Max(1, w)), BackHitH);
+        return new Rectangle(x, y,
+            Math.Min(Math.Max(Dpi.Scale(BackMinHitW), textW), Math.Max(1, w)), Dpi.Scale(BackHitH));
     }
 
     /// <summary>Dibuja el panel y registra rects clicables con clave de acción. Devuelve nuevo y.
@@ -315,10 +319,11 @@ public static class DashboardSettingsView
     internal const int SectionGap = Spacing.Xl;   // 24 — aire sobre cada cabecera
     internal const int RowGap = Spacing.Md;       // 12 — separación entre filas
     // Alto de contenido de una fila estándar de 1 línea; el avance suma RowGap entre filas.
-    private const int RowContentHeight = 18;
+    // T11: en px de diseño (96 DPI) proyectados al DPI vigente (a factor 1.0, idénticos a las const).
+    private static int RowContentHeight => Dpi.Scale(18);
     private static int RowAdvance => RowContentHeight + RowGap;       // fila estándar = alto + rowGap
-    // Alto de un bloque de segmentos (coincide con DashboardDataView.DrawSegments: h=18).
-    private const int SegmentHeight = 18;
+    // Alto de un bloque de segmentos (coincide con DashboardDataView.DrawSegments: h=18 escalado).
+    private static int SegmentHeight => Dpi.Scale(18);
     private static int SegmentRowAdvance => SegmentHeight + RowGap;   // fila de segmentos = alto + rowGap
     // Separación vertical entre las dos hileras cuando una fila de segmentos ENVUELVE (intra-control,
     // más apretada que rowGap: las 2 hileras son el MISMO control).
@@ -326,9 +331,10 @@ public static class DashboardSettingsView
 
     // -------- TogglePill: cápsula+knob dibujada (sustituye ☑/☐) sobre rejilla 8pt --------
     // Track de 36×20 (múltiplos de 4) con knob circular ligeramente menor que el alto del track.
-    private const int PillTrackW = 36;
-    private const int PillTrackH = 20;
-    private const int PillKnobInset = 2;                       // holgura del knob dentro del track
+    // T11: px de diseño escalados al DPI vigente (la pill crecía menos que el texto y se descentraba).
+    private static int PillTrackW => Dpi.Scale(36);
+    private static int PillTrackH => Dpi.Scale(20);
+    private static int PillKnobInset => Dpi.Scale(2);          // holgura del knob dentro del track
     private static int PillKnobDiameter => PillTrackH - PillKnobInset * 2;
 
     /// <summary>
@@ -459,8 +465,8 @@ public static class DashboardSettingsView
     // -------- StatusBadge: cápsula semántica de estado (Activas/Instalar) a la derecha de la fila --------
     // Padding interno horizontal del badge (reusa la geometría de chip de DrawSegments → un solo lenguaje).
     private const int BadgePadX = SegPadX;
-    // Alto del badge sobre la rejilla 8pt (coincide con el alto de un chip de segmento).
-    private const int BadgeHeight = SegmentHeight;
+    // Alto del badge sobre la rejilla 8pt (coincide con el alto de un chip de segmento, ya escalado).
+    private static int BadgeHeight => SegmentHeight;
     private const int BadgeRadius = 4;
 
     /// <summary>
@@ -751,7 +757,7 @@ public static class DashboardSettingsView
     private static int ButtonRow(Graphics g, bool draw, string key, string label, Color accent,
         int x, int y, int w, Theme theme, Font f, Dictionary<string, Rectangle> rects)
     {
-        const int h = 28;
+        int h = Dpi.Scale(28); // T11: alto del botón escalado con el DPI
         var r = new Rectangle(x, y, w, h);
         rects[key] = r;
         if (draw)

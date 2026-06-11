@@ -81,8 +81,9 @@ public static class DashboardHeader
     {
         // 1) botón ⚙ arriba a la derecha (siempre): botón con fondo redondeado + engranaje como path
         //    GDI+ con AA (T9c, §3 #12 — el glifo MDL2 se rasterizaba como texto ClearType: borroso y
-        //    con franjas de color, peor en tema claro).
-        const int gearSize = 24;
+        //    con franjas de color, peor en tema claro). T11: el botón escala con el DPI (los radios
+        //    del path ya eran proporcionales a bounds, así que el icono sigue nítido a 125/150%).
+        int gearSize = Dpi.Scale(24);
         var gear = new Rectangle(x + w - gearSize, y, gearSize, gearSize);
         gearRect = gear;
         if (draw)
@@ -188,17 +189,18 @@ public static class DashboardHeader
             };
             if (draw)
             {
+                // T11: punto de salud y su sangría escalan con el DPI (solo pintado: no tocan el y).
                 using var dot = new SolidBrush(hc);
-                g.FillEllipse(dot, textX, ty + 4, 8, 8);
+                g.FillEllipse(dot, textX, ty + Dpi.Scale(4), Dpi.Scale(8), Dpi.Scale(8));
                 using var b = new SolidBrush(theme.TextSecondary);
                 // Estado de servicio ("Operativo"). Anti-corte: se envuelve/encoge dentro del ancho útil
                 // (texto corto; FitHeaderLine deja margen derecho ≥ Spacing.Md). Determinista (medir==pintar).
-                int hlX = textX + 12;
+                int hlX = textX + Dpi.Scale(12);
                 string hlShown = FitHeaderLine(hl, hlX, rightX, Spacing.Md, t => g.MeasureString(t, smallFont).Width);
                 g.DrawString(hlShown, smallFont, b, hlX, ty);
             }
         }
-        ty += 16;
+        ty += Dpi.Scale(16); // fila de salud (T11: escala con el DPI, como el texto que aloja)
 
         // Glance de cuota crítica = ventana de PEOR estado entre 5h/7d (T5a: Critical > Warn > Ok; a
         // igualdad, mayor %. Antes era "mayor %" a secas y el header enseñaba la semana en verde al 84%
@@ -242,15 +244,20 @@ public static class DashboardHeader
                 using var valBrush = new SolidBrush(c);
                 g.DrawString(right, Typography.Mono, valBrush, valX, ty, TextMetrics.Typographic);
             }
-            ty += 16; // glance de UNA línea
+            ty += Dpi.Scale(16); // glance de UNA línea (T11: escala con el DPI)
         }
 
         // La mascota vive en su banda ARRIBA (ya sumada en `top`), así que el fondo del header es el final
         // del bloque de estado. Divisor de "Cuota" debajo, con la mascota por ENCIMA (P1 #2).
         int bottom = ty;
-        // separador
-        if (draw) { using var p = new Pen(theme.Separator); g.DrawLine(p, x, bottom + 4, x + w, bottom + 4); }
-        return bottom + 10;
+        // separador (T11: el aire del divisor y el avance final escalan con el DPI)
+        if (draw)
+        {
+            using var p = new Pen(theme.Separator);
+            int dy = bottom + Dpi.Scale(4);
+            g.DrawLine(p, x, dy, x + w, dy);
+        }
+        return bottom + Dpi.Scale(10);
     }
 
     /// <summary>

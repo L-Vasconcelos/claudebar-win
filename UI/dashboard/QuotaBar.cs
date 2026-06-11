@@ -11,8 +11,10 @@ namespace ClaudeBarWin.UI;
 /// </summary>
 public static class QuotaBar
 {
-    private const int BarH = 11;
-    private const int BarRadius = 5;
+    // T11: alto/radio de la barra en px de diseño (96 DPI) proyectados al DPI vigente — antes eran
+    // const y al 125/150% la barra quedaba fina respecto al texto crecido. A factor 1.0, idénticos.
+    private static int BarH => Dpi.Scale(11);
+    private static int BarRadius => Dpi.Scale(5);
 
     /// <summary>
     /// Dibuja etiqueta + % + barra + línea de reset y devuelve el nuevo y.
@@ -58,7 +60,7 @@ public static class QuotaBar
             // termina exacta en x+w y toda la columna derecha del panel queda alineada.
             TextMetrics.DrawRight(g, right, Typography.Mono, valBrush, x + w, y);
         }
-        y += 22;
+        y += Dpi.Scale(22); // fila label/% (T11: escala con el DPI, como las fuentes)
 
         if (draw)
         {
@@ -109,7 +111,7 @@ public static class QuotaBar
             line = TextWrap.FitLine(line, x, x + w, 0, t => g.MeasureString(t, smallFont).Width);
             g.DrawString(line, smallFont, dim, x, y);
         }
-        return y + 14;
+        return y + Dpi.Scale(14); // línea de reset (T11)
     }
 }
 

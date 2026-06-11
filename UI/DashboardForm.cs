@@ -235,7 +235,7 @@ public sealed class DashboardForm : Form
     private int _settingsWheelAccum;
     private int _settingsContentH;               // alto real del contenido de ajustes (sin tope)
     private int _settingsViewportTop;            // y donde arranca la zona scrollable (bajo "‹ Ajustes")
-    private const int SettingsViewportBottomPad = 12; // aire entre el final del viewport y el borde
+    private static int SettingsViewportBottomPad => Dpi.Scale(12); // aire entre el final del viewport y el borde (T11)
     private readonly Dictionary<string, Rectangle> _scratchRects = new();   // dict desechable para MEDIR
 
     // Chart
@@ -304,19 +304,62 @@ public sealed class DashboardForm : Form
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    // ---- DPI (T11, §2 P0 #1): geometría base del panel en px de diseño (96 DPI) ----
+    // Las fuentes (en puntos) escalaban solas con el DPI del Graphics; la geometría era px fijos →
+    // al 125/150% el texto crecía dentro de filas que no, con solapes y un panel de 340px enano.
+    // ApplyDpiScale proyecta ancho/padding con Dpi.Scale; el alto lo recalcula Relayout (auto-fit).
+    private const int BaseWidth = 340, BaseHeight = 380, BasePanelPad = 18;
+
     public DashboardForm()
     {
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
-        Size = new Size(340, 380);
+        Size = new Size(Dpi.Scale(BaseWidth), Dpi.Scale(BaseHeight));
         BackColor = _theme.Background;
         DoubleBuffered = true;
         TopMost = true;
-        Padding = new Padding(18);
+        Padding = new Padding(Dpi.Scale(BasePanelPad));
 
         _tick = new System.Windows.Forms.Timer { Interval = Motion.SlowTickMs };
         _tick.Tick += (_, _) => OnMotionTick();
+    }
+
+    /// <summary>
+    /// Sincroniza el factor de escala ambiente (<see cref="Dpi.Apply"/>) con el DPI real de la ventana
+    /// y reaplica la geometría base (ancho fijo + padding); el alto lo recalcula <see cref="Relayout"/>.
+    /// Se llama al abrir (<see cref="ShowConfigured"/>) y al cambiar de monitor (<see cref="OnDpiChanged"/>).
+    /// A propósito NO se llama desde <see cref="PrepareForRender"/>: el harness de render queda a
+    /// factor 1.0 determinista (PNG idénticos a 96 DPI sea cual sea el monitor de la máquina).
+    /// </summary>
+    private void ApplyDpiScale()
+    {
+        Dpi.Apply(DeviceDpi);
+        Width = Dpi.Scale(BaseWidth);
+        Padding = new Padding(Dpi.Scale(BasePanelPad));
+    }
+
+    /// <summary>
+    /// WM_DPICHANGED del form top-level (colocación/arrastre a un monitor con otro DPI bajo
+    /// PerMonitorV2): re-escala la geometría y re-layouta. Nota: el <c>OnDpiChangedAfterParent</c> que
+    /// cita el spec aplica a CONTROLES hijos; en un Form top-level el aviso llega por
+    /// <see cref="Form.OnDpiChanged"/> — se overridean ambos para cubrir también un reparenting futuro.
+    /// </summary>
+    protected override void OnDpiChanged(DpiChangedEventArgs e)
+    {
+        base.OnDpiChanged(e);
+        ApplyDpiScale();
+        Relayout();
+        Invalidate();
+    }
+
+    /// <inheritdoc cref="OnDpiChanged"/>
+    protected override void OnDpiChangedAfterParent(EventArgs e)
+    {
+        base.OnDpiChangedAfterParent(e);
+        ApplyDpiScale();
+        Relayout();
+        Invalidate();
     }
 
     /// <summary>
@@ -531,6 +574,14 @@ public sealed class DashboardForm : Form
         // Con la semilla, el primer ciclo medir+pintar comparte instante; el primer OnMotionTick lo
         // refresca como hasta ahora. El render-test usa _renderOverride y no pasa por aquí.
         _footerNowUtc = DateTime.UtcNow;
+        // T11b (§3 #18): la pantalla de referencia se captura AL ABRIR con el cursor — el usuario
+        // acaba de clicar el tray en ESA pantalla. PlaceWindow y el tope de alto de ajustes la
+        // comparten vía TargetScreen() (antes: PrimaryScreen vs FromControl vs FromPoint, cada uno
+        // la suya → panel en la pantalla equivocada en multi-monitor).
+        _openScreen = Screen.FromPoint(Cursor.Position);
+        // T11a: proyecta la geometría base al DPI real de la ventana antes de medir/colocar. Si al
+        // colocarse cambia de monitor (otro DPI), OnDpiChanged re-escala y re-layouta (baile PMv2).
+        ApplyDpiScale();
         Relayout();
         _appliedPlacement = PlacementKey(cfg);
         _shownAtUtc = DateTime.UtcNow;
@@ -661,10 +712,25 @@ public sealed class DashboardForm : Form
 
     private static string PlacementKey(AppConfig cfg) => $"{cfg.DashboardPosition}|{cfg.DashboardX}|{cfg.DashboardY}";
 
+    private Screen? _openScreen; // pantalla donde se abrió por última vez (cursor en ShowConfigured)
+
+    /// <summary>
+    /// Pantalla de referencia ÚNICA del panel (T11b, §3 #18). Antes cada consumidor resolvía la suya:
+    /// <c>PlaceWindow</c> SIEMPRE PrimaryScreen (panel en la pantalla equivocada en multi-monitor),
+    /// el tope de alto de ajustes <c>FromControl</c> y el clamp <c>FromPoint</c>. Ahora: visible ⇒ la
+    /// pantalla donde el panel ESTÁ (estable: un refresh de datos con el cursor en otro monitor no lo
+    /// teletransporta); oculto ⇒ la pantalla del cursor capturada al abrir (<see cref="ShowConfigured"/>),
+    /// con PrimaryScreen de fallback (p.ej. el render-test, que nunca se muestra → determinista).
+    /// (El clamp de posiciones "Custom" sigue siendo por-punto en <see cref="ClampToScreen"/>: un punto
+    /// guardado en el monitor 2 se acota DENTRO del monitor 2, no se arrastra a la pantalla activa.)
+    /// </summary>
+    private Screen TargetScreen() =>
+        Visible ? Screen.FromRectangle(Bounds) : _openScreen ?? Screen.PrimaryScreen!;
+
     private void PlaceWindow(AppConfig cfg)
     {
-        var wa = Screen.PrimaryScreen!.WorkingArea;
-        const int m = 8;
+        var wa = TargetScreen().WorkingArea;
+        int m = Dpi.Scale(8); // margen al borde de pantalla (T11: escala con el DPI)
         Location = cfg.DashboardPosition switch
         {
             "BottomLeft" => new Point(wa.Left + m, wa.Bottom - Height - m),
@@ -1004,17 +1070,18 @@ public sealed class DashboardForm : Form
         if (draw)
         {
             g.DrawString("ClaudeBar", titleFont, fg, x, y);
-            _closeRect = new Rectangle(Width - 26, 10, 18, 18);
+            // T11: el chrome (botón ✕ y avance de la banda de título) escala con el DPI.
+            _closeRect = new Rectangle(Width - Dpi.Scale(26), Dpi.Scale(10), Dpi.Scale(18), Dpi.Scale(18));
             // T8c: el plan ("Max 20x · resets…") se elide antes de la columna del ✕ — un display largo
             // se pintaba de largo bajo el botón y rebasaba el borde del panel. Solo pintado (el avance
             // y += 50 no cambia) → medir==pintar.
             string planShown = TextWrap.FitLine(_plan.Display, x, _closeRect.X, Spacing.Sm,
                 t => g.MeasureString(t, planFont).Width);
-            g.DrawString(planShown, planFont, dim, x, y + 24);
+            g.DrawString(planShown, planFont, dim, x, y + Dpi.Scale(24));
             using var closeFont = new Font("Segoe UI", 11f, FontStyle.Bold);
             g.DrawString("✕", closeFont, dim, _closeRect.X, _closeRect.Y - 2);
         }
-        y += 50;
+        y += Dpi.Scale(50);
 
         // ----- Vista de ajustes: alto LIMITADO + scroll (v0.3.7) -----
         // El panel medía más que la pantalla ("de arriba a abajo"). Ahora: chrome + "‹ Ajustes" fijos
@@ -1034,7 +1101,7 @@ public sealed class DashboardForm : Form
             // T8d: la zona de clic se mide con el texto localizado (el 80×20 fijo dejaba media
             // etiqueta DE/FR/NL sin responder al clic).
             _backRect = DashboardSettingsView.BackHitRect(g, backLabel, labelFont, x, y, w);
-            y += 24;
+            y += Dpi.Scale(24); // T11: fila "‹ Ajustes" escalada
             int contentTop = y;
             _settingsViewportTop = contentTop;
 
@@ -1044,10 +1111,11 @@ public sealed class DashboardForm : Form
             _settingsContentH = DashboardSettingsView.Draw(g, draw: false, x, contentTop, w,
                 _cfg, _s, _theme, labelFont, smallFont, _scratchRects) - contentTop;
 
-            // 2) Tope de alto: % del área útil de la pantalla del panel.
-            var wa = Screen.FromControl(this).WorkingArea;
+            // 2) Tope de alto: % del área útil de la pantalla de referencia (T11b: la MISMA que usa
+            //    PlaceWindow vía TargetScreen, antes FromControl podía resolver otra en multi-monitor).
+            var wa = TargetScreen().WorkingArea;
             int maxH = wa.Height * DashboardSettingsView.MaxPanelHeightPct / 100;
-            int fullH = contentTop + _settingsContentH + 18;
+            int fullH = contentTop + _settingsContentH + Dpi.Scale(18);
             int h = Math.Min(fullH, maxH);
             int viewportH = h - contentTop - SettingsViewportBottomPad;
             _settingsScroll = DashboardSettingsView.ClampScroll(_settingsScroll, _settingsContentH, viewportH);
