@@ -27,6 +27,45 @@ public class LocalizationCultureTests
         Assert.Equal(expectedCulture, Localization.Get(code).Culture.Name);
     }
 
+    // ---- F11 (v0.3.9): el back del panel usa _s.Back ("‹ Volver"), no _s.Settings ("‹ Ajustes") ----
+    // El string Back estaba "muerto" en el binario (solo lo definía es); el back se leía como TÍTULO.
+    // Ahora Back debe estar PRESENTE y no vacío en LOS 9 IDIOMAS (invariante de i18n), así "‹ <Back>"
+    // se lee como afordancia de volver en cualquier idioma.
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("es")]
+    [InlineData("nl")]
+    [InlineData("fr")]
+    [InlineData("de")]
+    [InlineData("ja")]
+    [InlineData("ko")]
+    [InlineData("zh-Hant")]
+    public void Back_esta_presente_y_no_vacio_en_cada_idioma(string code)
+    {
+        var back = Localization.Get(code).Back;
+        Assert.False(string.IsNullOrWhiteSpace(back), $"el idioma '{code}' no tiene string Back (back-behavior)");
+    }
+
+    [Fact]
+    public void Back_esta_localizado_en_los_idiomas_no_ingleses()
+    {
+        // Cada idioma con traducción propia difiere del default inglés "Back" (revive el string muerto).
+        // (en→"Back" es el default; los demás deben traducirlo, no caer al inglés.)
+        var en = Localization.Get("en").Back; // "Back"
+        var expected = new Dictionary<string, string>
+        {
+            ["es"] = "Volver", ["nl"] = "Terug", ["fr"] = "Retour", ["de"] = "Zurück",
+            ["ja"] = "戻る", ["ko"] = "뒤로", ["zh-Hant"] = "返回",
+        };
+        foreach (var (code, word) in expected)
+        {
+            var back = Localization.Get(code).Back;
+            Assert.Equal(word, back);
+            Assert.NotEqual(en, back); // no cae al default inglés
+        }
+    }
+
     [Fact]
     public void Toda_cultura_de_idioma_es_especifica_no_neutral()
     {

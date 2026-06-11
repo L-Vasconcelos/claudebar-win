@@ -10,6 +10,30 @@ namespace ClaudeBarWin.UI;
 /// <summary>Cabecera de un vistazo: mascota + estado servicio + cuota crítica + pace. Sin estado.</summary>
 public static class DashboardHeader
 {
+    // -------- tokens de espaciado del header (F12, §minor "espaciado fuera de 8pt") --------
+    // Antes la geometría del header eran literales mágicos sueltos (los históricos 50/22/14/6 a 96 DPI →
+    // hoy 24/16/8/4/12/10 dentro de Dpi.Scale). Aquí se nombran replicando el patrón de
+    // DashboardSettingsView (tokens con nombre + Dpi.Scale para el DPI): MISMOS valores que antes (a
+    // factor 1.0 son idénticos → render-test pixel-perfect), ahora legibles y centralizados. Los que
+    // caen en la rejilla 8pt derivan de Spacing; los dos fuera de escala (16/10) van con nombre propio.
+
+    /// <summary>Lado del botón ⚙ (cuadrado), en px de diseño escalados al DPI. =Spacing.Xl (24).</summary>
+    internal static int GearSize => Dpi.Scale(Spacing.Xl);
+    /// <summary>Alto de una fila de una línea del bloque de estado (salud / glance). FUERA de 8pt: 16px
+    /// de diseño escalados (el texto de 11–12pt cabe holgado; subir a Xl=24 dejaría hueco muerto).</summary>
+    internal static int StatusRowHeight => Dpi.Scale(16);
+    /// <summary>Diámetro del punto de salud. =Spacing.Sm (8).</summary>
+    internal static int HealthDotSize => Dpi.Scale(Spacing.Sm);
+    /// <summary>Inset vertical del punto de salud dentro de su fila (lo centra ópticamente). =Spacing.Xs (4).</summary>
+    internal static int HealthDotInsetY => Dpi.Scale(Spacing.Xs);
+    /// <summary>Gutter del punto de salud a su texto. =Spacing.Md (12).</summary>
+    internal static int HealthDotGutter => Dpi.Scale(Spacing.Md);
+    /// <summary>Aire entre el final del bloque de estado y el divisor de "Cuota". =Spacing.Xs (4).</summary>
+    internal static int DividerAir => Dpi.Scale(Spacing.Xs);
+    /// <summary>Avance final bajo el divisor antes de la sección "Cuota". FUERA de 8pt: 10px de diseño
+    /// escalados (separación afinada del divisor a la primera cabecera).</summary>
+    internal static int DividerBottomGap => Dpi.Scale(10);
+
     /// <summary>
     /// Contorno PURO del engranaje (T9c, §3 #12): polígono de 4 puntos por diente — 2 en la cresta
     /// (radio exterior) y 2 en el valle (radio raíz) — con flancos radiales (cresta y valle comparten
@@ -83,7 +107,7 @@ public static class DashboardHeader
         //    GDI+ con AA (T9c, §3 #12 — el glifo MDL2 se rasterizaba como texto ClearType: borroso y
         //    con franjas de color, peor en tema claro). T11: el botón escala con el DPI (los radios
         //    del path ya eran proporcionales a bounds, así que el icono sigue nítido a 125/150%).
-        int gearSize = Dpi.Scale(24);
+        int gearSize = GearSize;
         var gear = new Rectangle(x + w - gearSize, y, gearSize, gearSize);
         gearRect = gear;
         if (draw)
@@ -194,16 +218,16 @@ public static class DashboardHeader
             {
                 // T11: punto de salud y su sangría escalan con el DPI (solo pintado: no tocan el y).
                 using var dot = new SolidBrush(hc);
-                g.FillEllipse(dot, textX, ty + Dpi.Scale(4), Dpi.Scale(8), Dpi.Scale(8));
+                g.FillEllipse(dot, textX, ty + HealthDotInsetY, HealthDotSize, HealthDotSize);
                 using var b = new SolidBrush(theme.TextSecondary);
                 // Estado de servicio ("Operativo"). Anti-corte: se envuelve/encoge dentro del ancho útil
                 // (texto corto; FitHeaderLine deja margen derecho ≥ Spacing.Md). Determinista (medir==pintar).
-                int hlX = textX + Dpi.Scale(12);
+                int hlX = textX + HealthDotGutter;
                 string hlShown = FitHeaderLine(hl, hlX, rightX, Spacing.Md, t => g.MeasureString(t, smallFont).Width);
                 g.DrawString(hlShown, smallFont, b, hlX, ty);
             }
         }
-        ty += Dpi.Scale(16); // fila de salud (T11: escala con el DPI, como el texto que aloja)
+        ty += StatusRowHeight; // fila de salud (token F12: alto de fila de estado, escala con el DPI)
 
         // Glance de cuota crítica = ventana de PEOR estado entre 5h/7d (T5a: Critical > Warn > Ok; a
         // igualdad, mayor %. Antes era "mayor %" a secas y el header enseñaba la semana en verde al 84%
@@ -247,7 +271,7 @@ public static class DashboardHeader
                 using var valBrush = new SolidBrush(c);
                 g.DrawString(right, Typography.Mono, valBrush, valX, ty, TextMetrics.Typographic);
             }
-            ty += Dpi.Scale(16); // glance de UNA línea (T11: escala con el DPI)
+            ty += StatusRowHeight; // glance de UNA línea (token F12: misma fila de estado que la salud)
         }
 
         // La mascota vive en su banda ARRIBA (ya sumada en `top`), así que el fondo del header es el final
@@ -257,10 +281,10 @@ public static class DashboardHeader
         if (draw)
         {
             using var p = new Pen(theme.Separator);
-            int dy = bottom + Dpi.Scale(4);
+            int dy = bottom + DividerAir;
             g.DrawLine(p, x, dy, x + w, dy);
         }
-        return bottom + Dpi.Scale(10);
+        return bottom + DividerBottomGap;
     }
 
     /// <summary>

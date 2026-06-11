@@ -270,8 +270,15 @@ public sealed class DashboardForm : Form
     /// (claves "special:*", p.ej. "special:importtheme"/"special:hooktoggle"). El host las maneja.</summary>
     public event Action<string>? SpecialActionRequested;
 
-    /// <summary>Cambia a la vista de ajustes (⚙). Resetea el scroll (y el acumulador de rueda), reajusta el alto y repinta.</summary>
-    public void ShowSettings() { _viewMode = "settings"; _settingsScroll = 0; _settingsWheelAccum = 0; Relayout(); Invalidate(); }
+    /// <summary>
+    /// Cambia a la vista de ajustes (⚙). F10 (v0.3.9, state-preservation): NO resetea
+    /// <see cref="_settingsScroll"/> — reabrir el panel conserva la posición de scroll de la sesión
+    /// (antes saltaba siempre arriba). El acumulador sub-píxel de la rueda sí se limpia (residuo de
+    /// trackpad, irrelevante para la posición). <see cref="LayoutContent"/> ya ACOTA el scroll guardado
+    /// con <see cref="DashboardSettingsView.ClampScroll"/> en cada pasada, así que si el contenido
+    /// encogió (p.ej. menos filas) el pulgar NUNCA queda fuera de rango. Reajusta el alto y repinta.
+    /// </summary>
+    public void ShowSettings() { _viewMode = "settings"; _settingsWheelAccum = 0; Relayout(); Invalidate(); }
 
     // ---- Ganchos SOLO para el render de GIFs (--render-gif): conducir el scroll de ajustes a mano ----
     // En vivo el scroll lo gobierna la rueda (OnMouseWheel); para el GIF de "ajustes" necesitamos barrer
@@ -1097,7 +1104,10 @@ public sealed class DashboardForm : Form
         // el chrome. Con todo visible no hay barra ni scroll (comportamiento de siempre).
         if (_viewMode == "settings")
         {
-            string backLabel = "‹ " + _s.Settings;
+            // F11 (v0.3.9): la etiqueta de volver usa _s.Back ("‹ Volver"/"‹ Back"/"‹ Zurück"…), NO
+            // _s.Settings ("‹ Ajustes"): el chevron + el nombre de la sección se leía como TÍTULO, no
+            // como afordancia de volver. _s.Back existe en los 9 idiomas (revive el string "muerto").
+            string backLabel = "‹ " + _s.Back;
             if (draw)
             {
                 using var bb = new SolidBrush(_theme.TextSecondary);

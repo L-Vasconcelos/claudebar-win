@@ -516,4 +516,37 @@ public class DashboardHeaderTests
 
         Assert.Equal(RunHeaderSnap(g, draw: false, cfg, snap), RunHeaderSnap(g, draw: true, cfg, snap));
     }
+
+    // --- F12 (v0.3.9): el espaciado del header se TOKENIZA sin cambiar el aspecto (mismos valores) ---
+    // Antes eran literales mágicos sueltos (los históricos 50/22/14/6 a 96 DPI → 24/16/8/4/12/10 dentro
+    // de Dpi.Scale). Tokenizados (patrón de DashboardSettingsView), a factor 1.0 deben resolver EXACTO a
+    // los valores previos (render-test pixel-perfect) y seguir escalando con el DPI.
+
+    [Fact]
+    public void Header_spacing_tokens_resolve_to_previous_literals_at_96dpi()
+    {
+        // A factor ambiente 1.0 (default de los tests) cada token == su literal histórico.
+        Assert.Equal(24, DashboardHeader.GearSize);
+        Assert.Equal(16, DashboardHeader.StatusRowHeight);
+        Assert.Equal(8, DashboardHeader.HealthDotSize);
+        Assert.Equal(4, DashboardHeader.HealthDotInsetY);
+        Assert.Equal(12, DashboardHeader.HealthDotGutter);
+        Assert.Equal(4, DashboardHeader.DividerAir);
+        Assert.Equal(10, DashboardHeader.DividerBottomGap);
+    }
+
+    [Fact]
+    public void Header_spacing_tokens_scale_with_dpi()
+    {
+        // Siguen pasando por Dpi.Scale: a 150% crecen como el resto del layout (no quedan fijos a 96).
+        try
+        {
+            Dpi.Apply(144);
+            Assert.Equal(Dpi.Scale(24, 1.5f), DashboardHeader.GearSize);
+            Assert.Equal(Dpi.Scale(16, 1.5f), DashboardHeader.StatusRowHeight);
+            Assert.Equal(Dpi.Scale(8, 1.5f), DashboardHeader.HealthDotSize);
+            Assert.Equal(Dpi.Scale(10, 1.5f), DashboardHeader.DividerBottomGap);
+        }
+        finally { Dpi.Apply(96); }
+    }
 }

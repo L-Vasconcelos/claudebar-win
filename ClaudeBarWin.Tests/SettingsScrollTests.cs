@@ -32,6 +32,42 @@ public class SettingsScrollTests
         Assert.Equal(600, DashboardSettingsView.ClampScroll(9999, 1000, 400));
     }
 
+    // ---------------- F10 (v0.3.9): el scroll PERSISTE entre aperturas, pero se re-acota ----------------
+    // ShowSettings ya NO pone _settingsScroll = 0 (state-preservation): reabrir conserva la posición.
+    // LayoutContent acota el scroll guardado con ClampScroll en CADA pasada, así que si el contenido
+    // ENCOGIÓ desde la última apertura (menos filas) el offset persistido se re-bornea al nuevo overflow
+    // y el pulgar NUNCA queda fuera de rango. Aquí se modela ese contrato de re-acotado.
+
+    [Fact]
+    public void Persisted_scroll_is_reclamped_when_content_shrinks_on_reopen()
+    {
+        const int viewportH = 400;
+        // 1ª apertura: panel alto (contenido 1000) → el usuario baja al fondo (overflow 600).
+        int saved = DashboardSettingsView.ClampScroll(600, contentH: 1000, viewportH: viewportH);
+        Assert.Equal(600, saved); // posición persistida al fondo
+
+        // 2ª apertura: el contenido encogió a 500 (overflow nuevo = 100). El offset guardado (600) está
+        // fuera de rango; al re-acotar debe caer a 100 (fondo del nuevo contenido), no quedarse en 600.
+        int reclamped = DashboardSettingsView.ClampScroll(saved, contentH: 500, viewportH: viewportH);
+        Assert.Equal(100, reclamped);
+
+        // Y el pulgar resultante sigue DENTRO de la pista (no se sale por abajo).
+        var thumb = DashboardSettingsView.ThumbRect(300, trackTop: 70, viewportH: viewportH,
+            contentH: 500, scroll: reclamped);
+        Assert.True(thumb.Bottom <= 70 + viewportH, $"el pulgar ({thumb.Bottom}) rebasa la pista tras encoger");
+    }
+
+    [Fact]
+    public void Persisted_scroll_collapses_to_zero_when_content_now_fits()
+    {
+        // Caso extremo: tras encoger, el contenido CABE entero (sin overflow). El offset persistido
+        // (cualquiera) debe colapsar a 0 — y el pulgar desaparece (sin barra).
+        int saved = 480;
+        Assert.Equal(0, DashboardSettingsView.ClampScroll(saved, contentH: 300, viewportH: 400));
+        Assert.Equal(Rectangle.Empty,
+            DashboardSettingsView.ThumbRect(300, 70, viewportH: 400, contentH: 300, scroll: saved));
+    }
+
     // ---------------- ThumbRect ----------------
 
     [Fact]
