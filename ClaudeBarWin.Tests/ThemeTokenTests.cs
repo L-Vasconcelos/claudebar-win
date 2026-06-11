@@ -13,7 +13,8 @@ public class ThemeTokenTests
     {
         var tokens = new[] { t.TextPrimary, t.TextSecondary, t.TextMuted, t.Separator, t.Track,
                              t.BgBase, t.BgElevated, t.Accent, t.Ok, t.Warn, t.Critical, t.Neutral,
-                             t.AccentText, t.TickOnTrack, t.WarnText, t.CriticalText, t.HoverBg };
+                             t.AccentText, t.TickOnTrack, t.WarnText, t.CriticalText, t.HoverBg,
+                             t.MascotIdle };
         Assert.All(tokens, c => Assert.True(c.A > 0, "token transparente/sin setear"));
     }
 
@@ -276,5 +277,46 @@ public class ThemeTokenTests
         Assert.Equal(t.CriticalText, Theme.PaceTextColor(t, PaceStatus.Critical));
         Assert.Equal(t.WarnText, Theme.PaceTextColor(t, PaceStatus.Over));
         Assert.Equal(t.Ok, Theme.PaceTextColor(t, PaceStatus.Ok));
+    }
+
+    // --- v0.3.9 F1: color de la mascota Idle (glifo no textual, WCAG 1.4.11 ≥3:1) ---
+
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void Mascot_idle_meets_non_text_contrast_in_every_theme(Theme t)
+    {
+        // El gatito en reposo es un glifo NO textual: WCAG 1.4.11 exige ≥3:1 sobre el fondo. El viejo
+        // Neutral caía a ~2.3:1 en oscuro (el tema por defecto). MascotIdle → TextMuted lo lleva a ~5:1.
+        double r = ColorMath.ContrastRatio(t.MascotIdle, t.Background);
+        Assert.True(r >= 3.0, $"[{t.Id}] MascotIdle contrasta {r:0.00}:1 (< 3.0) sobre el fondo");
+    }
+
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void Mascot_idle_clears_the_old_neutral_floor(Theme t)
+    {
+        // Regresión directa: MascotIdle debe contrastar MEJOR que el Neutral histórico (que fallaba el
+        // 3:1 en oscuro). En oscuro Neutral daba ~2.3:1; TextMuted ~5:1.
+        double idle = ColorMath.ContrastRatio(t.MascotIdle, t.Background);
+        double neutral = ColorMath.ContrastRatio(t.Neutral, t.Background);
+        Assert.True(idle >= neutral, $"[{t.Id}] MascotIdle ({idle:0.00}) no mejora sobre Neutral ({neutral:0.00})");
+    }
+
+    [Fact]
+    public void Dark_neutral_failed_the_non_text_floor_motivating_the_token()
+    {
+        // Pin del problema que motiva F1: el Neutral del tema por defecto (oscuro) caía bajo 3:1.
+        double r = ColorMath.ContrastRatio(Theme.Dark.Neutral, Theme.Dark.Background);
+        Assert.True(r < 3.0, $"se esperaba que Dark.Neutral fallara el 3:1, contrasta {r:0.00}:1");
+    }
+
+    [Fact]
+    public void MascotIdle_falls_back_to_text_muted()
+    {
+        // Sin override el token cae a TextMuted (ya AA como texto en los 3 temas); los temas importados
+        // heredan el fallback sin mapear un campo nuevo.
+        Assert.Equal(Theme.Dark.TextMuted, Theme.Dark.MascotIdle);
+        Assert.Equal(Theme.Light.TextMuted, Theme.Light.MascotIdle);
+        Assert.Equal(Theme.Cli.TextMuted, Theme.Cli.MascotIdle);
     }
 }

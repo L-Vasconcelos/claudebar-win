@@ -44,6 +44,18 @@ public sealed class Theme
     public Color TickOnTrack => TickOnTrackOverride ?? TextMuted;
 
     /// <summary>
+    /// Color de la mascota en Idle/reposo (glifo NO textual → WCAG 1.4.11 pide ≥3:1, T-v039 F1). El
+    /// valor histórico era <see cref="Neutral"/>, que sobre el fondo del panel caía a ~2.3:1 en oscuro
+    /// (el tema por defecto) y rozaba el umbral en claro → el gatito en reposo se perdía contra el
+    /// fondo. Cae a <see cref="TextMuted"/>, que ya cumple AA como texto (~5:1) en los 3 temas y por
+    /// tanto supera de sobra el 3:1 no textual sobre el fondo. SOLO afecta al caso Idle/default; las
+    /// fases activas (Warn/Ok/Critical por humor o fase) conservan su color semántico. Sin override
+    /// cae a <see cref="TextMuted"/>; los temas importados heredan el fallback.
+    /// </summary>
+    public Color? MascotIdleOverride { get; init; }
+    public Color MascotIdle => MascotIdleOverride ?? TextMuted;
+
+    /// <summary>
     /// Variante del ámbar Warn legible como TEXTO pequeño (patrón <see cref="AccentText"/>, T6b). Los
     /// RELLENOS (barras, dots, badges) siguen usando <see cref="Warn"/>; este token solo aplica donde
     /// el ámbar se pinta como texto (línea de pace, % de cuota, marcador stale del footer). Sin

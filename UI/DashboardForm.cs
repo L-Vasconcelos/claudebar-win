@@ -116,14 +116,16 @@ public sealed class DashboardForm : Form
     };
 
     /// <summary>
-    /// Mantiene el reloj del bote de atención: lo (re)dispara mientras la fase global pida atención y
-    /// haya pasado <see cref="Motion.BounceRepeatEveryMs"/> desde el último bote; lo apaga si la fase
-    /// deja de pedir atención. Elapsed-driven; con reduce-motion no se dispara (offset 0 en el paint).
+    /// Mantiene el reloj del bote de la mascota: lo (re)dispara mientras la fase global pida atención
+    /// O haya una celebración de reset en curso (T-v039 F3c), y haya pasado
+    /// <see cref="Motion.BounceRepeatEveryMs"/> desde el último bote; lo apaga cuando ya no aplica
+    /// ninguno de los dos. Elapsed-driven; con reduce-motion no se dispara (offset 0 en el paint).
+    /// El bote de celebración da "vida" al gato Happy (antes la celebración solo cambiaba color/chip).
     /// </summary>
     private void SyncBounce()
     {
-        if (_reduceMotion || !_liveView.GlobalPhase.NeedsAttention()
-            || !_cfg.LiveSessionsEnabled || !_cfg.ShowMascot)
+        bool wantsBounce = _liveView.GlobalPhase.NeedsAttention() || CelebrationActive();
+        if (_reduceMotion || !wantsBounce || !_cfg.LiveSessionsEnabled || !_cfg.ShowMascot)
         {
             _bounceStartMs = double.NegativeInfinity;
             return;
@@ -489,8 +491,11 @@ public sealed class DashboardForm : Form
         // detectar un reset enciende el destello in-panel + marca el humor Happy pendiente. NO toca el
         // sistema de notificaciones (eso es F4). Con reduce-motion se omite el destello (estado final).
         DetectQuotaReset();
+        // T-v039 F3c: si la celebración acaba de encenderse, arranca el bote de la mascota YA (no
+        // espera al siguiente fast-tick) para que el gato Happy también "salte" al renovarse la cuota.
+        SyncBounce();
         // Si algo arrancó a animar, asegúrate de que el reloj rápido esté latiendo (panel visible).
-        if (Visible && (_motion.IsAnimating || CelebrationActive()) && !_reduceMotion) EnsureFastTick();
+        if (Visible && (_motion.IsAnimating || CelebrationActive() || BounceActive()) && !_reduceMotion) EnsureFastTick();
 
         if (IsHandleCreated)
             BeginInvoke(() =>

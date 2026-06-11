@@ -2,8 +2,14 @@ using ClaudeBarWin.Models;
 
 namespace ClaudeBarWin.Services.Mascot;
 
-/// <summary>Salida del animador para un instante: qué frame, si parpadea, glifo del spinner y verbo.</summary>
-public readonly record struct MascotState(int FrameIndex, bool Blinking, char SpinnerGlyph, int VerbIndex);
+/// <summary>
+/// Salida del animador para un instante: qué frame, si parpadea, glifo del spinner, verbo y el
+/// ángulo de arranque del arco del spinner (grados). <see cref="SpinnerGlyph"/> sigue siendo la SEÑAL
+/// de "spinner activo" (<c>'\0'</c> = sin spinner); el renderer ya no lo pinta como texto sino como un
+/// arco GDI+ que arranca en <see cref="SpinnerAngleDeg"/> (T-v039 F2). El ángulo es elapsed-driven
+/// (derivado del tiempo, sin reloj ni Random por dentro) → determinista y testeable sin GDI+.
+/// </summary>
+public readonly record struct MascotState(int FrameIndex, bool Blinking, char SpinnerGlyph, int VerbIndex, float SpinnerAngleDeg = 0f);
 
 /// <summary>
 /// Da <b>vida</b> a la mascota: PURO y elapsed-driven (regla de oro F3). Dado (fase,
@@ -30,6 +36,9 @@ public static class MascotAnimator
 
     /// <summary>Cada cuántos ms avanza el spinner un glifo.</summary>
     public const double SpinnerStepMs = 90.0;
+
+    /// <summary>Periodo (ms) de una vuelta completa del arco del spinner (T-v039 F2).</summary>
+    public const double SpinnerSpinMs = 900.0;
 
     // --- Tempos de parpadeo por fase (ms) ----------------------------------
     // Periodo = cada cuánto se considera UNA oportunidad de parpadeo; Dur = cuánto dura el guiño.
@@ -65,10 +74,12 @@ public static class MascotAnimator
         // Frame: estáticas (1 frame) → 0; animadas → alternan según el parpadeo/pulso.
         int frameIndex = frameCount <= 1 ? 0 : (blinking ? 1 : 0);
 
-        char spinner = HasSpinner(phase) ? SpinnerGlyphAt(elapsedMs) : '\0';
+        bool hasSpinner = HasSpinner(phase);
+        char spinner = hasSpinner ? SpinnerGlyphAt(elapsedMs) : '\0';
+        float spinAngle = hasSpinner ? SpinnerAngleAt(elapsedMs) : 0f;
         int verbIndex = VerbIndexAt(phase, elapsedMs, seed);
 
-        return new MascotState(frameIndex, blinking, spinner, verbIndex);
+        return new MascotState(frameIndex, blinking, spinner, verbIndex, spinAngle);
     }
 
     /// <summary>Glifo del spinner en el instante dado (cicla por <see cref="SpinnerSequence"/>).</summary>
@@ -77,6 +88,18 @@ public static class MascotAnimator
         int step = (int)Math.Floor(elapsedMs / SpinnerStepMs);
         int i = ((step % SpinnerSequence.Length) + SpinnerSequence.Length) % SpinnerSequence.Length;
         return SpinnerSequence[i];
+    }
+
+    /// <summary>
+    /// Ángulo de arranque (grados, [0,360)) del arco del spinner en el instante dado: gira a un ritmo
+    /// constante (una vuelta cada <see cref="SpinnerSpinMs"/> ms). PURO y elapsed-driven (sin reloj ni
+    /// Random) → determinista, lo consume el renderer en <c>g.DrawArc</c> (T-v039 F2).
+    /// </summary>
+    public static float SpinnerAngleAt(double elapsedMs)
+    {
+        if (elapsedMs < 0) elapsedMs = 0;
+        double frac = (elapsedMs % SpinnerSpinMs) / SpinnerSpinMs; // [0,1)
+        return (float)(frac * 360.0);
     }
 
     private static bool HasSpinner(SessionPhase p) =>

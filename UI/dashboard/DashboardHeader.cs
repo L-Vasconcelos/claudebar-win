@@ -106,7 +106,10 @@ public static class DashboardHeader
                 t => g.MeasureString(t, smallFont).Width);
             if (shown.Length > 0)
             {
-                using var chipBg = new SolidBrush(Color.FromArgb(36, theme.Ok));
+                // Fondo del chip de celebración subido a alpha 64 (T-v039 F3): a ~36 el destello
+                // "✓ cuota renovada" apenas se distinguía del fondo del panel. 64 lo hace presente
+                // sin tapar el texto Ok que va encima.
+                using var chipBg = new SolidBrush(Color.FromArgb(64, theme.Ok));
                 Shapes.FillRounded(g, chipBg, chip, Spacing.Sm);
                 using var okBrush = new SolidBrush(theme.Ok);
                 g.DrawString(shown, smallFont, okBrush,

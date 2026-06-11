@@ -130,6 +130,63 @@ public class MascotAnimatorTests
         Assert.NotEqual(g0, gLater);
     }
 
+    // --- F2: ángulo del arco del spinner (sustituye al glifo braille) ----------------------
+
+    [Fact]
+    public void Spinner_angle_is_within_a_full_turn()
+    {
+        // El ángulo de arranque del arco está en [0,360) para todo instante (lo consume g.DrawArc).
+        for (double t = 0; t <= 5000; t += 13)
+        {
+            float a = MascotAnimator.SpinnerAngleAt(t);
+            Assert.InRange(a, 0f, 360f);
+            Assert.True(a < 360f, $"el ángulo debe quedar en [0,360), got {a} en t={t}");
+        }
+    }
+
+    [Fact]
+    public void Spinner_angle_advances_over_time_and_wraps()
+    {
+        // Gira: a t mayor (dentro de la primera vuelta) el ángulo crece; al completar la vuelta envuelve.
+        Assert.Equal(0f, MascotAnimator.SpinnerAngleAt(0), 3);
+        Assert.True(MascotAnimator.SpinnerAngleAt(MascotAnimator.SpinnerSpinMs * 0.25) >
+                    MascotAnimator.SpinnerAngleAt(0));
+        // Una vuelta completa vuelve cerca de 0 (módulo el periodo).
+        Assert.Equal(MascotAnimator.SpinnerAngleAt(10), MascotAnimator.SpinnerAngleAt(10 + MascotAnimator.SpinnerSpinMs), 3);
+    }
+
+    [Fact]
+    public void Spinner_angle_is_deterministic_and_clock_free()
+    {
+        for (double t = 0; t <= 4000; t += 29)
+            Assert.Equal(MascotAnimator.SpinnerAngleAt(t), MascotAnimator.SpinnerAngleAt(t));
+    }
+
+    [Fact]
+    public void Spinner_angle_is_carried_only_for_spinner_phases()
+    {
+        // La fase de trabajo lleva el ángulo del arco en el estado; las demás lo dejan a 0 (sin spinner).
+        var working = Sample(SessionPhase.Processing, MascotAnimator.SpinnerSpinMs * 0.5);
+        Assert.NotEqual('\0', working.SpinnerGlyph);
+        Assert.Equal(MascotAnimator.SpinnerAngleAt(MascotAnimator.SpinnerSpinMs * 0.5), working.SpinnerAngleDeg, 3);
+
+        foreach (var p in new[] { SessionPhase.Idle, SessionPhase.WaitingForApproval,
+                                  SessionPhase.WaitingForInput, SessionPhase.Ended })
+            Assert.Equal(0f, Sample(p, 1234).SpinnerAngleDeg);
+    }
+
+    [Fact]
+    public void ReduceMotion_zeroes_the_spinner_angle()
+    {
+        // Con reduce-motion el spinner desaparece (señal y ángulo): nada de arco congelado.
+        foreach (var p in new[] { SessionPhase.Processing, SessionPhase.Compacting })
+        {
+            var st = MascotAnimator.Sample(p, 555, seed: 2, reduceMotion: true);
+            Assert.Equal('\0', st.SpinnerGlyph);
+            Assert.Equal(0f, st.SpinnerAngleDeg);
+        }
+    }
+
     // --- verbo dentro del pool ---------------------------------------------
 
     [Fact]
