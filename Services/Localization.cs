@@ -140,6 +140,10 @@ public sealed record Strings
     public string PaceAlertTitle { get; init; } = "⚠ Quota pace";
     /// <summary>{0} = window name, {1} = ETA time.</summary>
     public string PaceAlertBodyFmt { get; init; } = "At this rate you'll run out of {0} quota by {1}, before the reset";
+    /// <summary>Micro-rótulo del grupo ETA de la línea de pace (F6): precede a la hora absoluta del
+    /// agotamiento ("⚠ empty &lt;hora&gt;") para que la hora no salga suelta sin contexto. Corto y en
+    /// minúsculas: comparte fila con los % de ritmo.</summary>
+    public string PaceEtaLabel { get; init; } = "empty";
 
     // Menu groups + updates
     public string MenuAppearance { get; init; } = "Appearance";
@@ -372,6 +376,7 @@ public static class Localization
         WinWeekly = "semanal (7d)",
         PaceAlertTitle = "⚠ Ritmo de cuota",
         PaceAlertBodyFmt = "A este ritmo te quedas sin cuota {0} el {1}, antes del reset",
+        PaceEtaLabel = "se agota",
         MenuAppearance = "Apariencia",
         MenuSections = "Contenido del panel",
         MenuIcon = "Icono",
@@ -500,6 +505,7 @@ public static class Localization
         WinWeekly = "wekelijks (7d)",
         PaceAlertTitle = "⚠ Quotatempo",
         PaceAlertBodyFmt = "Met dit tempo is je {0}-quota op rond {1}, vóór de reset",
+        PaceEtaLabel = "op",
         MenuAppearance = "Weergave",
         MenuSections = "Paneelinhoud",
         MenuIcon = "Pictogram",
@@ -628,6 +634,7 @@ public static class Localization
         WinWeekly = "hebdomadaire (7d)",
         PaceAlertTitle = "⚠ Rythme de quota",
         PaceAlertBodyFmt = "À ce rythme, tu épuises le quota {0} vers {1}, avant la réinitialisation",
+        PaceEtaLabel = "épuisé",
         MenuAppearance = "Apparence",
         MenuSections = "Contenu du panneau",
         MenuIcon = "Icône",
@@ -756,6 +763,7 @@ public static class Localization
         WinWeekly = "wöchentlich (7d)",
         PaceAlertTitle = "⚠ Kontingent-Tempo",
         PaceAlertBodyFmt = "In diesem Tempo ist dein {0}-Kontingent um {1} aufgebraucht, vor dem Reset",
+        PaceEtaLabel = "leer",
         MenuAppearance = "Darstellung",
         MenuSections = "Panel-Inhalt",
         MenuIcon = "Symbol",
@@ -884,6 +892,7 @@ public static class Localization
         WinWeekly = "週間(7d)",
         PaceAlertTitle = "⚠ クォータのペース",
         PaceAlertBodyFmt = "このペースだと{0}のクォータは{1}頃に尽きます（リセット前）",
+        PaceEtaLabel = "枯渇",
         MenuAppearance = "外観",
         MenuSections = "パネルの内容",
         MenuIcon = "アイコン",
@@ -1012,6 +1021,7 @@ public static class Localization
         WinWeekly = "주간(7d)",
         PaceAlertTitle = "⚠ 할당량 페이스",
         PaceAlertBodyFmt = "이 페이스면 {0} 할당량이 {1}경 소진됩니다 (리셋 전)",
+        PaceEtaLabel = "소진",
         MenuAppearance = "모양",
         MenuSections = "패널 내용",
         MenuIcon = "아이콘",
@@ -1140,6 +1150,7 @@ public static class Localization
         WinWeekly = "每週(7d)",
         PaceAlertTitle = "⚠ 配額速度",
         PaceAlertBodyFmt = "照這個速度，你的{0}配額會在 {1} 用完（重設前）",
+        PaceEtaLabel = "用完",
         MenuAppearance = "外觀",
         MenuSections = "面板內容",
         MenuIcon = "圖示",

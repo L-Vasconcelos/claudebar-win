@@ -300,6 +300,50 @@ public static class DashboardDataView
         return y;
     }
 
+    /// <summary>
+    /// Flecha de la línea de pace por estado de ritmo (F6, v0.3.9 g3), PURA y testeable. Antes la flecha
+    /// ↗ estaba FIJA aunque una ventana fuera POR DEBAJO del ritmo ideal (pace Ok); la flecha mentía. Ahora
+    /// ↗ solo cuando se va acelerado (Over/Critical) y → cuando se va en ritmo o por debajo (Ok).
+    /// </summary>
+    internal static string PaceArrow(PaceStatus status) => status == PaceStatus.Ok ? "→" : "↗";
+
+    /// <summary>
+    /// Segmentos coloreados de la línea de pace (F6, v0.3.9 g3), PUROS y testeables. Cada ventana (5h, 7d)
+    /// aporta su flecha por <see cref="PaceArrow"/> y su % de ritmo, coloreados por SU PaceStatus con la
+    /// variante AA de texto (<see cref="Theme.PaceTextColor"/>): la 7d sana ya no se tiñe del rojo de la 5h
+    /// (antes TODA la línea iba del color de la PEOR ventana, §minor "tiñe todo del peor estado"). El grupo
+    /// ETA se separa con " · ⚠" + el micro-rótulo localizado <paramref name="s"/>.PaceEtaLabel (en vez de
+    /// una hora suelta sin contexto) y se colorea con el estado de la ventana que se agota. Los separadores
+    /// (" · ") son neutros (<paramref name="dim"/>). Devuelve la lista en orden de pintado izq→der.
+    /// </summary>
+    internal static List<(string text, Color color)> PaceSegments(PaceResult? pf, PaceResult? ps, Strings s, Theme theme, Color dim)
+    {
+        var segs = new List<(string, Color)>();
+        bool first = true;
+        void AddWindow(PaceResult p)
+        {
+            if (!first) segs.Add((" · ", dim));
+            first = false;
+            string win = p.Window;   // "5h" | "7d"
+            segs.Add(($"{PaceArrow(p.Status)} {win} {p.PaceRatio * 100:0}%", Theme.PaceTextColor(theme, p.Status)));
+        }
+        if (pf is not null) AddWindow(pf);
+        if (ps is not null) AddWindow(ps);
+
+        var exa = new[] { pf, ps }
+            .Where(p => p is { ExhaustsBeforeReset: true, EtaUtc: not null })
+            .OrderBy(p => p!.EtaUtc).FirstOrDefault();
+        if (exa is not null)
+        {
+            // Grupo ETA: separador neutro + ⚠ rótulo localizado + hora absoluta, coloreado por la ventana
+            // que se agota (no por la peor de toda la línea).
+            segs.Add((" · ", dim));
+            segs.Add(($"⚠ {s.PaceEtaLabel} {UsageFormat.ResetAbsolute(exa.EtaUtc, s.Culture)}",
+                Theme.PaceTextColor(theme, exa.Status)));
+        }
+        return segs;
+    }
+
     // Cuerpo de DrawPace de DashboardForm.cs, adaptado a recibir snap/theme/font por parámetro.
     // Recibe Strings por la cultura de formato del ETA "ddd HH:mm" (T2).
     internal static int DrawPace(Graphics g, bool draw, AppSnapshot? snap, Strings s, Theme theme, int x, int y, int w, Font smallFont)
@@ -309,27 +353,23 @@ public static class DashboardDataView
         if (pf is null && ps is null) return y;
         if (!draw) return y + Dpi.Scale(18); // T11: misma fila escalada que la rama de pintado
 
-        var worst = (PaceStatus)Math.Max((int)(pf?.Status ?? PaceStatus.Ok), (int)(ps?.Status ?? PaceStatus.Ok));
-        // Línea de pace = TEXTO pequeño: variantes AA WarnText/CriticalText (T6b), no los rellenos
-        // (#DC2626 sobre el fondo oscuro caía a 3.7:1 — el texto más crítico era el de peor contraste).
-        Color c = Theme.PaceTextColor(theme, worst);
+        // F6 (v0.3.9 g3): la línea se pinta por SEGMENTOS — flecha por ventana + color por ventana (la 7d
+        // sana ya no sale roja) + grupo ETA " · ⚠ <rótulo> <hora>". Antes era un único DrawString del color
+        // de la PEOR ventana con la flecha ↗ fija.
+        var segs = PaceSegments(pf, ps, s, theme, theme.TextSecondary);
 
-        string text = "↗ ";
-        if (pf is not null) text += $"5h {pf.PaceRatio * 100:0}%";
-        if (ps is not null) text += (pf is not null ? " · " : "") + $"7d {ps.PaceRatio * 100:0}%";
-
-        var exa = new[] { pf, ps }
-            .Where(p => p is { ExhaustsBeforeReset: true, EtaUtc: not null })
-            .OrderBy(p => p!.EtaUtc).FirstOrDefault();
-        if (exa is not null)
-            text += $"   ⚠ {UsageFormat.ResetAbsolute(exa.EtaUtc, s.Culture)}";
-
-        // T8c: la línea entera (pace 5h+7d + ⚠ ETA) se elide al ancho útil — con locales/ETAs largos
-        // desbordaba el panel. Solo afecta al pintado (el alto reservado no cambia) → medir==pintar.
-        text = TextWrap.FitLine(text, x, x + w, 0, t => g.MeasureString(t, smallFont).Width);
-
-        using var br = new SolidBrush(c);
-        g.DrawString(text, smallFont, br, x, y);
+        // T8c (invariante): nada se pinta más allá de x+w. Recorremos los segmentos izq→der y dejamos de
+        // pintar en cuanto uno no cabe entero — el alto reservado no cambia → medir==pintar.
+        float cx = x;
+        float right = x + w;
+        foreach (var (text, color) in segs)
+        {
+            float segW = g.MeasureString(text, smallFont).Width;
+            if (cx + segW > right) break;   // no cabe entero: corta aquí (no rebasa el panel)
+            using var br = new SolidBrush(color);
+            g.DrawString(text, smallFont, br, cx, y);
+            cx += segW;
+        }
         return y + Dpi.Scale(18);
     }
 
@@ -338,6 +378,26 @@ public static class DashboardDataView
     private static int ModelLineTextH => Dpi.Scale(16);   // alto de la línea etiqueta/%
     private static int ModelBarH => Dpi.Scale(4);         // barrita de referencia fina (mini-cuota)
     private static int ModelBarRadius => Dpi.Scale(2);
+
+    // F7 (v0.3.9 g3): por debajo de este % la fila de modelo está prácticamente VACÍA (p.ej. "Sonnet 7d
+    // 0%"); el % se pinta en TextMuted (no en foreground) para no resaltar el dato más vacío del panel.
+    internal const double ModelEmptyEpsilonPct = 0.5;
+
+    /// <summary>
+    /// ¿El % de una mini-fila de modelo está bajo el epsilon de "vacío" (F7)? PURO y testeable: decide si
+    /// el % se pinta atenuado (TextMuted) en vez de en foreground, para que "Sonnet 7d 0%" no resalte más
+    /// que un modelo con uso real (jerarquía invertida del render auditado).
+    /// </summary>
+    internal static bool IsModelPctEmpty(double utilizationPct) => utilizationPct < ModelEmptyEpsilonPct;
+
+    /// <summary>
+    /// Color de RELLENO de la barrita de referencia de una mini-fila de modelo (F5, v0.3.9 g3): NEUTRO
+    /// (<see cref="Theme.TextMuted"/>), no por riesgo. La mini-fila NO tiene pace por modelo, así que el
+    /// verde/rojo semántico de <see cref="ColorMath.RiskColor"/> aquí era ruido — competía con el
+    /// verde/rojo de las barras grandes (tres semánticas de color en el mismo panel, auditoría §3 #2).
+    /// El relleno neutro la mantiene como referencia de longitud sin reclamar estado de color.
+    /// </summary>
+    internal static Color ModelBarFill(Theme theme) => theme.TextMuted;
 
     /// <summary>
     /// Mini-fila de cuota por modelo (Opus/Sonnet 7d): etiqueta a la izquierda + % a la derecha y, debajo,
@@ -356,14 +416,19 @@ public static class DashboardDataView
             // % con la cultura del idioma elegido (T2), no la del SO.
             // T10 (§3 #16): medida central tipográfica + Ceiling, igual que QuotaBar → la columna
             // derecha del % de modelo queda en la MISMA vertical que el % de las barras grandes.
+            // F7 (v0.3.9 g3): bajo el epsilon de "vacío" (p.ej. "Sonnet 7d 0%") el % va en TextMuted (dim)
+            // y no en foreground — el dato más vacío del panel dejaba de ser el que más resaltaba.
             string val = UsageFormat.Percent(win.UtilizationPct, culture);
             int valW = TextMetrics.MeasureWidth(g, val, Typography.Mono);
-            g.DrawString(val, Typography.Mono, fg, x + w - valW, y, TextMetrics.Typographic);
+            Brush pctBrush = IsModelPctEmpty(win.UtilizationPct) ? dim : fg;
+            g.DrawString(val, Typography.Mono, pctBrush, x + w - valW, y, TextMetrics.Typographic);
 
-            // Barrita de referencia (mini-cuota): track + relleno proporcional al %, color por riesgo —
-            // mismo criterio que las barras de cuota, para que la mini-fila se lea como una de ellas.
+            // Barrita de referencia (mini-cuota): track + relleno proporcional al %, color NEUTRO —
+            // ancla el % como longitud sin reclamar estado (la mini-fila no tiene pace por modelo).
             // T3a (auditoría §3 #2): el track se corta un gap ANTES del % right-aligned — a todo el
             // ancho tachaba el número (el Mono de 12pt baja hasta la banda de la barrita).
+            // F5 (v0.3.9 g3): el relleno deja de ir por RiskColor (verde/rojo) y pasa a ModelBarFill
+            // (TextMuted) — quitaba una tercera semántica de color que competía con las barras grandes.
             int trackW = QuotaBarGeometry.CompactTrackWidth(w, valW, Spacing.Sm);
             int by = y + ModelLineTextH;
             if (trackW > 0)
@@ -374,8 +439,7 @@ public static class DashboardDataView
                 int fw = (int)Math.Round(trackW * clamped);
                 if (fw > 1)
                 {
-                    Color c = ColorMath.RiskColor(win.UtilizationPct, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
-                    using var fill = new SolidBrush(c);
+                    using var fill = new SolidBrush(ModelBarFill(theme));
                     Shapes.FillRounded(g, fill, new Rectangle(x, by, fw, ModelBarH), ModelBarRadius);
                 }
             }
@@ -672,6 +736,16 @@ public static class DashboardDataView
         return bottom + ChartFooter;
     }
 
+    /// <summary>
+    /// Y (px) de la gridline de umbral del modo Cuota% (F13, v0.3.9 g3), PURA y testeable. Es el análogo
+    /// vertical de <see cref="QuotaBarGeometry.TickX"/>: proyecta un % [0,100] sobre el eje Y del plot con
+    /// la MISMA fórmula que la línea de datos (<c>Y(v)</c> de <see cref="DrawPercentBody"/>), de modo que la
+    /// gridline de 90% cae exactamente a la altura donde la curva marca 90%. 0% ⇒ <paramref name="bottom"/>,
+    /// 100% ⇒ <c>bottom - (chartH - headroom)</c>. Recorta el % a [0,100].
+    /// </summary>
+    internal static float ThresholdY(int bottom, int chartH, int headroom, double pct)
+        => bottom - (float)(Math.Clamp(pct, 0, 100) / 100.0) * (chartH - headroom);
+
     internal static int DrawPercentBody(Graphics g, bool draw, int x, int top, int w, Strings s, Theme theme, AppConfig cfg,
         Font smallFont, ChartRange chartRange, string chartPctWindow, List<PctPoint> pctData, bool chartLoading, Brush dim)
     {
@@ -707,6 +781,22 @@ public static class DashboardDataView
         var curSz = g.MeasureString(curText, smallFont);
         g.DrawString(curText, smallFont, dim, x, top - 1);
         var curRect = new RectangleF(x, top - 1, curSz.Width, curSz.Height);
+
+        // F13 (v0.3.9 g3): gridlines de UMBRAL en Warn/Crit (el modo % ya recibe cfg). Antes del fill para
+        // que el área no las tape (igual que los ticks de la QuotaBar se pintan tras el relleno por las
+        // esquinas redondeadas, aquí el fill es semitransparente y deja ver la línea por debajo). Finas,
+        // punteadas y NEUTRAS (theme.Separator) — son escala, no estado: dan el cruce warn/crit que el modo
+        // % no tenía, sin meter una 4.ª semántica de color sobre el plot. Y de cada umbral por ThresholdY
+        // (misma proyección que la curva). Headroom = Dpi.Scale(14), igual que Y(v).
+        using (var grid = new Pen(theme.Separator, 1f) { DashStyle = DashStyle.Dash })
+        {
+            int headroom = Dpi.Scale(14);
+            foreach (double th in new[] { cfg.WarnThresholdPct, cfg.CriticalThresholdPct })
+            {
+                float gy = ThresholdY(bottom, ChartH, headroom, th);
+                g.DrawLine(grid, x, gy, x + w, gy);
+            }
+        }
 
         // filled area under the line
         var poly = new List<PointF>(n + 2);

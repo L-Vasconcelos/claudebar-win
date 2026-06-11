@@ -101,8 +101,9 @@ public class DashboardDataViewTests
     [Fact]
     public void ModelLine_draws_a_reference_bar_under_the_text()
     {
-        // La barrita de referencia (relleno por riesgo) se pinta DEBAJO del texto: hay píxeles del color de
-        // riesgo en la banda de la barra (no solo el track), anclando el % a una mini-cuota.
+        // La barrita de referencia se pinta DEBAJO del texto: hay píxeles del relleno en la banda de la
+        // barra (no solo el track), anclando el % a una mini-cuota. F5 (v0.3.9 g3): el relleno es NEUTRO
+        // (ModelBarFill = TextMuted), no por riesgo — el color se busca contra ese token, no contra RiskColor.
         using var bmp = new Bitmap(360, 120);
         using var g = Graphics.FromImage(bmp);
         g.Clear(Theme.Dark.Background);
@@ -110,7 +111,7 @@ public class DashboardDataViewTests
         using var dim = new SolidBrush(Theme.Dark.TextSecondary);
         var win = new UsageWindow(60, DateTimeOffset.UtcNow); // 60% → relleno visible
         var cfg = new AppConfig();
-        var c = ColorMath.RiskColor(60, Theme.Dark, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
+        var c = DashboardDataView.ModelBarFill(Theme.Dark);
 
         const int x = 16, y0 = 30, w = 300;
         DashboardDataView.DrawModelLine(g, draw: true, "Sonnet 7d", win, x, y0, w,
@@ -663,5 +664,332 @@ public class DashboardDataViewTests
 
         var s = Localization.Get("en");
         Assert.Equal(UsageFormat.Money(3.2, s.Culture), DashboardDataView.SpendValueText(spend, ModelFamily.Other, s));
+    }
+
+    // ================= F5 (v0.3.9 g3): mini-filas de modelo con relleno NEUTRO (no por riesgo) =================
+
+    [Fact]
+    public void ModelBarFill_is_neutral_text_muted_not_a_risk_color()
+    {
+        // La mini-fila no tiene pace por modelo: su relleno deja de ir por RiskColor (verde/rojo) y pasa a
+        // TextMuted, para no competir con el verde/rojo semántico de las barras grandes (tres semánticas).
+        foreach (var theme in new[] { Theme.Dark, Theme.Light, Theme.Cli })
+            Assert.Equal(theme.TextMuted, DashboardDataView.ModelBarFill(theme));
+    }
+
+    [Fact]
+    public void ModelBarFill_does_not_match_RiskColor_at_critical_percent()
+    {
+        // Garantía explícita del fix: al 95% (crítico) el relleno NO es el rojo de RiskColor — es neutro.
+        var cfg = new AppConfig();
+        var risk = ColorMath.RiskColor(95, Theme.Dark, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
+        Assert.NotEqual(risk, DashboardDataView.ModelBarFill(Theme.Dark));
+    }
+
+    [Fact]
+    public void ModelLine_reference_bar_uses_neutral_fill_not_risk_color()
+    {
+        // Pixel-check: a un % crítico (90), la barrita NO contiene el rojo de RiskColor; sí el neutro.
+        using var bmp = new Bitmap(360, 120);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        using var fg = new SolidBrush(Theme.Dark.TextPrimary);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var win = new UsageWindow(90, DateTimeOffset.UtcNow);   // 90% → relleno largo y visible
+        var cfg = new AppConfig();
+        var risk = ColorMath.RiskColor(90, Theme.Dark, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
+        var neutral = DashboardDataView.ModelBarFill(Theme.Dark);
+
+        const int x = 16, y0 = 30, w = 300;
+        DashboardDataView.DrawModelLine(g, draw: true, "Opus 7d", win, x, y0, w,
+            Typography.Caption, fg, dim, Theme.Dark, cfg, Localization.Get("en").Culture);
+
+        // Banda de la barra (justo bajo la línea de texto, 16px): el track empieza en x.
+        bool foundRisk = false, foundNeutral = false;
+        for (int py = y0 + 16; py <= y0 + 19; py++)
+            for (int px = x + 2; px < x + 30; px++)
+            {
+                var p = bmp.GetPixel(px, py);
+                if (Math.Abs(p.R - risk.R) <= 10 && Math.Abs(p.G - risk.G) <= 10 && Math.Abs(p.B - risk.B) <= 10)
+                    foundRisk = true;
+                if (Math.Abs(p.R - neutral.R) <= 10 && Math.Abs(p.G - neutral.G) <= 10 && Math.Abs(p.B - neutral.B) <= 10)
+                    foundNeutral = true;
+            }
+        Assert.False(foundRisk, "la mini-fila sigue pintando el relleno por RiskColor (rojo crítico)");
+        Assert.True(foundNeutral, "la mini-fila debe pintar el relleno NEUTRO (TextMuted)");
+    }
+
+    // ================= F7 (v0.3.9 g3): fila de modelo bajo epsilon ⇒ % atenuado (TextMuted) =================
+
+    [Fact]
+    public void IsModelPctEmpty_only_below_the_epsilon()
+    {
+        Assert.True(DashboardDataView.IsModelPctEmpty(0));
+        Assert.True(DashboardDataView.IsModelPctEmpty(0.4));
+        Assert.False(DashboardDataView.IsModelPctEmpty(DashboardDataView.ModelEmptyEpsilonPct)); // 0.5 no es vacío
+        Assert.False(DashboardDataView.IsModelPctEmpty(0.5));
+        Assert.False(DashboardDataView.IsModelPctEmpty(12));
+    }
+
+    // Brillo MÁXIMO de la tinta del % (mitad derecha de la fila de texto). Discriminador robusto entre
+    // foreground (TextPrimary ≈ 244) y dim (TextSecondary ≈ 161): un % atenuado NUNCA supera el brillo de
+    // su token (~161), mientras que el de foreground alcanza ~244. Evita confundir los bordes AA (que
+    // interpolan bg→color y pasan por el tono intermedio) con el color base, que sí confundía al contar.
+    private static int ModelPctPeakBrightness(double util)
+    {
+        using var bmp = new Bitmap(420, 80);
+        using var g = Graphics.FromImage(bmp);
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+        g.Clear(Theme.Dark.Background);
+        using var fg = new SolidBrush(Theme.Dark.TextPrimary);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var win = new UsageWindow(util, DateTimeOffset.UtcNow);
+        var cfg = new AppConfig();
+        var s = Localization.Get("en");
+
+        const int x = 16, y0 = 10, w = 300;
+        DashboardDataView.DrawModelLine(g, draw: true, "Sonnet 7d", win, x, y0, w,
+            Typography.Caption, fg, dim, Theme.Dark, cfg, s.Culture);
+
+        int peak = 0;
+        for (int py = y0; py < y0 + 16; py++)
+            for (int px = x + w / 2; px <= x + w; px++)
+            {
+                var p = bmp.GetPixel(px, py);
+                peak = Math.Max(peak, Math.Max(p.R, Math.Max(p.G, p.B)));
+            }
+        return peak;
+    }
+
+    [Fact]
+    public void Empty_model_row_paints_the_percent_muted_not_foreground()
+    {
+        // "Sonnet 7d 0%": el % va en TextMuted/dim, no en foreground — deja de resaltar el dato más vacío.
+        // El brillo pico del % vacío queda bajo el del foreground (TextSecondary ≈ 161 < TextPrimary ≈ 244).
+        int emptyPeak = ModelPctPeakBrightness(0);
+        int usedPeak = ModelPctPeakBrightness(42);
+        Assert.True(emptyPeak >= Theme.Dark.TextSecondary.R - 20,
+            $"no se pintó el % de la fila vacía (pico={emptyPeak})");
+        Assert.True(emptyPeak < Theme.Dark.TextPrimary.R - 30,
+            $"el % de una fila vacía (0%) no debe llegar al brillo del foreground (pico={emptyPeak})");
+        Assert.True(usedPeak - emptyPeak >= 40,
+            $"el % vacío (pico={emptyPeak}) debe ser claramente más tenue que el de uso real (pico={usedPeak})");
+    }
+
+    [Fact]
+    public void Used_model_row_paints_the_percent_in_foreground()
+    {
+        // Con uso real (42%) el % sí va en foreground (no se atenúa): la jerarquía se respeta — su brillo
+        // pico alcanza el del TextPrimary (~244), no el dim (~161).
+        int usedPeak = ModelPctPeakBrightness(42);
+        Assert.True(usedPeak >= Theme.Dark.TextPrimary.R - 20,
+            $"el % de una fila con uso real (42%) debe pintarse en foreground (pico={usedPeak})");
+    }
+
+    // ================= F6 (v0.3.9 g3): línea de pace — flecha + color POR SEGMENTO + grupo ETA =================
+
+    [Fact]
+    public void PaceArrow_is_steady_when_on_pace_and_rising_when_over()
+    {
+        Assert.Equal("→", DashboardDataView.PaceArrow(PaceStatus.Ok));      // por debajo/en ritmo: no acelera
+        Assert.Equal("↗", DashboardDataView.PaceArrow(PaceStatus.Over));    // acelerado
+        Assert.Equal("↗", DashboardDataView.PaceArrow(PaceStatus.Critical));
+    }
+
+    [Fact]
+    public void PaceSegments_color_each_window_by_its_own_status()
+    {
+        // El caso minor de la auditoría: 5h crítica (212%) y 7d SANA (77%). Antes TODA la línea iba del
+        // color de la peor ventana ⇒ la 7d salía roja. Ahora cada segmento lleva SU color: el 7d en Ok.
+        var pf = new PaceResult("5h", 90, 2.12, 42, null, null, false, PaceStatus.Critical);
+        var ps = new PaceResult("7d", 77, 0.77, 100, null, null, false, PaceStatus.Ok);
+        var segs = DashboardDataView.PaceSegments(pf, ps, Localization.Get("en"), Theme.Dark, Theme.Dark.TextSecondary);
+
+        var seg5 = segs.First(t => t.text.Contains("5h"));
+        var seg7 = segs.First(t => t.text.Contains("7d"));
+        Assert.Equal(Theme.Dark.CriticalText, seg5.color);     // 5h crítica → CriticalText
+        Assert.Equal(Theme.Dark.Ok, seg7.color);               // 7d sana → Ok (no rojo)
+    }
+
+    [Fact]
+    public void PaceSegments_arrow_follows_each_window_status()
+    {
+        // La flecha por segmento: la ventana acelerada lleva ↗, la que va en ritmo →.
+        var pf = new PaceResult("5h", 90, 1.5, 42, null, null, false, PaceStatus.Over);
+        var ps = new PaceResult("7d", 50, 0.6, 80, null, null, false, PaceStatus.Ok);
+        var segs = DashboardDataView.PaceSegments(pf, ps, Localization.Get("en"), Theme.Dark, Theme.Dark.TextSecondary);
+
+        Assert.StartsWith("↗", segs.First(t => t.text.Contains("5h")).text);
+        Assert.StartsWith("→", segs.First(t => t.text.Contains("7d")).text);
+    }
+
+    [Fact]
+    public void PaceSegments_eta_group_uses_localized_label_and_warn_separator()
+    {
+        // El grupo ETA: separador " · " + "⚠ <rótulo localizado> <hora>", coloreado por la ventana que se
+        // agota (no por la peor de la línea). El rótulo viene de Strings.PaceEtaLabel (9 idiomas).
+        var eta = DateTimeOffset.UtcNow.AddHours(3);
+        var pf = new PaceResult("5h", 90, 1.5, 42, eta, null, true, PaceStatus.Over);
+        var ps = new PaceResult("7d", 50, 0.6, 80, null, null, false, PaceStatus.Ok);
+        var es = Localization.Get("es");
+        var segs = DashboardDataView.PaceSegments(pf, ps, es, Theme.Dark, Theme.Dark.TextSecondary);
+
+        var etaSeg = segs.First(t => t.text.Contains("⚠"));
+        Assert.Contains(es.PaceEtaLabel, etaSeg.text);                 // micro-rótulo localizado ("se agota")
+        Assert.Contains(UsageFormat.ResetAbsolute(eta, es.Culture), etaSeg.text);
+        Assert.Equal(Theme.Dark.WarnText, etaSeg.color);              // color de la ventana que se agota (Over)
+        Assert.Contains(segs, t => t.text == " · " && t.color == Theme.Dark.TextSecondary); // separador neutro
+    }
+
+    [Fact]
+    public void DrawPace_measure_equals_paint_with_two_windows_and_eta()
+    {
+        // Invariante de 2 pasadas tras la reescritura por segmentos: medir y pintar avanzan el mismo y.
+        using var bmp = new Bitmap(420, 60);
+        using var g = Graphics.FromImage(bmp);
+        var s = Localization.Get("es");
+        var eta = DateTimeOffset.UtcNow.AddHours(3);
+        var snap = new AppSnapshot
+        {
+            PaceFive = new PaceResult("5h", 90, 2.12, 42, eta, null, true, PaceStatus.Critical),
+            PaceSeven = new PaceResult("7d", 77, 0.77, 100, null, null, false, PaceStatus.Ok),
+        };
+
+        int measured = DashboardDataView.DrawPace(g, draw: false, snap, s, Theme.Dark, 16, 10, 380, Typography.Caption);
+        int painted = DashboardDataView.DrawPace(g, draw: true, snap, s, Theme.Dark, 16, 10, 380, Typography.Caption);
+        Assert.Equal(measured, painted);
+    }
+
+    [Fact]
+    public void DrawPace_segments_never_exceed_the_content_width()
+    {
+        // Invariante T8c conservado tras pasar a segmentos: nada se pinta más allá de x+w en una fila estrecha.
+        using var bmp = new Bitmap(420, 60);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        var s = Localization.Get("es");
+        var eta = DateTimeOffset.UtcNow.AddHours(3);
+        var snap = new AppSnapshot
+        {
+            PaceFive = new PaceResult("5h", 62, 1.30, 47.7, eta, null, true, PaceStatus.Critical),
+            PaceSeven = new PaceResult("7d", 84, 0.95, 88.4, null, null, false, PaceStatus.Ok),
+        };
+
+        const int x = 16, y0 = 10, w = 90;
+        DashboardDataView.DrawPace(g, draw: true, snap, s, Theme.Dark, x, y0, w, Typography.Caption);
+
+        var bg = Theme.Dark.Background;
+        for (int px = x + w + 2; px < bmp.Width; px++)
+            for (int py = y0; py < y0 + 18; py++)
+            {
+                var p = bmp.GetPixel(px, py);
+                Assert.True(p.R == bg.R && p.G == bg.G && p.B == bg.B,
+                    $"píxel pintado en ({px},{py}), fuera del ancho w={w}: los segmentos de pace rebasan el panel");
+            }
+    }
+
+    [Fact]
+    public void PaceEtaLabel_exists_in_all_nine_languages()
+    {
+        // Invariante i18n: el micro-rótulo del ETA está poblado en los 9 idiomas (no cae a vacío en ninguno).
+        foreach (var code in Localization.LanguageCycle)
+        {
+            var s = code == "system" ? Localization.Get("en") : Localization.Get(code);
+            Assert.False(string.IsNullOrWhiteSpace(s.PaceEtaLabel), $"PaceEtaLabel vacío en idioma '{code}'");
+        }
+    }
+
+    // ================= F13 (v0.3.9 g3): gridlines de umbral en modo Cuota% =================
+
+    [Fact]
+    public void ThresholdY_projects_percent_like_the_data_line()
+    {
+        // 0% ⇒ bottom; 100% ⇒ bottom-(chartH-headroom); 50% ⇒ punto medio. Misma fórmula que Y(v).
+        const int bottom = 200, chartH = 92, headroom = 14;
+        Assert.Equal(bottom, DashboardDataView.ThresholdY(bottom, chartH, headroom, 0));
+        Assert.Equal(bottom - (chartH - headroom), DashboardDataView.ThresholdY(bottom, chartH, headroom, 100));
+        Assert.Equal(bottom - (chartH - headroom) / 2f, DashboardDataView.ThresholdY(bottom, chartH, headroom, 50));
+    }
+
+    [Fact]
+    public void ThresholdY_warn_is_below_critical_on_screen()
+    {
+        // Warn (70%) queda MÁS ABAJO en pantalla (mayor Y) que Critical (90%): el plot crece hacia arriba.
+        const int bottom = 200, chartH = 92, headroom = 14;
+        float warn = DashboardDataView.ThresholdY(bottom, chartH, headroom, 70);
+        float crit = DashboardDataView.ThresholdY(bottom, chartH, headroom, 90);
+        Assert.True(warn > crit, "la gridline de warn debe quedar bajo la de critical en pantalla");
+    }
+
+    [Fact]
+    public void Percent_mode_draws_threshold_gridlines()
+    {
+        // F13: en modo % hay gridlines sutiles (theme.Separator) a la altura de Warn y Crit. Antes no había
+        // ninguna línea de umbral: no se veía el cruce warn/crit.
+        using var bmp = new Bitmap(360, 200);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var s = Localization.Get("en");
+        var cfg = new AppConfig();
+        var t0 = DateTime.UtcNow.AddHours(-4);
+        var pctData = new List<PctPoint>();
+        for (int i = 0; i < 6; i++) pctData.Add(new PctPoint(t0.AddHours(i), 30 + i, 20 + i)); // valores bajos
+
+        const int x = 10, top = 20, w = 320;
+        DashboardDataView.DrawPercentBody(g, draw: true, x, top, w, s, Theme.Dark, cfg,
+            Typography.Caption, ChartRange.Hours5, "5h", pctData, chartLoading: false, dim);
+
+        int bottom = top + DashboardDataView.ChartH;
+        int headroom = Dpi.Scale(14);
+        var sep = Theme.Dark.Separator;
+        foreach (double th in new[] { cfg.WarnThresholdPct, cfg.CriticalThresholdPct })
+        {
+            int gy = (int)Math.Round(DashboardDataView.ThresholdY(bottom, DashboardDataView.ChartH, headroom, th));
+            bool found = false;
+            // La gridline es punteada: busca un pixel Separator en su banda [gy-1, gy+1] por todo el ancho.
+            for (int py = gy - 1; py <= gy + 1 && !found; py++)
+                for (int px = x + 5; px <= x + w - 5 && !found; px++)
+                {
+                    var p = bmp.GetPixel(px, py);
+                    if (Math.Abs(p.R - sep.R) <= 10 && Math.Abs(p.G - sep.G) <= 10 && Math.Abs(p.B - sep.B) <= 10)
+                        found = true;
+                }
+            Assert.True(found, $"falta la gridline de umbral en {th}% (modo Cuota%)");
+        }
+    }
+
+    [Fact]
+    public void Spend_mode_has_no_threshold_gridlines()
+    {
+        // Acotación del fix: el modo $ NO recibe gridlines de umbral (solo el modo %). Comprobamos que el
+        // body de gasto no las pinta (no hay Separator horizontal continuo en la banda de un umbral).
+        using var bmp = new Bitmap(360, 200);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var s = Localization.Get("en");
+        var t0 = new DateTime(2026, 6, 1);
+        var data = new List<HistoryBucket>();
+        for (int i = 0; i < 5; i++)
+            data.Add(new HistoryBucket(t0.AddHours(i), $"{i:00}h",
+                new Dictionary<string, double> { ["Opus"] = 4 + i }));
+
+        const int x = 10, top = 20, w = 320;
+        DashboardDataView.DrawSpendBody(g, draw: true, x, top, w, s, Theme.Dark, Typography.Caption,
+            data, chartLoading: false, dim);
+
+        int bottom = top + DashboardDataView.ChartH;
+        int headroom = Dpi.Scale(14);
+        var sep = Theme.Dark.Separator;
+        int gy = (int)Math.Round(DashboardDataView.ThresholdY(bottom, DashboardDataView.ChartH, headroom, 70));
+        int sepCount = 0;
+        for (int px = x + 5; px <= x + w - 5; px++)
+        {
+            var p = bmp.GetPixel(px, gy);
+            if (Math.Abs(p.R - sep.R) <= 10 && Math.Abs(p.G - sep.G) <= 10 && Math.Abs(p.B - sep.B) <= 10)
+                sepCount++;
+        }
+        Assert.True(sepCount < (w - 10) / 3, "el modo $ no debe pintar una gridline de umbral horizontal");
     }
 }
