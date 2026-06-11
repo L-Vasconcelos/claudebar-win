@@ -22,19 +22,37 @@ public static class DashboardDataView
         (ChartRange.Week1, "7D"), (ChartRange.Month1, "30D")
     };
 
-    // Stacked-area series (bottom → top) with their colours.
-    internal static readonly (string name, Color color)[] Series =
-    {
-        ("Opus", Color.FromArgb(167, 139, 250)),   // violet
-        ("Sonnet", Color.FromArgb(56, 189, 248)),  // sky
-        ("Haiku", Color.FromArgb(52, 211, 153)),   // emerald
-        ("other", Color.FromArgb(148, 163, 184))   // slate
-    };
+    // T13a: las series del área apilada son DINÁMICAS — las familias reales de los datos
+    // (ModelFamily.FromId), no la lista fija Opus/Sonnet/Haiku/other con colores hardcodeados.
+    // El color sale de theme.ChartSeries por RANGO de gasto, con asignación estable por sesión:
+    // una familia conserva su slot entre refrescos mientras siga presente.
+    internal static readonly ChartSeriesAssigner SeriesAssigner = new();
 
-    internal static double SeriesValue(int s, HistoryBucket b) => s switch
+    /// <summary>
+    /// Familias con gasto (&gt; 0) en la ventana del gráfico, por gasto descendente — el rango define
+    /// el slot de color y el orden de apilado/leyenda. Una familia sin registros en la ventana no
+    /// aparece (desaparición natural); desempate por nombre para que el orden sea determinista.
+    /// </summary>
+    internal static List<string> ChartFamilies(IReadOnlyList<HistoryBucket> data)
     {
-        0 => b.Opus, 1 => b.Sonnet, 2 => b.Haiku, _ => b.Other
-    };
+        var totals = new Dictionary<string, double>();
+        foreach (var b in data)
+            foreach (var kv in b.CostByFamily)
+                totals[kv.Key] = totals.GetValueOrDefault(kv.Key) + kv.Value;
+        return totals.Where(kv => kv.Value > 0)
+            .OrderByDescending(kv => kv.Value)
+            .ThenBy(kv => kv.Key, StringComparer.Ordinal)
+            .Select(kv => kv.Key)
+            .ToList();
+    }
+
+    /// <summary>Etiqueta de familia para la UI: la canónica "Otros" se localiza; el resto va tal cual.</summary>
+    internal static string FamilyLabel(string family, Strings s)
+        => family == ModelFamily.Other ? s.ModelFamilyOther : family;
+
+    /// <summary>Color del slot asignado a una familia (módulo: nunca se sale de la gama del tema).</summary>
+    private static Color SeriesColor(Theme theme, IReadOnlyDictionary<string, int> slots, string family)
+        => theme.ChartSeries[slots[family] % theme.ChartSeries.Count];
 
     // T11: alto del plot y del pie de la gráfica en px de diseño (96 DPI) proyectados al DPI vigente
     // (las etiquetas del eje/leyenda crecen con la fuente; el plot debe crecer con ellas).
@@ -259,8 +277,9 @@ public static class DashboardDataView
             {
                 // Moneda con la cultura del idioma elegido (T2): "$420.50" en inglés, "$420,50" en español.
                 // T8b: la clave (nombre de modelo) se elide contra el $ right-aligned (gutter Md), no lo cruza.
+                // T13a: las claves son familias dinámicas; la canónica "Otros" se localiza al pintar.
                 string val = UsageFormat.Money(kv.Value, s.Culture);
-                var (shownKey, valX) = RowWithRightValue(g, kv.Key, val, x, w, labelFont, Typography.Mono);
+                var (shownKey, valX) = RowWithRightValue(g, FamilyLabel(kv.Key, s), val, x, w, labelFont, Typography.Mono);
                 g.DrawString(shownKey, labelFont, fg, x, y);
                 g.DrawString(val, Typography.Mono, dim, valX, y, TextMetrics.Typographic);
             }
@@ -583,25 +602,23 @@ public static class DashboardDataView
         float X(int i) => n == 1 ? x + w / 2f : x + (float)i * w / (n - 1);
         float Y(double v) => bottom - (float)(v / max) * (ChartH - Dpi.Scale(14)); // T11: headroom escalado
 
+        // T13a: series dinámicas — las familias reales de la ventana, apiladas por rango de gasto
+        // (la 1.ª abajo) y con color por slot estable de theme.ChartSeries (no por nombre).
+        var families = ChartFamilies(chartData);
+        var slots = SeriesAssigner.Assign(families);
+
         var baseline = new double[n];
-        for (int sIdx = 0; sIdx < Series.Length; sIdx++)
+        foreach (var family in families)
         {
-            bool any = false;
             var topArr = new double[n];
-            for (int i = 0; i < n; i++)
-            {
-                double v = SeriesValue(sIdx, chartData[i]);
-                if (v > 0) any = true;
-                topArr[i] = baseline[i] + v;
-            }
-            if (any)
-            {
-                var pts = new List<PointF>(2 * n);
-                for (int i = 0; i < n; i++) pts.Add(new PointF(X(i), Y(topArr[i])));
-                for (int i = n - 1; i >= 0; i--) pts.Add(new PointF(X(i), Y(baseline[i])));
-                using var br = new SolidBrush(Series[sIdx].color);
-                if (pts.Count >= 3) g.FillPolygon(br, pts.ToArray());
-            }
+            for (int i = 0; i < n; i++) topArr[i] = baseline[i] + chartData[i].Cost(family);
+
+            var pts = new List<PointF>(2 * n);
+            for (int i = 0; i < n; i++) pts.Add(new PointF(X(i), Y(topArr[i])));
+            for (int i = n - 1; i >= 0; i--) pts.Add(new PointF(X(i), Y(baseline[i])));
+            using var br = new SolidBrush(SeriesColor(theme, slots, family));
+            if (pts.Count >= 3) g.FillPolygon(br, pts.ToArray());
+
             baseline = topArr;
         }
 
@@ -626,20 +643,19 @@ public static class DashboardDataView
 
         // T11: la leyenda escala con el DPI (la fila del eje X crece con la fuente; sin escalar, la
         // leyenda a bottom+16 fijos se montaría sobre las etiquetas a 125/150%).
+        // T13a: la leyenda lista las familias REALES de los datos (rango = orden), con su slot de color.
         int lx = x, ly = bottom + Dpi.Scale(16);
-        for (int sIdx = 0; sIdx < Series.Length; sIdx++)
+        foreach (var family in families)
         {
-            bool any = false;
-            for (int i = 0; i < n; i++) if (SeriesValue(sIdx, chartData[i]) > 0) { any = true; break; }
-            if (!any) continue;
-            using var sw = new SolidBrush(Series[sIdx].color);
+            using var sw = new SolidBrush(SeriesColor(theme, slots, family));
             // T4c: swatch en ly+4 (antes ly+2) — quedaba ~2px alto respecto al centro óptico del texto
             // de la leyenda (caja de mayúsculas del Caption ≈ [ly+4, ly+13]; el cuadrado centraba en
             // ly+6.5 en vez de ≈ly+8.5). Mismo tamaño 9×9; solo baja el anclaje vertical. (T11: todo
             // en px de diseño escalados — a factor 1.0, idéntico.)
             g.FillRectangle(sw, lx, ly + Dpi.Scale(4), Dpi.Scale(9), Dpi.Scale(9));
-            g.DrawString(Series[sIdx].name, smallFont, dim, lx + Dpi.Scale(12), ly);
-            lx += Dpi.Scale(12) + (int)g.MeasureString(Series[sIdx].name, smallFont).Width + Dpi.Scale(10);
+            string name = FamilyLabel(family, s);
+            g.DrawString(name, smallFont, dim, lx + Dpi.Scale(12), ly);
+            lx += Dpi.Scale(12) + (int)g.MeasureString(name, smallFont).Width + Dpi.Scale(10);
         }
         return bottom + ChartFooter;
     }

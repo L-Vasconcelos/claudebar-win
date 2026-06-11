@@ -228,6 +228,45 @@ public class ThemeTokenTests
         Assert.True(r >= 1.85, $"[{t.Id}] knob sobre Accent contrasta {r:0.00}:1 (< 1.85)");
     }
 
+    // --- T13a: gama de las series del gráfico (token por tema; la vista no lleva hexes) ---
+
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void Chart_series_has_at_least_four_opaque_slots(Theme t)
+    {
+        // El cap de familias es 4 (3 con nombre + "Otros"): cada tema debe aportar al menos 4
+        // colores de serie, opacos (van como relleno del área apilada).
+        Assert.True(t.ChartSeries.Count >= 4, $"[{t.Id}] solo {t.ChartSeries.Count} slots de serie");
+        Assert.All(t.ChartSeries, c => Assert.Equal(255, c.A));
+    }
+
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void Chart_series_slots_are_distinct_within_a_theme(Theme t)
+        => Assert.Equal(t.ChartSeries.Count, t.ChartSeries.Select(c => c.ToArgb()).Distinct().Count());
+
+    [Fact]
+    public void Cli_chart_series_uses_its_own_phosphor_gamut()
+    {
+        // El CLI no hereda el violet/sky de dark/light: gama propia verde-fósforo (G domina en RGB).
+        Assert.NotEqual(Theme.Dark.ChartSeries[0].ToArgb(), Theme.Cli.ChartSeries[0].ToArgb());
+        Assert.All(Theme.Cli.ChartSeries, c => Assert.True(c.G > c.R && c.G > c.B,
+            $"slot CLI {c} no es verde-fósforo (G debe dominar)"));
+    }
+
+    [Fact]
+    public void Dark_and_light_keep_the_legacy_series_gamut()
+    {
+        // Pin de regresión: dark/light conservan la gama que antes iba hardcodeada en la vista
+        // (violet/sky/emerald/slate) — T13a solo cambia QUIÉN recibe cada color (por rango).
+        Assert.Equal(Color.FromArgb(167, 139, 250).ToArgb(), Theme.Dark.ChartSeries[0].ToArgb());
+        Assert.Equal(Color.FromArgb(56, 189, 248).ToArgb(), Theme.Dark.ChartSeries[1].ToArgb());
+        Assert.Equal(Color.FromArgb(52, 211, 153).ToArgb(), Theme.Dark.ChartSeries[2].ToArgb());
+        Assert.Equal(Color.FromArgb(148, 163, 184).ToArgb(), Theme.Dark.ChartSeries[3].ToArgb());
+        Assert.Equal(Theme.Dark.ChartSeries.Select(c => c.ToArgb()),
+                     Theme.Light.ChartSeries.Select(c => c.ToArgb()));
+    }
+
     [Theory]
     [MemberData(nameof(Themes))]
     public void Pace_text_color_maps_to_text_variants(Theme t)

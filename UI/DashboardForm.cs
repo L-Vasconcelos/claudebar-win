@@ -17,7 +17,7 @@ namespace ClaudeBarWin.UI;
 /// </summary>
 public sealed class DashboardForm : Form
 {
-    // Datos estáticos del gráfico (Tabs / Series / SeriesValue) movidos a DashboardDataView (Task 5).
+    // Datos del gráfico (Tabs y, desde T13a, las series dinámicas por familia) en DashboardDataView.
 
     private AppSnapshot? _snap;
     private AppConfig _cfg = new();

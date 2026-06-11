@@ -94,6 +94,25 @@ public sealed class Theme
     /// </summary>
     public Color KnobBorder => Color.FromArgb(64, 0, 0, 0);
 
+    /// <summary>
+    /// Gama de colores de las SERIES de la gráfica apilada (T13a). Las familias de modelo son
+    /// DINÁMICAS (Opus/Fable/Mythos/lo que venga): el slot se asigna por RANGO de gasto (1.º = slot
+    /// 0, 2.º = slot 1…) vía <see cref="ChartSeriesAssigner"/>, no por nombre — antes la vista
+    /// llevaba violet/sky/emerald/slate hardcodeados a Opus/Sonnet/Haiku/other. Dark/light comparten
+    /// la gama histórica (fallback, también para temas importados); el CLI define la suya
+    /// verde-fósforo. Tantos slots como el cap de familias (<see cref="ModelFamily.MaxFamilies"/>).
+    /// </summary>
+    public Color[]? ChartSeriesOverride { get; init; }
+    public IReadOnlyList<Color> ChartSeries => ChartSeriesOverride ?? DefaultChartSeries;
+
+    private static readonly Color[] DefaultChartSeries =
+    {
+        Color.FromArgb(167, 139, 250),   // violet  — slot 0 (mayor gasto)
+        Color.FromArgb(56, 189, 248),    // sky     — slot 1
+        Color.FromArgb(52, 211, 153),    // emerald — slot 2
+        Color.FromArgb(148, 163, 184)    // slate   — slot 3
+    };
+
     // Alias semánticos sobre los campos existentes (sin romper consumidores).
     public Color TextPrimary => Foreground;
     public Color TextSecondary => Dim;
@@ -167,7 +186,17 @@ public sealed class Theme
         // Verde tenue subido (#00963C): el anterior #006E2C caía a ~3.3:1 sobre el negro del CLI
         // (subtítulos/footer/verbo de mascota ilegibles, P1 #3). Ahora ~5.4:1 (AA texto pequeño).
         TextMuted = Color.FromArgb(0, 0x96, 0x3C),
-        Separator = Color.FromArgb(0, 50, 20)
+        Separator = Color.FromArgb(0, 50, 20),
+        // Gama verde-fósforo propia para las series del gráfico (T13a): el violet/sky de dark/light
+        // rompía la estética monocroma de terminal. Rampa de luminancia (brillante → tenue) sobre
+        // negro: slot 0 = mayor gasto, el más visible; los 4 se distinguen entre sí apilados.
+        ChartSeriesOverride = new[]
+        {
+            Color.FromArgb(0, 255, 102),
+            Color.FromArgb(0, 194, 79),
+            Color.FromArgb(0, 140, 56),
+            Color.FromArgb(0, 89, 36)
+        }
     };
 
     public static Color StatusColor(Theme t, UI.UsageStatus s) => s switch

@@ -41,6 +41,11 @@ public static class UsageAggregator
             if (r.TimestampUtc >= sessFrom) Add(snap.Session, r);
         }
 
+        // T13a: cap de presentación — con más de ModelFamily.MaxFamilies familias en la ventana,
+        // las menores se funden en "Otros" para que el panel/leyenda no crezcan sin límite.
+        CapFamilies(snap.Session);
+        CapFamilies(snap.Week);
+
         return snap;
     }
 
@@ -55,18 +60,30 @@ public static class UsageAggregator
         var cost = Pricing.CostUsd(r);
         w.CostUsd += cost;
 
-        var key = ModelLabel(r.Model);
+        // T13a: familia DINÁMICA derivada del id (claude-fable-5 → "Fable"), no lista fija — antes
+        // ModelLabel hacía Contains(opus/sonnet/haiku) y cualquier modelo nuevo caía en "other".
+        var key = ModelFamily.FromId(r.Model);
         w.CostByModel[key] = w.CostByModel.GetValueOrDefault(key) + cost;
         w.TokensByModel[key] = w.TokensByModel.GetValueOrDefault(key) + r.TotalTokens;
     }
 
-    public static string ModelLabel(string model)
+    /// <summary>
+    /// Funde en <see cref="ModelFamily.Other"/> las familias que no entran en el cap (las de menor
+    /// gasto), manteniendo coherentes gasto y tokens — no se pierde nada, solo se agrupa.
+    /// </summary>
+    private static void CapFamilies(WindowStats w)
     {
-        if (string.IsNullOrEmpty(model)) return "other";
-        var m = model.ToLowerInvariant();
-        if (m.Contains("opus")) return "Opus";
-        if (m.Contains("sonnet")) return "Sonnet";
-        if (m.Contains("haiku")) return "Haiku";
-        return "other";
+        var keep = ModelFamily.Keep(w.CostByModel);
+        if (keep.Count == w.CostByModel.Count) return;
+
+        foreach (var key in w.CostByModel.Keys.Where(k => k != ModelFamily.Other && !keep.Contains(k)).ToList())
+        {
+            w.CostByModel[ModelFamily.Other] =
+                w.CostByModel.GetValueOrDefault(ModelFamily.Other) + w.CostByModel[key];
+            w.TokensByModel[ModelFamily.Other] =
+                w.TokensByModel.GetValueOrDefault(ModelFamily.Other) + w.TokensByModel.GetValueOrDefault(key);
+            w.CostByModel.Remove(key);
+            w.TokensByModel.Remove(key);
+        }
     }
 }

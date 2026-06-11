@@ -270,7 +270,8 @@ public class DashboardDataViewTests
         var data = new List<HistoryBucket>();
         double[] costs = { 1, 2, 10, 2, 1 };               // pico en el centro
         for (int i = 0; i < costs.Length; i++)
-            data.Add(new HistoryBucket(t0.AddHours(i), $"{i:00}h", costs[i], 0, 0, 0));
+            data.Add(new HistoryBucket(t0.AddHours(i), $"{i:00}h",
+                new Dictionary<string, double> { ["Opus"] = costs[i] }));
 
         const int x = 10, top = 20, w = 300;
         DashboardDataView.DrawSpendBody(g, draw: true, x, top, w, s, Theme.Dark, Typography.Caption,
@@ -299,7 +300,8 @@ public class DashboardDataViewTests
         var t0 = new DateTime(2026, 6, 1);
         var data = new List<HistoryBucket>();
         for (int i = 0; i < 12; i++)
-            data.Add(new HistoryBucket(t0.AddHours(i), $"lun {i:00}h", 5 + i, 1, 0.5, 0));
+            data.Add(new HistoryBucket(t0.AddHours(i), $"lun {i:00}h",
+                new Dictionary<string, double> { ["Opus"] = 5 + i, ["Sonnet"] = 1, ["Haiku"] = 0.5 }));
 
         int measured = DashboardDataView.DrawSpendBody(g, draw: false, 10, 20, 300, s, Theme.Dark,
             Typography.Caption, data, chartLoading: false, dim);
@@ -513,6 +515,86 @@ public class DashboardDataViewTests
                 bool isTrack = Math.Abs(p.R - track.R) <= 6 && Math.Abs(p.G - track.G) <= 6 && Math.Abs(p.B - track.B) <= 6;
                 Assert.False(isTrack, $"track en ({px},{py}): la barrita sigue cruzando bajo el % (texto en x={textLeft})");
             }
+    }
+
+    // ================= T13a: series del gráfico = familias dinámicas de los DATOS =================
+
+    [Fact]
+    public void ChartFamilies_ordena_por_gasto_descendente()
+    {
+        var t0 = new DateTime(2026, 6, 1);
+        var data = new List<HistoryBucket>
+        {
+            new(t0, "00h", new Dictionary<string, double> { ["Fable"] = 5, ["Opus"] = 1 }),
+            new(t0.AddHours(1), "01h", new Dictionary<string, double> { ["Fable"] = 5, ["Sonnet"] = 3 }),
+        };
+
+        Assert.Equal(new[] { "Fable", "Sonnet", "Opus" }, DashboardDataView.ChartFamilies(data));
+    }
+
+    [Fact]
+    public void ChartFamilies_familia_sin_registros_en_la_ventana_desaparece()
+    {
+        // Desaparición natural: nadie usó Haiku en la ventana → no hay serie ni leyenda fantasma.
+        var t0 = new DateTime(2026, 6, 1);
+        var data = new List<HistoryBucket>
+        {
+            new(t0, "00h", new Dictionary<string, double> { ["Opus"] = 2 }),
+        };
+
+        Assert.Equal(new[] { "Opus" }, DashboardDataView.ChartFamilies(data));
+    }
+
+    [Fact]
+    public void ChartFamilies_familia_con_gasto_cero_no_genera_serie()
+    {
+        var t0 = new DateTime(2026, 6, 1);
+        var data = new List<HistoryBucket>
+        {
+            new(t0, "00h", new Dictionary<string, double> { ["Opus"] = 2, ["Fable"] = 0 }),
+        };
+
+        Assert.DoesNotContain("Fable", DashboardDataView.ChartFamilies(data));
+    }
+
+    [Fact]
+    public void Spend_body_pinta_una_familia_nueva_con_el_primer_slot_de_la_gama()
+    {
+        // Una familia desconocida ayer (Fable) y única en la ventana = 1.ª por gasto → slot 0 de
+        // theme.ChartSeries. Antes ni se pintaba: la vista solo conocía Opus/Sonnet/Haiku/other.
+        using var bmp = new Bitmap(360, 160);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var s = Localization.Get("en");
+        var t0 = new DateTime(2026, 6, 1);
+        var data = new List<HistoryBucket>();
+        for (int i = 0; i < 5; i++)
+            data.Add(new HistoryBucket(t0.AddHours(i), $"{i:00}h",
+                new Dictionary<string, double> { ["Fable"] = 4 + i }));
+
+        const int x = 10, top = 20, w = 300;
+        DashboardDataView.DrawSpendBody(g, draw: true, x, top, w, s, Theme.Dark, Typography.Caption,
+            data, chartLoading: false, dim);
+
+        var c0 = Theme.Dark.ChartSeries[0];
+        bool found = false;
+        for (int py = top + 30; py < top + 90 && !found; py++)
+            for (int px = x + 5; px < x + w - 5 && !found; px++)
+            {
+                var p = bmp.GetPixel(px, py);
+                if (Math.Abs(p.R - c0.R) <= 8 && Math.Abs(p.G - c0.G) <= 8 && Math.Abs(p.B - c0.B) <= 8)
+                    found = true;
+            }
+        Assert.True(found, "la serie de una familia nueva debe pintarse con ChartSeries[0] (rango 1.º)");
+    }
+
+    [Fact]
+    public void FamilyLabel_localiza_la_familia_Otros_y_deja_el_resto_tal_cual()
+    {
+        Assert.Equal("Fable", DashboardDataView.FamilyLabel("Fable", Localization.Get("es")));
+        Assert.Equal("Otros", DashboardDataView.FamilyLabel(ModelFamily.Other, Localization.Get("es")));
+        Assert.Equal("Other", DashboardDataView.FamilyLabel(ModelFamily.Other, Localization.Get("en")));
     }
 
     // ================= T10: la columna derecha (QuotaBar % + % de modelo) queda alineada (§3 #16) =================

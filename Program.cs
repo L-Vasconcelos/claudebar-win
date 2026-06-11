@@ -275,10 +275,13 @@ internal static class Program
             SevenDaySonnet = new UsageWindow(12, new DateTimeOffset(now.AddDays(2), TimeSpan.Zero)),
             ExtraUsageEnabled = false
         };
-        var spend = new WindowStats { CostUsd = 456.8, Messages = 1234 };
-        spend.CostByModel["Opus"] = 420.50;
-        spend.CostByModel["Sonnet"] = 35.20;
-        spend.CostByModel["Haiku"] = 1.10;
+        // T13a: familias DERIVADAS de ids reales vía ModelFamily.FromId — el demo enseña que una
+        // familia nueva (claude-fable-5 → "Fable") aparece sola, sin listas hardcodeadas.
+        var spend = new WindowStats { CostUsd = 480.9, Messages = 1234 };
+        spend.CostByModel[ModelFamily.FromId("claude-opus-4-8")] = 420.50;
+        spend.CostByModel[ModelFamily.FromId("claude-sonnet-4-5")] = 35.20;
+        spend.CostByModel[ModelFamily.FromId("claude-fable-5")] = 24.10;
+        spend.CostByModel[ModelFamily.FromId("claude-haiku-4-5-20251001")] = 1.10;
 
         var paceFive = new PaceResult("5h", 62, 1.30, 47.7,
             new DateTimeOffset(now.AddHours(1).AddMinutes(10), TimeSpan.Zero),
@@ -307,8 +310,15 @@ internal static class Program
             double op = 8 + i * 2.6 + 6 * Math.Abs(Math.Sin(i * 0.9)) + rnd.NextDouble() * 4; // rising, peak on the right
             double so = rnd.NextDouble() * 7;
             double ha = rnd.NextDouble() * 1.5;
+            double fa = 2 + 3 * Math.Abs(Math.Sin(i * 1.7)); // T13a: familia Fable visible en la pila
             var t = now.AddHours(-5 * (12 - i)).ToLocalTime();
-            list.Add(new HistoryBucket(t, t.ToString("ddd HH'h'", ci), op, so, ha, 0));
+            list.Add(new HistoryBucket(t, t.ToString("ddd HH'h'", ci), new Dictionary<string, double>
+            {
+                [ModelFamily.FromId("claude-opus-4-8")] = op,
+                [ModelFamily.FromId("claude-sonnet-4-5")] = so,
+                [ModelFamily.FromId("claude-haiku-4-5-20251001")] = ha,
+                [ModelFamily.FromId("claude-fable-5")] = fa
+            }));
         }
         return list;
     }
@@ -725,6 +735,25 @@ internal static class Program
             bmpH.Save(Path.Combine(dir, "settings-hover-clip.png"));
         }
 
+        // ---- QA T13a: familias dinámicas (claude-fable-5 → "Fable") en filas de gasto + gráfica ----
+        // Datos sintéticos del demo (incluyen la familia Fable derivada del id real vía
+        // ModelFamily.FromId) con Gasto y Gráfica desplegados: filas y leyenda deben salir de los
+        // DATOS, no de una lista fija Opus/Sonnet/Haiku.
+        {
+            var nowQa = DateTime.UtcNow;
+            var cfgF = new AppConfig
+            {
+                Theme = "dark", ChartMode = "spend", ChartPctWindow = "7d", Language = "en",
+                ShowSpendEstimate = true, ShowHealth = true, ShowChart = true,
+                CollapsedSpend = false, CollapsedChart = false
+            };
+            using var formF = new DashboardForm();
+            formF.PrepareForRender(DemoSnapshot(nowQa), cfgF, plan, DemoBuckets(nowQa), DemoPct(nowQa), ChartRange.Hours5);
+            using var bmpF = new Bitmap(formF.Width, formF.Height);
+            formF.DrawToBitmap(bmpF, new Rectangle(0, 0, formF.Width, formF.Height));
+            bmpF.Save(Path.Combine(dir, "families-dynamic.png"));
+        }
+
         // Mascota: sesiones en vivo ON para verla en la cabecera.
         cfg.LiveSessionsEnabled = true;
         cfg.ShowMascot = true;
@@ -803,7 +832,7 @@ internal static class Program
         }
 
         Console.WriteLine("rendered data.png + settings.png + mascot.png + tray-badges.png");
-        Console.WriteLine("       + chart-tabs-light.png + settings-hover-clip.png");
+        Console.WriteLine("       + chart-tabs-light.png + settings-hover-clip.png + families-dynamic.png");
         Console.WriteLine("       + motion-0/90/200.png + hover.png + mascot-*.png + celebration.png + reduce-motion.png");
         Console.WriteLine(dir);
     }

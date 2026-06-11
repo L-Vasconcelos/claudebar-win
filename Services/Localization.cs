@@ -118,6 +118,10 @@ public sealed record Strings
     public string ChartTotal { get; init; } = "total";
     public string ChartTabSpend { get; init; } = "Spend $";
     public string ChartTabPct { get; init; } = "Quota %";
+    /// <summary>Etiqueta UI de la familia canónica <c>ModelFamily.Other</c> (T13a): ids de modelo sin
+    /// familia reconocible y el cubo que agrupa a las familias menores cuando hay más de 4. Aparece
+    /// en las filas de gasto y en la leyenda de la gráfica.</summary>
+    public string ModelFamilyOther { get; init; } = "Other";
     public string Opacity { get; init; } = "Opacity";
 
     // Pace
@@ -349,6 +353,7 @@ public static class Localization
         ChartTotal = "total",
         ChartTabSpend = "Gasto $",
         ChartTabPct = "Cuota %",
+        ModelFamilyOther = "Otros",
         Opacity = "Opacidad",
         IconMode = "Modo de icono",
         PaceAlerts = "Avisos de ritmo",
@@ -473,6 +478,7 @@ public static class Localization
         ChartTotal = "totaal",
         ChartTabSpend = "Uitgaven $",
         ChartTabPct = "Quota %",
+        ModelFamilyOther = "Overig",
         Opacity = "Dekking",
         IconMode = "Pictogrammodus",
         PaceAlerts = "Tempo-meldingen",
@@ -597,6 +603,7 @@ public static class Localization
         ChartTotal = "total",
         ChartTabSpend = "Coût $",
         ChartTabPct = "Quota %",
+        ModelFamilyOther = "Autres",
         Opacity = "Opacité",
         IconMode = "Mode d'icône",
         PaceAlerts = "Alertes de rythme",
@@ -721,6 +728,7 @@ public static class Localization
         ChartTotal = "Gesamt",
         ChartTabSpend = "Kosten $",
         ChartTabPct = "Kontingent %",
+        ModelFamilyOther = "Sonstige",
         Opacity = "Deckkraft",
         IconMode = "Symbolmodus",
         PaceAlerts = "Tempo-Warnungen",
@@ -845,6 +853,7 @@ public static class Localization
         ChartTotal = "合計",
         ChartTabSpend = "コスト $",
         ChartTabPct = "クォータ %",
+        ModelFamilyOther = "その他",
         Opacity = "不透明度",
         IconMode = "アイコン表示",
         PaceAlerts = "ペース通知",
@@ -969,6 +978,7 @@ public static class Localization
         ChartTotal = "합계",
         ChartTabSpend = "비용 $",
         ChartTabPct = "할당량 %",
+        ModelFamilyOther = "기타",
         Opacity = "불투명도",
         IconMode = "아이콘 모드",
         PaceAlerts = "페이스 알림",
@@ -1093,6 +1103,7 @@ public static class Localization
         ChartTotal = "總計",
         ChartTabSpend = "花費 $",
         ChartTabPct = "配額 %",
+        ModelFamilyOther = "其他",
         Opacity = "不透明度",
         IconMode = "圖示模式",
         PaceAlerts = "用量速度提醒",

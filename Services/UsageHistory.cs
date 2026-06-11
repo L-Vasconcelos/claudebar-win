@@ -12,11 +12,17 @@ public enum ChartRange
     Month1   // last 30 days → 30 × 1 day
 }
 
+/// <summary>
+/// Un sub-tramo de la ventana de la gráfica con su gasto por familia DINÁMICA (T13a): las claves
+/// son las familias reales presentes en los datos (<see cref="ModelFamily.FromId"/>), no los campos
+/// fijos Opus/Sonnet/Haiku/Other de antes. Solo guarda familias con gasto ≠ 0 en el tramo.
+/// </summary>
 public sealed record HistoryBucket(
     DateTime StartLocal, string Label,
-    double Opus, double Sonnet, double Haiku, double Other)
+    IReadOnlyDictionary<string, double> CostByFamily)
 {
-    public double CostUsd => Opus + Sonnet + Haiku + Other;
+    public double CostUsd => CostByFamily.Values.Sum();
+    public double Cost(string family) => CostByFamily.GetValueOrDefault(family);
 }
 
 /// <summary>
@@ -51,10 +57,7 @@ public static class UsageHistory
         CultureInfo culture)
     {
         var (sub, count) = Spec(range);
-        var opus = new double[count];
-        var sonnet = new double[count];
-        var haiku = new double[count];
-        var other = new double[count];
+        var perFamily = new Dictionary<string, double[]>();
 
         foreach (var rec in records)
         {
@@ -64,21 +67,34 @@ public static class UsageHistory
             int idx = count - 1 - stepsAgo;
             if (idx < 0 || idx >= count) continue;
 
-            double cost = Pricing.CostUsd(rec);
-            switch (UsageAggregator.ModelLabel(rec.Model))
-            {
-                case "Opus": opus[idx] += cost; break;
-                case "Sonnet": sonnet[idx] += cost; break;
-                case "Haiku": haiku[idx] += cost; break;
-                default: other[idx] += cost; break;
-            }
+            // T13a: familia dinámica (claude-fable-5 → "Fable"), la misma que usa el agregado.
+            var family = ModelFamily.FromId(rec.Model);
+            if (!perFamily.TryGetValue(family, out var arr))
+                perFamily[family] = arr = new double[count];
+            arr[idx] += Pricing.CostUsd(rec);
+        }
+
+        // Cap de familias (mismo criterio que el agregado de gasto): con más de MaxFamilies en la
+        // ventana, las menores se funden en "Otros" — series y leyenda no crecen sin límite.
+        var totals = perFamily.ToDictionary(kv => kv.Key, kv => kv.Value.Sum());
+        var keep = ModelFamily.Keep(totals);
+        foreach (var family in perFamily.Keys.Where(f => f != ModelFamily.Other && !keep.Contains(f)).ToList())
+        {
+            var src = perFamily[family];
+            perFamily.Remove(family);
+            if (!perFamily.TryGetValue(ModelFamily.Other, out var dst))
+                perFamily[ModelFamily.Other] = dst = new double[count];
+            for (int i = 0; i < count; i++) dst[i] += src[i];
         }
 
         var list = new List<HistoryBucket>(count);
         for (int i = 0; i < count; i++)
         {
+            var byFamily = new Dictionary<string, double>();
+            foreach (var (family, arr) in perFamily)
+                if (arr[i] != 0) byFamily[family] = arr[i];
             var startLocal = (nowUtc - sub * (count - i)).ToLocalTime();
-            list.Add(new HistoryBucket(startLocal, Label(range, startLocal, culture), opus[i], sonnet[i], haiku[i], other[i]));
+            list.Add(new HistoryBucket(startLocal, Label(range, startLocal, culture), byFamily));
         }
         return list;
     }
