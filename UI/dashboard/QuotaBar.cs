@@ -33,19 +33,18 @@ public static class QuotaBar
         // Número y ancho usan el valor eased (si lo hay); el color usa SIEMPRE el objetivo (sin arcoíris).
         double shown = displayUtil ?? util;
         double clamped = Math.Min(shown / 100.0, 1.0);
-        // Colour the section by PACE status (better/worse rate); fall back to riesgo gradual.
-        Color c = pace is { } ps
-            ? (ps.Status == PaceStatus.Critical ? theme.Critical : ps.Status == PaceStatus.Over ? theme.Warn : theme.Ok)
-            : ColorMath.RiskColor(util, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
-        // El TEXTO (glifo + %) usa la variante AA del color de estado (T6b): el relleno de la barra no
-        // cambia, pero como texto pequeño Critical oscuro caía a 3.7:1 y Warn claro a 2.8:1.
-        Color textColor = pace is { } pt ? Theme.PaceTextColor(theme, pt.Status) : c;
-        // Estado por forma (a11y, daltónicos): mismo mapeo color↔forma que el tray.
-        UsageStatus status = pace is { } pst
-            ? (pst.Status == PaceStatus.Critical ? UsageStatus.Critical
-               : pst.Status == PaceStatus.Over ? UsageStatus.Warn : UsageStatus.Ok)
-            : util >= cfg.CriticalThresholdPct ? UsageStatus.Critical
-              : util >= cfg.WarnThresholdPct ? UsageStatus.Warn : UsageStatus.Ok;
+        // F4 (v0.3.9 g2): el RELLENO va por % REAL (RiskColor) — más lleno = más cálido, longitud y color
+        // coherentes. Antes se coloreaba por PACE: una barra al 57% salía ROJA y otra al 84% VERDE en la
+        // misma columna (el color contradecía la longitud). La señal de ritmo se mueve al pace-marker ▾
+        // (más abajo), coloreado por PaceStatus. El relleno usa SIEMPRE el objetivo (no parpadea con el tween).
+        Color c = ColorMath.RiskColor(util, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
+        // Estado por forma (a11y, daltónicos): por UMBRAL de % real, coherente con el relleno — mismo
+        // mapeo color↔forma que el tray. El ritmo (pace) ya no secuestra ni el relleno ni el glifo.
+        UsageStatus status = util >= cfg.CriticalThresholdPct ? UsageStatus.Critical
+            : util >= cfg.WarnThresholdPct ? UsageStatus.Warn : UsageStatus.Ok;
+        // El TEXTO (glifo + %) usa la variante AA del color de estado por % real (T6b): como texto pequeño
+        // Critical oscuro caía a 3.7:1 y Warn claro a 2.8:1. Sigue el % (no el pace), igual que el relleno.
+        Color textColor = Theme.PaceTextColor(theme, StatusToPace(status));
 
         if (draw)
         {
@@ -86,14 +85,17 @@ public static class QuotaBar
 
             // Pace marker: "dónde deberías ir" según el ritmo ideal. Sobresale MarkerOvershoot (2px)
             // arriba/abajo y lleva un ▾ clampado a esa misma altura: el triángulo antiguo subía hasta
-            // y-5 e invadía los descendentes de la fila etiqueta/% (T3c). Color theme.TextMuted
-            // (neutro). Solo cuando hay pace.
+            // y-5 e invadía los descendentes de la fila etiqueta/% (T3c). Solo cuando hay pace.
+            // F4 (v0.3.9 g2): el marcador ES AHORA la señal de RITMO — se colorea por PaceStatus con la
+            // variante AA del color (PaceTextColor: Ok→Ok, Over→WarnText, Critical→CriticalText) para que
+            // el ritmo siga siendo glanceable en los 3 temas sin secuestrar el color del relleno (% real).
             if (pace is { } pm)
             {
                 int mx = QuotaBarGeometry.MarkerX(x, w, pm.IdealPct);
-                using var markerPen = new Pen(theme.TextMuted, 2f);
+                Color markerColor = Theme.PaceTextColor(theme, pm.Status);
+                using var markerPen = new Pen(markerColor, 2f);
                 g.DrawLine(markerPen, mx, y - QuotaBarGeometry.MarkerOvershoot, mx, y + BarH + 1);
-                using var markerBrush = new SolidBrush(theme.TextMuted);
+                using var markerBrush = new SolidBrush(markerColor);
                 g.FillPolygon(markerBrush, QuotaBarGeometry.PaceTriangle(mx, y));
             }
         }
@@ -113,6 +115,18 @@ public static class QuotaBar
         }
         return y + Dpi.Scale(14); // línea de reset (T11)
     }
+
+    /// <summary>
+    /// Mapea el estado de cuota por % real (<see cref="UsageStatus"/>) al estado de pace que entiende
+    /// <see cref="Theme.PaceTextColor"/>, para reutilizar sus variantes AA de texto (Ok/WarnText/CriticalText)
+    /// en el % y el glifo de la barra. F4: el texto sigue el % real, no el ritmo (Warn≡Over como texto).
+    /// </summary>
+    private static PaceStatus StatusToPace(UsageStatus s) => s switch
+    {
+        UsageStatus.Critical => PaceStatus.Critical,
+        UsageStatus.Warn => PaceStatus.Over,
+        _ => PaceStatus.Ok
+    };
 }
 
 /// <summary>

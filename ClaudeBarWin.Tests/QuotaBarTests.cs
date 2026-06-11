@@ -189,7 +189,7 @@ public class QuotaBarTests
             }
     }
 
-    // ================= T6b: el % crítico usa la variante de TEXTO (CriticalText), el relleno no cambia =================
+    // ================= T6b + F4(g2): el % crítico POR % REAL usa la variante de TEXTO (CriticalText) =================
 
     [Fact]
     public void Draw_critical_percent_text_uses_critical_text_variant()
@@ -202,8 +202,10 @@ public class QuotaBarTests
         g.Clear(Theme.Dark.Background);
         using var fg = new SolidBrush(Theme.Dark.TextPrimary);
         using var dim = new SolidBrush(Theme.Dark.TextSecondary);
-        var win = new UsageWindow(62, DateTimeOffset.UtcNow.AddHours(2));
-        var pace = new PaceResult("5h", 62, 1.5, 40.0, null, null, true, PaceStatus.Critical);
+        // F4 (g2): el % sigue el % REAL, no el pace. 95% (≥ crit 90) ⇒ texto Critical aunque el ritmo
+        // sea Ok — prueba que el color del texto lo decide el %, no el pace marker.
+        var win = new UsageWindow(95, DateTimeOffset.UtcNow.AddHours(2));
+        var pace = new PaceResult("5h", 95, 0.8, 60.0, null, null, false, PaceStatus.Ok);
         var cfg = new AppConfig();
         var s = Localization.Get("en");
 
@@ -211,7 +213,7 @@ public class QuotaBarTests
         QuotaBar.Draw(g, draw: true, "Session (5h)", win, pace, x, y0, w,
             cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
 
-        // La fila etiqueta/% ocupa [y0, y0+18); la barra (cuyo RELLENO sí sigue siendo Critical)
+        // La fila etiqueta/% ocupa [y0, y0+18); la barra (cuyo RELLENO sí sigue siendo Critical al 95%)
         // arranca en y0+22. En la fila de texto: ni un píxel del rojo de relleno #DC2626 (3.7:1)
         // y al menos uno del rojo de texto CriticalText (#F87171, 6.4:1).
         var fill = Theme.Dark.Critical;
@@ -227,6 +229,147 @@ public class QuotaBarTests
                     foundText = true;
             }
         Assert.True(foundText, "el glifo/% crítico no usa CriticalText (#F87171) en tema oscuro");
+    }
+
+    // ================= F4 (v0.3.9 g2): relleno por % REAL, no por pace =================
+
+    // Cuenta los píxeles de relleno (no-fondo, no-texto) en la banda de la barra y devuelve el color
+    // medio de los que están dentro del tramo lleno. Aísla el relleno del track y de los ticks/marker.
+    private static Color SampleFillColor(Bitmap bmp, Theme theme, int x, int barY, int fillW)
+    {
+        // Centro vertical de la barra (BarH=11 ⇒ ~+5) y mitad izquierda del relleno (lejos del marker/ticks).
+        long r = 0, gg = 0, b = 0; int n = 0;
+        var track = theme.Track;
+        for (int px = x + 2; px < x + Math.Max(3, fillW - 2); px++)
+        {
+            var p = bmp.GetPixel(px, barY + 5);
+            bool isTrack = Math.Abs(p.R - track.R) <= 6 && Math.Abs(p.G - track.G) <= 6 && Math.Abs(p.B - track.B) <= 6;
+            if (isTrack) continue;
+            r += p.R; gg += p.G; b += p.B; n++;
+        }
+        return n == 0 ? track : Color.FromArgb((int)(r / n), (int)(gg / n), (int)(b / n));
+    }
+
+    private static Color DrawAndSampleFill(double util, PaceStatus paceStatus)
+    {
+        using var bmp = new Bitmap(360, 120);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        using var fg = new SolidBrush(Theme.Dark.TextPrimary);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var win = new UsageWindow(util, DateTimeOffset.UtcNow.AddHours(2));
+        var pace = new PaceResult("5h", util, paceStatus == PaceStatus.Ok ? 0.5 : 1.5, 40.0, null, null, false, paceStatus);
+        var cfg = new AppConfig();
+        var s = Localization.Get("en");
+
+        const int x = 16, y0 = 10, w = 300;
+        QuotaBar.Draw(g, draw: true, "Session (5h)", win, pace, x, y0, w,
+            cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
+
+        int barY = y0 + 22;
+        int fillW = (int)Math.Round(w * Math.Min(util / 100.0, 1.0));
+        return SampleFillColor(bmp, Theme.Dark, x, barY, fillW);
+    }
+
+    [Fact]
+    public void Fill_color_tracks_percent_not_pace_57_red_84_green_inverted_is_fixed()
+    {
+        // El caso de la auditoría: 57% con pace CRÍTICO vs 84% con pace OK. Antes el relleno seguía el
+        // pace ⇒ 57% ROJA, 84% VERDE (color invertido respecto a la longitud). Ahora va por % real:
+        // el relleno del 84% debe ser MÁS cálido (más R, menos G) que el del 57% pese a sus paces opuestos.
+        var fill57crit = DrawAndSampleFill(57, PaceStatus.Critical);
+        var fill84ok = DrawAndSampleFill(84, PaceStatus.Ok);
+
+        Assert.True(fill84ok.R >= fill57crit.R,
+            $"84% (R={fill84ok.R}) debería ser ≥ cálido que 57% (R={fill57crit.R}) — el relleno sigue al pace, no al %");
+        Assert.True(fill84ok.G <= fill57crit.G,
+            $"84% (G={fill84ok.G}) debería tener ≤ verde que 57% (G={fill57crit.G}) — color invertido por pace");
+    }
+
+    [Theory]
+    [InlineData(0, 20)]
+    [InlineData(20, 50)]
+    [InlineData(50, 80)]
+    [InlineData(80, 100)]
+    public void Fill_color_is_monotonic_with_percent_regardless_of_pace(double lo, double hi)
+    {
+        // Monotonía: a más %, relleno no menos cálido (R no decrece) — comparando con paces OPUESTOS para
+        // demostrar que el pace ya no influye. El % bajo lleva pace Critical; el alto, pace Ok.
+        var fillLo = DrawAndSampleFill(lo, PaceStatus.Critical);
+        var fillHi = DrawAndSampleFill(hi, PaceStatus.Ok);
+        Assert.True(fillHi.R >= fillLo.R - 4,
+            $"relleno a {hi}% (R={fillHi.R}) no debería ser menos cálido que a {lo}% (R={fillLo.R})");
+    }
+
+    [Fact]
+    public void Fill_color_matches_RiskColor_of_real_percent()
+    {
+        // El relleno es EXACTAMENTE RiskColor(%real): pace Critical no lo altera al 50%.
+        var cfg = new AppConfig();
+        var expected = ColorMath.RiskColor(50, Theme.Dark, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
+        var sampled = DrawAndSampleFill(50, PaceStatus.Critical);
+        Assert.True(Math.Abs(sampled.R - expected.R) <= 12 && Math.Abs(sampled.G - expected.G) <= 12
+            && Math.Abs(sampled.B - expected.B) <= 12,
+            $"relleno {sampled} ≠ RiskColor(50) {expected} — el % no decide el color del relleno");
+    }
+
+    // ================= F4 (v0.3.9 g2): el pace-marker ▾ recibe el color de PaceStatus =================
+
+    private static bool MarkerHasColor(double util, double idealPct, PaceStatus paceStatus, Color want)
+    {
+        using var bmp = new Bitmap(360, 120);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Theme.Dark.Background);
+        using var fg = new SolidBrush(Theme.Dark.TextPrimary);
+        using var dim = new SolidBrush(Theme.Dark.TextSecondary);
+        var win = new UsageWindow(util, DateTimeOffset.UtcNow.AddHours(2));
+        var pace = new PaceResult("5h", util, 1.0, idealPct, null, null, false, paceStatus);
+        var cfg = new AppConfig();
+        var s = Localization.Get("en");
+
+        const int x = 16, y0 = 10, w = 300;
+        QuotaBar.Draw(g, draw: true, "Session (5h)", win, pace, x, y0, w,
+            cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
+
+        int barY = y0 + 22;
+        int mx = QuotaBarGeometry.MarkerX(x, w, idealPct);
+        // El marcador sobresale por encima de la barra (MarkerOvershoot): muestrear esa banda evita
+        // confundirlo con el relleno. Tolerancia amplia por el AA de la línea de 2px.
+        for (int py = barY - QuotaBarGeometry.MarkerOvershoot; py <= barY; py++)
+            for (int px = mx - 3; px <= mx + 3; px++)
+            {
+                var p = bmp.GetPixel(px, py);
+                if (Math.Abs(p.R - want.R) <= 24 && Math.Abs(p.G - want.G) <= 24 && Math.Abs(p.B - want.B) <= 24)
+                    return true;
+            }
+        return false;
+    }
+
+    [Fact]
+    public void Pace_marker_is_colored_by_pace_status_critical()
+    {
+        // Marcador en idealPct distinto del relleno (idealPct=20, util=60 ⇒ marker sobre tramo lleno):
+        // pace Critical ⇒ el ▾ usa CriticalText, NO el neutro TextMuted de antes.
+        Assert.True(MarkerHasColor(60, 20, PaceStatus.Critical, Theme.Dark.CriticalText),
+            "el pace-marker no recibe el color CriticalText de PaceStatus.Critical");
+        Assert.False(MarkerHasColor(60, 20, PaceStatus.Critical, Theme.Dark.TextMuted),
+            "el pace-marker sigue pintado con el TextMuted neutro de antes");
+    }
+
+    [Fact]
+    public void Pace_marker_is_colored_by_pace_status_over()
+    {
+        // pace Over ⇒ WarnText en el marcador (idealPct=70 sobre track vacío al util=10).
+        Assert.True(MarkerHasColor(10, 70, PaceStatus.Over, Theme.Dark.WarnText),
+            "el pace-marker no recibe el color WarnText de PaceStatus.Over");
+    }
+
+    [Fact]
+    public void Pace_marker_is_colored_by_pace_status_ok()
+    {
+        // pace Ok ⇒ Ok en el marcador (idealPct=70 sobre track vacío al util=10).
+        Assert.True(MarkerHasColor(10, 70, PaceStatus.Ok, Theme.Dark.Ok),
+            "el pace-marker no recibe el color Ok de PaceStatus.Ok");
     }
 
     // ================= T10: el % right-aligned queda FLUSH con el borde derecho (§3 #16) =================
