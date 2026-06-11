@@ -760,10 +760,12 @@ internal static class Program
             cols.Add(("99+", 120, UsageStatus.Critical, false));
             cols.Add(("err", 0, UsageStatus.Ok, false));     // marcador de fila de error
 
-            var bars = new (string name, Color bg)[]
+            // Swatches desde los tokens (T6b): los MISMOS colores asumidos contra los que el renderer
+            // pre-compone el velo stale, así cada fila valida la decisión de contraste de su barra.
+            var bars = new (string name, Color bg, bool light)[]
             {
-                ("dark taskbar",  Color.FromArgb(0x2A, 0x2A, 0x2A)),
-                ("light taskbar", Color.FromArgb(0xE8, 0xE8, 0xE8)),
+                ("dark taskbar",  TaskbarColors.Dark, false),
+                ("light taskbar", TaskbarColors.Light, true),
             };
 
             const int cell = 64;
@@ -786,7 +788,7 @@ internal static class Program
                         Icon ico = col.label == "err"
                             ? TrayIconRenderer.RenderError(Theme.Dark.Neutral)
                             : TrayIconRenderer.Render(col.pct, Theme.Dark, warn, crit, col.st, col.stale,
-                                pending: col.label == "pend");
+                                pending: col.label == "pend", taskbarLight: bars[r].light);
                         using var bm = ico.ToBitmap();
                         int cx = i * cell;
                         g2.DrawImage(bm, cx + (cell - 48) / 2, rowY + 8, 48, 48);          // 48px nativo

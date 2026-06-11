@@ -11,6 +11,18 @@ public static class Spacing
     public const int Xxl = 32;
 }
 
+/// <summary>
+/// Colores asumidos de la barra de tareas de Win11 (no hay API pública para leer el color real).
+/// Los usa el badge stale del tray para PRE-COMPONER su velo a opaco (T6b) y el QA visual de
+/// <c>--render-test</c> como swatch de fondo de cada fila. <see cref="ThemeResolver.TaskbarIsLight"/>
+/// decide qué lado aplica.
+/// </summary>
+public static class TaskbarColors
+{
+    public static readonly Color Dark = Color.FromArgb(0x2A, 0x2A, 0x2A);
+    public static readonly Color Light = Color.FromArgb(0xE8, 0xE8, 0xE8);
+}
+
 /// <summary>Helpers de color: interpolación lineal y color de cuota por riesgo.</summary>
 public static class ColorMath
 {

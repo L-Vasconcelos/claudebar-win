@@ -74,21 +74,39 @@ public static class TrayIconRenderer
     /// <summary>
     /// Badge con estado por forma (overlay) + estado stale. El texto adapta su contraste al fondo
     /// (<see cref="ColorMath.Contrast"/>), de modo que es legible en barra de tareas clara u oscura.
+    /// <paramref name="taskbarLight"/> (<see cref="Services.ThemeResolver.TaskbarIsLight"/> en la app)
+    /// indica contra qué barra se compone el velo stale; los badges frescos no dependen de él.
     /// </summary>
     public static Icon Render(int percent, Theme theme, double warn, double crit,
-        UsageStatus status, bool stale = false, bool pending = false)
+        UsageStatus status, bool stale = false, bool pending = false, bool taskbarLight = false)
     {
         percent = Math.Clamp(percent, 0, 999);
         var bg = ColorMath.RiskColor(percent, theme, warn, crit);
-        return RenderBadge(percent >= 100 ? "99+" : percent.ToString(), bg, status, stale, pending, theme.Warn);
+        return RenderBadge(percent >= 100 ? "99+" : percent.ToString(), bg, status, stale, pending, theme.Warn,
+            taskbarLight);
     }
 
     /// <summary>Neutral badge for "no data / auth expired / offline".</summary>
     public static Icon RenderError(Color bg, bool pending = false)
         => RenderBadge("!", bg, UsageStatus.Ok, stale: false, pending, Theme.Dark.Warn);
 
+    /// <summary>Opacidad del velo de atenuación del badge stale (sobre 255).</summary>
+    private const int StaleAlpha = 150;
+
+    /// <summary>
+    /// Relleno EFECTIVO del badge stale: el velo translúcido (<see cref="StaleAlpha"/>) PRE-COMPUESTO
+    /// a opaco contra el color asumido de la barra de tareas (<see cref="TaskbarColors"/>). Pintar con
+    /// alpha y decidir el texto sobre el color fresco (regresión de 5ef80c1, T6) dejaba el dígito a
+    /// ~2:1 en barra oscura: el compuesto real caía al otro lado del flip WCAG. A opaco, el color
+    /// pintado ES el color en pantalla (sin recomposición del pipeline HICON), y el lado que elige
+    /// <see cref="ColorMath.Contrast"/> garantiza ≥4.58:1 sobre cualquier relleno (en el punto de
+    /// cruce L≈0.179 negro y blanco empatan a (L+0.05)/0.05 ≈ 4.58).
+    /// </summary>
+    public static Color StaleFill(Color bg, bool taskbarLight)
+        => ColorMath.Lerp(taskbarLight ? TaskbarColors.Light : TaskbarColors.Dark, bg, StaleAlpha / 255.0);
+
     private static Icon RenderBadge(string text, Color bg, UsageStatus status, bool stale, bool pending,
-        Color pendingDot)
+        Color pendingDot, bool taskbarLight = false)
     {
         // Render at high resolution (48px) so Windows downscales to a crisp tray icon on any DPI.
         const int size = 48;
@@ -99,13 +117,17 @@ public static class TrayIconRenderer
             g.TextRenderingHint = TextRenderingHint.AntiAlias;
             g.Clear(Color.Transparent);
 
-            // Estado "stale": dato envejecido → badge atenuado para que se note de un vistazo que no es fresco.
-            Color fillColor = stale ? Color.FromArgb(150, bg) : bg;
+            // Estado "stale": dato envejecido → badge atenuado hacia el color de la barra para que se
+            // note de un vistazo que no es fresco. Atenuado SIN alpha (pre-compuesto a opaco, T6b):
+            // sobre la barra asumida se ve igual que el velo translúcido, pero el color pintado es el
+            // color real en pantalla y la decisión de contraste del texto deja de mentir.
+            Color fillColor = stale ? StaleFill(bg, taskbarLight) : bg;
             using (var brush = new SolidBrush(fillColor))
                 Shapes.FillRounded(g, brush, new Rectangle(0, 0, size - 1, size - 1), 11);
 
-            // Texto con contraste calculado sobre el fondo (no blanco fijo): legible en barra clara/oscura.
-            Color textColor = ColorMath.Contrast(bg);
+            // Texto con contraste calculado sobre el relleno EFECTIVO (no el fresco): legible en barra
+            // clara/oscura también cuando el badge está atenuado por stale.
+            Color textColor = ColorMath.Contrast(fillColor);
             // Larger glyph that fills more of the badge → readable even when shrunk into the tray.
             // 3-char ("99+") gets a smaller size and NoWrap so it stays on a single line (no "99 / +").
             float fontPx = text.Length >= 3 ? 18f : 30f;

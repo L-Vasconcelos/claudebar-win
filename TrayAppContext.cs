@@ -436,7 +436,7 @@ public sealed class TrayAppContext : ApplicationContext
             bool stale = UsageFormat.IsStale(snap.UsageAtUtc, _config.RefreshSeconds)
                          || snap.LatestState != UsageFetchState.Ok;
             newIcon = TrayIconRenderer.Render(icoVal, _theme, _config.WarnThresholdPct, _config.CriticalThresholdPct,
-                status, stale, pending: LiveAttentionPending());
+                status, stale, pending: LiveAttentionPending(), taskbarLight: ThemeResolver.TaskbarIsLight());
 
             string five = UsageFormat.Countdown(u.FiveHour?.ResetsAt, _s.Resetting);
             string week = UsageFormat.Countdown(u.SevenDay?.ResetsAt, _s.Resetting);
