@@ -21,6 +21,14 @@
 
 <p align="center"><sub><em>Not affiliated with Anthropic. ClaudeBar just reads the quota your own Claude Code session already has.</em></sub></p>
 
+> **New in v0.3.9** (an audit sprint + a UX polish pass rolled into one — a big jump from v0.3.7):
+> **dynamic model families** (Fable, Mythos and whatever's next show up on their own) priced from
+> **models.dev** with an offline fallback and a privacy toggle; quota bars that **fill by real %**
+> (the color finally agrees with the length); **per-window pace + ETA**; a tray icon that fits
+> `99+` and keeps its colorblind shape under the attention dot; **WCAG** contrast and **125% / 150%
+> DPI** throughout; and a more legible mascot. Full notes:
+> [installer/notes/0.3.9.md](installer/notes/0.3.9.md).
+
 ---
 
 ## What is ClaudeBar?
@@ -35,6 +43,12 @@ Two numbers, two truths — and ClaudeBar is honest about which is which:
 
 - **Quota % (5h / 7d) is REAL** — the exact figure Anthropic returns to Claude Code itself.
 - **The $ spend is an ESTIMATE** — an API-equivalent cost computed locally from your transcripts. It is **not** your subscription bill.
+
+And it's honest *visually*, too. The quota bars fill by your **real %** (green → amber → red, so
+a fuller bar is always a warmer bar — no more "57% in red / 84% in green"), every model family
+(Opus, Sonnet, Haiku, **Fable, Mythos, and whatever ships next**) shows up on its own with a name
+and a color, and the spend uses **live list prices from [models.dev](https://models.dev)** with an
+offline fallback — not a table baked into the binary.
 
 It's **C# / .NET 9 + WinForms**, with `Microsoft.Data.Sqlite` as the only runtime dependency.
 A Windows take on the macOS [ClaudeBar](https://github.com/tddworks/ClaudeBar), with data ideas
@@ -56,7 +70,8 @@ Three themes — **Dark**, **Light**, and **CLI** (the CLI shot is in `Quota %` 
 
 **One grouped settings screen** — every option on a single, clean page, with master rows that
 gate their dependents (turn on live sessions, *then* the mascot control wakes up). The panel caps
-its height at ~65% of your screen and **scrolls with the mouse wheel** (thin scrollbar on the right):
+its height at ~65% of your screen and **scrolls with the mouse wheel** (thin scrollbar on the
+right) — it **remembers your scroll position**, and a clear **`‹ Back`** returns to the dashboard:
 
 <p align="center">
   <img src="assets/settings.png" alt="Grouped settings panel — all options on one screen" width="300">
@@ -93,12 +108,15 @@ single number always reflects your tightest limit.
   come from the active theme.
 - **Colorblind-safe shapes** — beyond color, a small shape rides in the corner: **triangle =
   warn**, **diamond = critical** (none when you're OK). Drawn in the same auto-contrast color as
-  the number. The same `●/▲/◆` glyph repeats in the panel header. *Always on, by design.*
-- **Auto-contrast text** — the number is **not** hard-coded white. ClaudeBar computes the
+  the number. The same `●/▲/◆` glyph repeats in the panel header — and it now survives the
+  **attention dot** too: the colorblind shape is drawn *inside* the dot, so a critical badge with
+  a pending session is still legible without color. *Always on, by design.*
+- **Auto-contrast text (WCAG)** — the number is **not** hard-coded white. ClaudeBar computes the
   perceptual luminance of the badge color and flips the text black or white so it stays legible
-  on a light **or** dark taskbar.
-- **Crisp at any DPI** — rendered internally at 48px and downscaled by Windows. At ≥100% it
-  shows `99+` (never a clipped `100`).
+  on a light **or** dark taskbar, clearing the contrast bar in every theme.
+- **Crisp at any DPI** — rendered internally at 48px and downscaled by Windows, sharp at **125% /
+  150%** scaling. At ≥100% utilization it shows `99+` **fit to the box** (the glyph is sized to the
+  badge — never a clipped `100`).
 - **Amber attention dot** — when *live sessions* are on and a Claude Code session is waiting for
   your OK or your input, a small amber dot appears in the corner. Your silent "Claude needs you,"
   independent of the quota color.
@@ -126,26 +144,37 @@ Sections are a collapsible accordion (Quota → Sessions → Spend → Chart); c
 need and the panel shrinks to fit.
 
 - **5h (session)** and **7d (weekly)** quota bars — **real %**, each with its reset countdown
-  (`resets in 1h 40m · Wed 04:18`), colored by **pace**. A footnote reminds you the 5h window is
-  *rolling* — it counts from your first request, not a fixed clock hour.
-- **Pace line with ETA** — `↗ 5h XX% · 7d XX%` (used% vs the ideal for how much of the window has
-  elapsed; over 100% = you're ahead of pace), colored by the worse of the two windows, with a
-  **`⚠` + estimated time** if you're projected to run out *before* the reset.
-- **Per-model weekly limits** — compact `Opus 7d` / `Sonnet 7d` mini-bars when your plan breaks
-  them out.
+  (`resets in 1h 40m · Wed 04:18`). The bar **fills and colors by your real %** (green → amber →
+  red), so the length and the color always agree — a fuller bar is a warmer bar. Your *pace* (how
+  fast you're burning vs. the clock) rides on a separate **`▾` marker** colored by pace status, so
+  the two signals never fight. A footnote reminds you the 5h window is *rolling* — it counts from
+  your first request, not a fixed clock hour.
+- **Pace line with per-window ETA** — `↗ 5h XX% · → 7d XX%` (used% vs the ideal for how much of the
+  window has elapsed; over 100% = you're ahead of pace). **Each window is colored by its own
+  status** (a healthy 7d no longer turns red just because 5h is hot) with its own arrow, and a
+  separate **`⚠` + estimated run-out time** per window if you're projected to run dry *before* the
+  reset.
+- **Dynamic per-model rows** — the spend list and weekly-limit mini-bars are built **from your
+  data, not a fixed list**: every family that appears (`Opus` / `Sonnet` / `Haiku` / `Fable` /
+  `Mythos` / …) gets its own row, name and color, and a row that's still at **0% is dimmed** so the
+  empty data never shouts louder than the real numbers.
 - **Glance header** — the single most-utilized window in one line (`Session (5h)  ◆ 87%`), plus
   the **service-health** dot — without duplicating the full bar below.
-- **Estimated spend by model** — `$` per model over a configurable window, biggest first.
-  *API-equivalent estimate, not your bill* (see [How the data works](#how-the-data-works)).
+- **Estimated spend by model** — `$` per model over a configurable window, biggest first, priced
+  from **models.dev** list rates. A model with no known price shows `— no rate` and is left out of
+  the total (no faking it at $0). *API-equivalent estimate, not your bill* (see
+  [How the data works](#how-the-data-works)).
 
 #### Usage chart — two modes, five ranges
 
 A mini-chart you can flip between two views with a `Spend $ | Quota %` toggle:
 
-- **`Spend $`** — stacked area of cost-equivalent by model (Opus / Sonnet / Haiku / other), with
-  a running `Total $X.XX` and a legend showing **only the series that have data**.
+- **`Spend $`** — stacked area of cost-equivalent **by whatever model families are in your data**
+  (each with its own color), with a running `Total $X.XX` and a legend showing **only the series
+  that have data**.
 - **`Quota %`** — your *real* utilization over time, with a **`5h | 7d` window selector that only
-  appears in this mode**.
+  appears in this mode**, plus faint **threshold gridlines** at your warn / critical levels so you
+  can see exactly when the line crossed into amber or red.
 - Both modes **annotate the peak** with a labeled dot (`Peak $X.XX` / `Peak X%`).
 - Ranges: **1H / 5H / 24H / 7D / 30D** (always the most recent window up to *now*).
 
@@ -156,16 +185,18 @@ through a little **ASCII cat** that lives in the panel header. Full mechanics in
 [Live sessions & hooks](#live-sessions--hooks); the short version:
 
 - A **6-phase** state machine (idle · working · waiting for approval · waiting for input ·
-  compacting · ended) drives the cat's **face**, **mood color**, and the tray attention dot.
+  compacting · ended) drives the cat's **face**, **mood color**, and the tray attention dot. The
+  **idle** cat now stays clearly legible in every theme (it used to wash out to ~2.3:1 contrast).
 - **Playful, rotating, localized verbs** under the cat (`thinking…`, `cooking…`, `your turn…`),
-  a **natural blink** (jittered, not metronomic), a **braille spinner** while it works, an
-  **attention bounce** when a session needs you, and a **reset celebration** when your quota
-  renews.
+  a **natural blink** (jittered, not metronomic), a **clean spinner arc** while it works (a
+  GDI+ sweep, not a few dead grey pixels), an **attention bounce** when a session needs you, and a
+  **reset celebration** — a `✓ quota renewed` chip in the brand accent + a happy bounce — when your
+  quota renews.
 - Toggle it on/off with **Show mascot** (a compact 4-line kitty, by design).
 
 <p align="center">
-  <img src="assets/f3-mascota.gif" alt="Mascot life: blink, braille spinner, playful verb, phase reactions" width="300">
-  <img src="assets/f3-celebracion.gif" alt="Quota-reset celebration flash with the mascot going happy" width="300">
+  <img src="assets/f3-mascota.gif" alt="Mascot life: blink, spinner arc, playful verb, phase reactions" width="300">
+  <img src="assets/f3-celebracion.gif" alt="Quota-reset celebration: the ✓ quota renewed chip and the mascot going happy" width="300">
 </p>
 
 > With the mascot visible but live sessions **off**, you'll still see an ambient *idle* cat — it
@@ -231,6 +262,7 @@ flowchart TD
     refresh["Token refresh — only if expired<br/>POST oauth/token → rewrite creds<br/>(fallback: headless 'claude -p .')"]
     db[("SQLite history.db<br/>real-% samples over time")]
     transcripts["~/.claude/projects/**/*.jsonl<br/>(local transcripts)"]
+    prices["GET models.dev/api.json<br/>(anonymous · opt-in · cached + offline snapshot)"]
     health["GET status.claude.com<br/>/api/v2/status.json (no auth)"]
     panel(["Panel · tray icon · chart · pace ETA"])
 
@@ -238,12 +270,14 @@ flowchart TD
     creds -.->|expired?| refresh --> creds
     usage -->|REAL 5h / 7d %| panel
     usage -->|each poll sampled| db -->|Quota % chart + pace slope| panel
-    transcripts -->|ccusage-style estimate| panel
+    transcripts -->|tokens by model| spend["Estimated spend<br/>(ccusage-style)"]
+    prices -.->|list rates per family| spend --> panel
     health -->|operational / degraded / outage| panel
 
     style usage fill:#1f6feb,color:#fff
     style db fill:#238636,color:#fff
     style transcripts fill:#9e6a03,color:#fff
+    style prices fill:#6e40c9,color:#fff
 ```
 
 1. **Real quota (primary).** `GET https://api.anthropic.com/api/oauth/usage` with your local
@@ -264,17 +298,26 @@ flowchart TD
    the token is *already* expired, so it never fights Claude Code for the token.
 5. **Service health.** `GET status.claude.com/api/v2/status.json` (public, no auth), cached ~2 min.
 6. **Estimated spend (secondary).** Parses your local `.jsonl` transcripts (the `ccusage` method)
-   into a per-model USD figure using the **public Anthropic API list prices** (per 1M tokens:
-   **Opus** $15 in / $75 out, **Sonnet** $3 / $15, **Haiku** $1 / $5, plus the matching
-   cache-write / cache-read rates). It's an **API-equivalent estimate, not your subscription's
-   charge** — and it's labeled `API-equiv` everywhere. (Unknown/synthetic models count as $0 until
-   their pricing is known.)
+   into a per-model USD figure using **list prices from [models.dev](https://models.dev)** (input /
+   output / cache-write / cache-read per 1M tokens). Prices are **not hard-coded**: a fresh copy is
+   cached at `%APPDATA%\ClaudeBarWin\models-pricing.json` (refreshed at most weekly), an **embedded
+   offline snapshot** ships in the binary so it works with no network ever, and the optional
+   **"Update rates online"** toggle (Settings → System, *off-able*) is the only thing that touches
+   models.dev — with an **anonymous GET that sends nothing of yours** (no query, no identifying
+   headers, just the product User-Agent). Model families are **derived from the transcript ids**, so
+   a new family (`Fable`, `Mythos`, …) is priced and shown the moment it appears; a model with no
+   price in any source shows `— no rate` and is **excluded from the total** (never faked at $0). It's
+   an **API-equivalent estimate, not your subscription's charge** — labeled `API-equiv` everywhere.
 
 ### Privacy — and you can verify it
 
 - **The token is used only to read *your own* usage**, and its only destination is Anthropic's own
   API. It is **never stored, logged, or sent anywhere else**, and ClaudeBar **never persists** it.
 - **Zero telemetry.** Nothing about you leaves your machine.
+- **Pricing fetch is anonymous and opt-out.** The only other outbound call is the optional
+  models.dev price refresh — a plain `GET` of a public list with **no usage data, no query, and no
+  identifying headers**. Turn it off and ClaudeBar never opens it (the embedded snapshot keeps spend
+  working offline).
 - The plan label (`Max · 5x`, `Pro`, …) is read **only from non-secret fields** of the
   credentials file (`subscriptionType` / `rateLimitTier`) — the token is never touched for it.
 - The **privacy seal is rendered inside the panel itself** — it's a statement you can read in the
@@ -349,7 +392,7 @@ pace/milestones grey out; turn **Live sessions** off and the mascot/suppress con
 | **Update frequency** | 30s · 1min · 5min · 15min |
 | **Icon** | Mode `%` / `▲` / `%▲` · Color threshold 70/90 · 80/95 · 60/85 |
 | **Appearance** | Theme System/Dark/Light/CLI · Position · Opacity · Pinned · Always on top · Reduce motion |
-| **System** | Start with Windows · Language (System + 8) |
+| **System** | Start with Windows · **Update rates online** (models.dev, opt-out) · Language (System + 8) |
 | **About** | Version · Import `.itermcolors…` |
 
 Two actions are **sensitive** — they prompt for confirmation and back things up first: enabling
@@ -379,10 +422,10 @@ session's working directory; sessions prune after 10 minutes of silence.
 | Phase | Face | What the cat does |
 |---|---|---|
 | **Idle** | `-.-` | relaxed, static (no animation) |
-| **Working** | `o.o` | attentive, blinks, braille spinner spins |
+| **Working** | `o.o` | attentive, blinks, a spinner arc sweeps |
 | **Waiting for approval** | `O.O` | wide eyes that pulse — *"approve this?"*, bounces, tray dot goes amber |
 | **Waiting for input** | `^.^` | happy, your turn — winks to `^.-`, tray dot amber |
-| **Compacting** | `@.@` | dizzy, compressing memory, spinner spins |
+| **Compacting** | `@.@` | dizzy, compressing memory, spinner arc sweeps |
 | **Ended** | `x.x` | KO, static |
 
 The cat is hand-drawn ASCII (clean-room), a compact 4-line kitty:
@@ -395,11 +438,12 @@ The cat is hand-drawn ASCII (clean-room), a compact 4-line kitty:
 ```
 
 Under the hood the mascot is fussier than it looks: **jittered blink** (slow when idle ~2.6s,
-urgent ~0.5s when you're needed), a **braille spinner** (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) only while it works,
-**playful rotating verbs** localized to your language, a **mood** with hysteresis (Alert→amber,
-Happy→green) so it doesn't flicker, an **attention bounce** (a 3-hop `OutBack` boing every ~3.2s
-while a session waits), and a **reset celebration** (`✓ quota renewed` flash + Happy cat) when a
-window renews. All of it is deterministic and respects **Reduce motion**.
+urgent ~0.5s when you're needed), a **spinner arc** that sweeps (a GDI+ arc spinning once every
+~900 ms) only while it works, **playful rotating verbs** localized to your language, a **mood** with
+hysteresis (Alert→amber, Happy→green) so it doesn't flicker, an **attention bounce** (a 3-hop
+`OutBack` boing every ~3.2s while a session waits), and a **reset celebration** (`✓ quota renewed`
+chip in the brand accent + Happy cat) when a window renews. All of it is deterministic and respects
+**Reduce motion**.
 
 ### Is it safe? Yes — here's exactly what it does
 

@@ -22,6 +22,15 @@
 
 <p align="center"><sub><em>Sin afiliación con Anthropic. ClaudeBar solo lee la cuota que tu propia sesión de Claude Code ya tiene.</em></sub></p>
 
+> **Novedades de la v0.3.9** (un sprint de auditoría + una pasada de pulido de UX en una sola
+> release — un salto grande desde la v0.3.7): **familias de modelo dinámicas** (Fable, Mythos y las
+> que vengan aparecen solas) con tarifas de **models.dev**, copia offline y toggle de privacidad;
+> barras de cuota que **se rellenan por % real** (el color por fin concuerda con la longitud);
+> **ritmo + ETA por ventana**; un icono de bandeja que encaja el `99+` y conserva su forma para
+> daltónicos bajo el punto de atención; contraste **WCAG** y **DPI 125% / 150%** en todo el panel; y
+> una mascota más legible. Notas completas:
+> [installer/notes/0.3.9.md](installer/notes/0.3.9.md).
+
 ---
 
 ## ¿Qué es ClaudeBar?
@@ -36,6 +45,12 @@ Dos números, dos verdades — y ClaudeBar es honesto sobre cuál es cuál:
 
 - **El % de cuota (5h / 7d) es REAL** — la cifra exacta que Anthropic le devuelve al propio Claude Code.
 - **El gasto en $ es una ESTIMACIÓN** — un coste equivalente a la API calculado localmente desde tus transcripts. **No** es la factura de tu suscripción.
+
+Y también es honesto *visualmente*. Las barras de cuota se rellenan por tu **% real** (verde →
+ámbar → rojo, así una barra más llena es siempre una barra más cálida — se acabó el "57% en rojo /
+84% en verde"), cada familia de modelo (Opus, Sonnet, Haiku, **Fable, Mythos y lo que venga**)
+aparece sola con su nombre y su color, y el gasto usa **tarifas en vivo de
+[models.dev](https://models.dev)** con copia offline — no una tabla incrustada en el binario.
 
 Está hecho en **C# / .NET 9 + WinForms**, con `Microsoft.Data.Sqlite` como única dependencia en
 ejecución. Una versión Windows del [ClaudeBar](https://github.com/tddworks/ClaudeBar) de macOS, con
@@ -58,7 +73,8 @@ Tres temas — **Oscuro**, **Claro** y **CLI** (la captura de CLI está en modo 
 **Una sola pantalla de ajustes agrupados** — todas las opciones en una página única y limpia, con
 filas maestras que controlan a sus dependientes (activa las sesiones en vivo y *entonces* se
 despierta el control de la mascota). El panel limita su alto a ~65% de la pantalla y **se desplaza
-con la rueda del ratón** (barrita fina a la derecha):
+con la rueda del ratón** (barrita fina a la derecha) — **recuerda tu posición de scroll** y un claro
+**`‹ Volver`** regresa al dashboard:
 
 <p align="center">
   <img src="assets/settings.png" alt="Panel de ajustes agrupado — todas las opciones en una pantalla" width="300">
@@ -96,13 +112,17 @@ que un único número refleje siempre tu límite más ajustado.
   exactos vienen del tema activo.
 - **Formas seguras para daltónicos** — más allá del color, una pequeña forma viaja en la esquina:
   **triángulo = aviso**, **diamante = crítico** (ninguna cuando vas bien). Dibujada en el mismo
-  color auto-contrastado que el número. El mismo glifo `●/▲/◆` se repite en la cabecera del panel.
-  *Siempre activo, por diseño.*
-- **Texto auto-contrastado** — el número **no** está fijado a blanco. ClaudeBar calcula la
+  color auto-contrastado que el número. El mismo glifo `●/▲/◆` se repite en la cabecera del panel —
+  y ahora sobrevive también al **punto de atención**: la forma para daltónicos se dibuja *dentro*
+  del punto, así una insignia crítica con sesión pendiente sigue siendo legible sin depender del
+  color. *Siempre activo, por diseño.*
+- **Texto auto-contrastado (WCAG)** — el número **no** está fijado a blanco. ClaudeBar calcula la
   luminancia perceptual del color de la insignia y voltea el texto a negro o blanco para que siga
-  siendo legible sobre una barra de tareas clara **u** oscura.
-- **Nítido a cualquier DPI** — renderizado internamente a 48px y reescalado por Windows. A ≥100%
-  muestra `99+` (nunca un `100` recortado).
+  siendo legible sobre una barra de tareas clara **u** oscura, superando el umbral de contraste en
+  todos los temas.
+- **Nítido a cualquier DPI** — renderizado internamente a 48px y reescalado por Windows, nítido al
+  **125% / 150%**. A ≥100% de utilización muestra `99+` **encajado en la caja** (el glifo se
+  dimensiona a la insignia — nunca un `100` recortado).
 - **Punto ámbar de atención** — cuando las *sesiones en vivo* están activas y una sesión de Claude
   Code espera tu OK o tu input, aparece un pequeño punto ámbar en la esquina. Tu "Claude te
   necesita" silencioso, independiente del color de la cuota.
@@ -131,26 +151,37 @@ secciones son un acordeón plegable (Cuota → Sesiones → Gasto → Gráfica);
 y el panel se encoge para encajar.
 
 - **Barras de cuota de 5h (sesión)** y **7d (semanal)** — **% real**, cada una con su cuenta atrás
-  de reset (`resetea en 1h 40m · mié 04:18`), coloreada por **ritmo**. Una nota al pie te recuerda
-  que la ventana de 5h es *móvil* — cuenta desde tu primera petición, no desde una hora fija del reloj.
-- **Línea de ritmo con ETA** — `↗ 5h XX% · 7d XX%` (usado% vs el ideal según cuánto de la ventana
-  ha transcurrido; más de 100% = vas por delante del ritmo), coloreada por la peor de las dos
-  ventanas, con un **`⚠` + tiempo estimado** si se proyecta que te quedes sin cuota *antes* del reset.
-- **Límites semanales por modelo** — mini-barras compactas `Opus 7d` / `Sonnet 7d` cuando tu plan
-  los desglosa.
+  de reset (`resetea en 1h 40m · mié 04:18`). La barra **se rellena y colorea por tu % real** (verde
+  → ámbar → rojo), así la longitud y el color siempre concuerdan — una barra más llena es una barra
+  más cálida. Tu *ritmo* (cuánto consumes vs. el reloj) va en un **marcador `▾` aparte** coloreado
+  por estado de ritmo, para que las dos señales no se peleen. Una nota al pie te recuerda que la
+  ventana de 5h es *móvil* — cuenta desde tu primera petición, no desde una hora fija del reloj.
+- **Línea de ritmo con ETA por ventana** — `↗ 5h XX% · → 7d XX%` (usado% vs el ideal según cuánto de
+  la ventana ha transcurrido; más de 100% = vas por delante del ritmo). **Cada ventana se colorea
+  por su propio estado** (un 7d sano ya no se pone rojo solo porque el 5h vaya caliente) con su
+  propia flecha, y un **`⚠` + tiempo estimado de agotamiento** separado por ventana si se proyecta
+  que te quedes seco *antes* del reset.
+- **Filas por modelo dinámicas** — la lista de gasto y las mini-barras de límite semanal se
+  construyen **desde tus datos, no de una lista fija**: cada familia que aparece (`Opus` / `Sonnet`
+  / `Haiku` / `Fable` / `Mythos` / …) tiene su fila, nombre y color, y una fila aún al **0% se
+  atenúa** para que el dato vacío no grite más fuerte que los números reales.
 - **Cabecera de vistazo** — la ventana más utilizada en una sola línea (`Sesión (5h)  ◆ 87%`), más
   el punto de **estado del servicio** — sin duplicar la barra completa de abajo.
-- **Gasto estimado por modelo** — `$` por modelo en una ventana configurable, el mayor primero.
-  *Estimación equivalente a la API, no tu factura* (ver [De dónde sale el dato](#de-dónde-sale-el-dato)).
+- **Gasto estimado por modelo** — `$` por modelo en una ventana configurable, el mayor primero, con
+  tarifas de **models.dev**. Un modelo sin precio conocido muestra `— sin tarifa` y queda fuera del
+  total (no se inventa $0). *Estimación equivalente a la API, no tu factura*
+  (ver [De dónde sale el dato](#de-dónde-sale-el-dato)).
 
 #### Gráfica de uso — dos modos, cinco rangos
 
 Una mini-gráfica que puedes alternar entre dos vistas con un toggle `Gasto $ | Cuota %`:
 
-- **`Gasto $`** — área apilada de coste-equivalente por modelo (Opus / Sonnet / Haiku / otros), con
-  un `Total $X.XX` acumulado y una leyenda que muestra **solo las series con datos**.
+- **`Gasto $`** — área apilada de coste-equivalente **por las familias de modelo que haya en tus
+  datos** (cada una con su color), con un `Total $X.XX` acumulado y una leyenda que muestra **solo
+  las series con datos**.
 - **`Cuota %`** — tu utilización *real* en el tiempo, con un **selector de ventana `5h | 7d` que
-  solo aparece en este modo**.
+  solo aparece en este modo**, más **líneas de umbral** tenues en tus niveles de aviso / crítico
+  para ver exactamente cuándo la línea cruzó a ámbar o rojo.
 - Ambos modos **anotan el pico** con un punto etiquetado (`máx $X.XX` / `máx X%`).
 - Rangos: **1H / 5H / 24H / 7D / 30D** (siempre la ventana más reciente hasta *ahora*).
 
@@ -162,16 +193,18 @@ en [Sesiones en vivo y hooks](#sesiones-en-vivo-y-hooks); la versión corta:
 
 - Una máquina de estados de **6 fases** (en reposo · trabajando · espera tu OK · tu turno ·
   compactando · terminada) gobierna la **cara** del gato, su **color de humor** y el punto de
-  atención de la bandeja.
+  atención de la bandeja. El gato **en reposo** ahora se lee con claridad en todos los temas (antes
+  se lavaba a ~2,3:1 de contraste).
 - **Verbos juguetones, rotativos y localizados** bajo el gato (`pensando…`, `cocinando…`,
-  `te toca…`), un **parpadeo natural** (con jitter, no metronómico), un **spinner braille**
-  mientras trabaja, un **rebote de atención** cuando una sesión te necesita, y una **celebración de
-  reset** cuando tu cuota se renueva.
+  `te toca…`), un **parpadeo natural** (con jitter, no metronómico), un **arco de spinner limpio**
+  mientras trabaja (un barrido GDI+, no unos píxeles grises muertos), un **rebote de atención**
+  cuando una sesión te necesita, y una **celebración de reset** — un chip `✓ cuota renovada` en el
+  acento de marca + un rebote contento — cuando tu cuota se renueva.
 - Se enciende/apaga con **Mostrar mascota** (un gatito compacto de 4 líneas, por diseño).
 
 <p align="center">
-  <img src="assets/f3-mascota.gif" alt="Vida de la mascota: parpadeo, spinner braille, verbo juguetón, reacciones por fase" width="300">
-  <img src="assets/f3-celebracion.gif" alt="Destello de celebración de reset de cuota con la mascota poniéndose contenta" width="300">
+  <img src="assets/f3-mascota.gif" alt="Vida de la mascota: parpadeo, arco de spinner, verbo juguetón, reacciones por fase" width="300">
+  <img src="assets/f3-celebracion.gif" alt="Celebración de reset de cuota: el chip ✓ cuota renovada y la mascota poniéndose contenta" width="300">
 </p>
 
 > Con la mascota visible pero las sesiones en vivo **desactivadas**, seguirás viendo un gato *en
@@ -241,6 +274,7 @@ flowchart TD
     refresh["Refresh de token — solo si caducó<br/>POST oauth/token → reescribe creds<br/>(fallback: 'claude -p .' headless)"]
     db[("SQLite history.db<br/>muestras de % real en el tiempo")]
     transcripts["~/.claude/projects/**/*.jsonl<br/>(transcripts locales)"]
+    prices["GET models.dev/api.json<br/>(anónimo · opcional · caché + snapshot offline)"]
     health["GET status.claude.com<br/>/api/v2/status.json (sin auth)"]
     panel(["Panel · icono de bandeja · gráfica · ETA de ritmo"])
 
@@ -248,12 +282,14 @@ flowchart TD
     creds -.->|¿caducó?| refresh --> creds
     usage -->|% REAL 5h / 7d| panel
     usage -->|cada poll muestreado| db -->|Gráfica Cuota % + pendiente de ritmo| panel
-    transcripts -->|estimación estilo ccusage| panel
+    transcripts -->|tokens por modelo| spend["Gasto estimado<br/>(estilo ccusage)"]
+    prices -.->|tarifas de lista por familia| spend --> panel
     health -->|operativo / degradado / caído| panel
 
     style usage fill:#1f6feb,color:#fff
     style db fill:#238636,color:#fff
     style transcripts fill:#9e6a03,color:#fff
+    style prices fill:#6e40c9,color:#fff
 ```
 
 1. **Cuota real (principal).** `GET https://api.anthropic.com/api/oauth/usage` con tu token OAuth
@@ -275,11 +311,17 @@ flowchart TD
 5. **Estado del servicio.** `GET status.claude.com/api/v2/status.json` (público, sin auth),
    cacheado ~2 min.
 6. **Gasto estimado (secundario).** Parsea tus transcripts `.jsonl` locales (el método `ccusage`)
-   a una cifra en USD por modelo usando los **precios de lista públicos de la API de Anthropic**
-   (por 1M de tokens: **Opus** $15 in / $75 out, **Sonnet** $3 / $15, **Haiku** $1 / $5, más las
-   tarifas correspondientes de cache-write / cache-read). Es una **estimación equivalente a la API,
-   no el cargo de tu suscripción** — y está etiquetada como `equiv. API` en todas partes. (Los
-   modelos desconocidos/sintéticos cuentan como $0 hasta que se conoce su precio.)
+   a una cifra en USD por modelo usando los **precios de lista de [models.dev](https://models.dev)**
+   (input / output / cache-write / cache-read por 1M de tokens). Los precios **no están
+   hardcodeados**: se cachea una copia fresca en `%APPDATA%\ClaudeBarWin\models-pricing.json`
+   (refrescada como mucho cada semana), un **snapshot offline embebido** viaja en el binario para que
+   funcione sin red para siempre, y el toggle opcional **"Actualizar tarifas online"** (Ajustes →
+   Sistema, *desactivable*) es lo único que toca models.dev — con un **GET anónimo que no envía nada
+   tuyo** (sin query, sin cabeceras identificativas, solo el User-Agent del producto). Las familias
+   se **derivan de los ids de los transcripts**, así que una familia nueva (`Fable`, `Mythos`, …) se
+   tarifica y se muestra en cuanto aparece; un modelo sin precio en ninguna fuente muestra
+   `— sin tarifa` y queda **fuera del total** (nunca se inventa $0). Es una **estimación equivalente
+   a la API, no el cargo de tu suscripción** — etiquetada como `equiv. API` en todas partes.
 
 ### Privacidad — y puedes verificarlo
 
@@ -287,6 +329,10 @@ flowchart TD
   Anthropic. **Nunca se almacena, loguea ni se envía a ningún otro sitio**, y ClaudeBar **nunca lo
   persiste**.
 - **Cero telemetría.** Nada sobre ti sale de tu máquina.
+- **La descarga de tarifas es anónima y opcional.** La única otra llamada saliente es el refresco
+  opcional de precios de models.dev — un `GET` simple de una lista pública **sin datos de uso, sin
+  query y sin cabeceras identificativas**. Desactívalo y ClaudeBar nunca la abre (el snapshot
+  embebido mantiene el gasto funcionando sin conexión).
 - La etiqueta del plan (`Max · 5x`, `Pro`, …) se lee **solo de campos no secretos** del fichero de
   credenciales (`subscriptionType` / `rateLimitTier`) — el token nunca se toca para ello.
 - El **sello de privacidad se renderiza dentro del propio panel** — es una declaración que puedes
@@ -363,7 +409,7 @@ controles de mascota/silenciar se atenúan.
 | **Frecuencia de actualización** | 30s · 1m · 5m · 15m |
 | **Icono** | Modo `%` / `▲` / `%▲` · Umbral de color 70/90 · 80/95 · 60/85 |
 | **Apariencia** | Tema Sistema/Oscuro/Claro/CLI · Posición · Opacidad · Fijado · Siempre encima · Reducir movimiento |
-| **Sistema** | Iniciar con Windows · Idioma (Sistema + 8) |
+| **Sistema** | Iniciar con Windows · **Actualizar tarifas online** (models.dev, desactivable) · Idioma (Sistema + 8) |
 | **Acerca de** | Versión · Importar `.itermcolors…` |
 
 Dos acciones son **sensibles** — piden confirmación y hacen copia de seguridad primero: activar las
@@ -393,10 +439,10 @@ de trabajo de cada sesión; las sesiones se podan tras 10 minutos de silencio.
 | Fase | Cara | Qué hace el gato |
 |---|---|---|
 | **En reposo** | `-.-` | relajado, estático (sin animación) |
-| **Trabajando** | `o.o` | atento, parpadea, el spinner braille gira |
+| **Trabajando** | `o.o` | atento, parpadea, un arco de spinner barre |
 | **Espera tu OK** | `O.O` | ojos abiertos que pulsan — *"¿lo apruebas?"*, rebota, el punto de bandeja se pone ámbar |
 | **Tu turno** | `^.^` | contento, te toca — guiña a `^.-`, punto de bandeja ámbar |
-| **Compactando** | `@.@` | mareado, comprimiendo memoria, el spinner gira |
+| **Compactando** | `@.@` | mareado, comprimiendo memoria, el arco de spinner barre |
 | **Terminada** | `x.x` | KO, estático |
 
 El gato es ASCII dibujado a mano (clean-room), un gatito compacto de 4 líneas:
@@ -409,11 +455,12 @@ El gato es ASCII dibujado a mano (clean-room), un gatito compacto de 4 líneas:
 ```
 
 Por dentro la mascota es más quisquillosa de lo que parece: **parpadeo con jitter** (lento en reposo
-~2.6s, urgente ~0.5s cuando te necesita), un **spinner braille** (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) solo mientras
-trabaja, **verbos rotativos juguetones** localizados a tu idioma, un **humor** con histéresis
-(Alerta→ámbar, Contento→verde) para que no parpadee, un **rebote de atención** (un boing `OutBack`
-de 3 saltos cada ~3.2s mientras una sesión espera), y una **celebración de reset** (destello
-`✓ cuota renovada` + gato Contento) cuando una ventana se renueva. Todo es determinista y respeta
+~2.6s, urgente ~0.5s cuando te necesita), un **arco de spinner** que barre (un arco GDI+ que da una
+vuelta cada ~900 ms) solo mientras trabaja, **verbos rotativos juguetones** localizados a tu idioma,
+un **humor** con histéresis (Alerta→ámbar, Contento→verde) para que no parpadee, un **rebote de
+atención** (un boing `OutBack` de 3 saltos cada ~3.2s mientras una sesión espera), y una
+**celebración de reset** (chip `✓ cuota renovada` en el acento de marca + gato Contento) cuando una
+ventana se renueva. Todo es determinista y respeta
 **Reducir movimiento**.
 
 ### ¿Es seguro? Sí — esto es exactamente lo que hace
