@@ -58,7 +58,7 @@ Write-Host "OK -> $setup  +  $dist\appcast.xml"
 if ($Publish) {
     $notes = Join-Path $dist "release-notes.md"
     if (-not (Test-Path $notes)) { "ClaudeBar v$Version" | Set-Content $notes }
-    gh release create "v$Version" $setup (Join-Path $dist "appcast.xml") `
+    gh release create "v$Version" $setup (Join-Path $dist "appcast.xml") (Join-Path $dist "appcast.xml.signature") `
         --repo Yovancas/claudebar-win --title "v$Version" --notes-file $notes
 } else {
     Write-Host "DRY-RUN: nada subido. Revisa $dist y relanza con -Publish para release." -ForegroundColor Yellow
