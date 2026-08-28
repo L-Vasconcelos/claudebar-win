@@ -220,6 +220,20 @@ public sealed class DashboardForm : Form
     private Point _dragOffset;
     private Rectangle _closeRect;
 
+    // Grip de redimensionado libre (v0.5, pedido del usuario: "deixe o tamanho para eu escolher ali
+    // puxando"): esquina inferior derecha, solo en la vista "meter" ("data"). Arrastrarlo recalcula
+    // Dpi.UserScale en vivo a partir del ancho elegido, y al soltar lo persiste en cfg.PanelScale —
+    // así comparte el mismo mecanismo que los botones 85/100/115/130% de Ajustes.
+    private Rectangle _resizeRect;
+    private bool _resizing;
+    private int _resizeStartWidth;
+    private int _resizeStartMouseX;
+
+    /// <summary>Zona CLICABLE del grip: más generosa que su dibujo (ley de Fitts — un objetivo de 16px
+    /// en una esquina es difícil de acertar, y el usuario reportó no conseguir agarrarlo).</summary>
+    private Rectangle ResizeHitRect =>
+        _resizeRect.IsEmpty ? Rectangle.Empty : Rectangle.Inflate(_resizeRect, Dpi.Scale(8), Dpi.Scale(8));
+
     // View mode (v0.3): "data" muestra cabecera + secciones; "settings" muestra el panel de ajustes.
     private string _viewMode = "data"; // "data" | "settings"
     private Rectangle _gearRect, _backRect;
@@ -346,6 +360,22 @@ public sealed class DashboardForm : Form
         Dpi.Apply(DeviceDpi);
         Width = Dpi.Scale(BaseWidth);
         Padding = new Padding(Dpi.Scale(BasePanelPad));
+    }
+
+    /// <summary>
+    /// Sincroniza <see cref="Dpi.UserScale"/> con <see cref="AppConfig.PanelScale"/> (ajuste "Tamanho do
+    /// painel") y reaplica la geometría base. Idempotente y barato: se llama en cada refresh de datos y
+    /// al abrir el panel, así que un cambio del ajuste se refleja sin reiniciar la app.
+    /// </summary>
+    /// <summary>Rango de "Tamaño del panel": los botones de Ajustes ofrecen 85–130%, pero el arrastre
+    /// libre del grip (v0.5) permite ir mucho más lejos — pantallas dedicadas (p.ej. una tablet como
+    /// tercer monitor) piden tamaños grandes que un combo de 4 opciones no cubre.</summary>
+    internal const double MinPanelScale = 0.5, MaxPanelScale = 3.0;
+
+    private void ApplyPanelScale(AppConfig cfg)
+    {
+        Dpi.UserScale = (float)Math.Clamp(cfg.PanelScale, MinPanelScale, MaxPanelScale);
+        ApplyDpiScale();
     }
 
     /// <summary>
@@ -477,6 +507,7 @@ public sealed class DashboardForm : Form
         _snap = snap;
         _cfg = cfg;
         _plan = plan;
+        ApplyPanelScale(cfg);
         if (_cfg.LiveSessionsEnabled && _liveProvider is not null) _liveView = _liveProvider();
         _s = Localization.ForConfig(cfg);
         _theme = ThemeResolver.Resolve(cfg);
@@ -569,6 +600,7 @@ public sealed class DashboardForm : Form
     public void ShowConfigured(AppConfig cfg)
     {
         _cfg = cfg;
+        ApplyPanelScale(cfg);
         _s = Localization.ForConfig(cfg);
         _theme = ThemeResolver.Resolve(cfg);
         _sticky = cfg.DashboardSticky;
@@ -718,7 +750,16 @@ public sealed class DashboardForm : Form
         using (var g = CreateGraphics())
             needed = LayoutContent(g, draw: false);
         if (Height != needed) Height = needed;
-        PlaceWindow(_cfg);
+        // Bug real reportado: arrastrar el panel a un segundo monitor con OTRO DPI dispara
+        // OnDpiChanged→Relayout a MITAD del arrastre; como cfg.DashboardPosition todavía no pasó a
+        // "Custom" (eso solo ocurre en OnMouseUp, al soltar), PlaceWindow lo TELEPORTABA de vuelta a la
+        // posición configurada (p.ej. "BottomRight"), compitiendo con el arrastre del usuario y dando la
+        // sensación de que el panel "no se deja mover" al segundo monitor. Mientras _dragging es true, la
+        // posición la manda el propio arrastre (OnMouseMove) — no PlaceWindow.
+        // v0.5: mientras se arrastra el grip de redimensionado (_resizing), tampoco se debe reposicionar
+        // — Location se queda fijo y solo crecen Width/Height, así el panel se expande desde la esquina
+        // opuesta a la que el usuario está arrastrando (comportamiento natural de resize).
+        if (!_dragging && !_resizing) PlaceWindow(_cfg);
         _appliedPlacement = PlacementKey(_cfg);
     }
 
@@ -847,6 +888,17 @@ public sealed class DashboardForm : Form
         if (e.Button != MouseButtons.Left) return;
         if (_closeRect.Contains(e.Location)) { Hide(); return; }
 
+        // Grip de redimensionado (v0.5): tiene prioridad sobre el arrastre de la ventana — vive en la
+        // esquina inferior derecha, zona que si no caería en el "arrastrar panel" genérico del final.
+        if (_viewMode == "data" && ResizeHitRect.Contains(e.Location))
+        {
+            _resizing = true;
+            _resizeStartWidth = Width;
+            _resizeStartMouseX = Cursor.Position.X;
+            Cursor = Cursors.SizeNWSE;
+            return;
+        }
+
         // ⚙ → abrir ajustes (solo en la vista de datos). ShowSettings resetea además el scroll.
         if (_viewMode == "data" && _gearRect.Contains(e.Location))
         {
@@ -934,6 +986,24 @@ public sealed class DashboardForm : Form
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        if (_resizing)
+        {
+            // El ancho arrastrado se traduce a factor de escala respecto al ancho de DISEÑO al DPI del
+            // monitor (BaseWidth·factorDPI): así el resize es equivalente a mover el mismo Dpi.UserScale
+            // que usan los botones 85/100/115/130% — una sola fuente de verdad para el tamaño, en vez de
+            // un segundo mecanismo paralelo. El alto lo recalcula Relayout (auto-fit del contenido).
+            int targetWidth = _resizeStartWidth + (Cursor.Position.X - _resizeStartMouseX);
+            float dpiOnlyBaseW = Math.Max(1, Dpi.Scale(BaseWidth, Dpi.FactorFor(DeviceDpi)));
+            double scale = Math.Clamp(targetWidth / dpiOnlyBaseW, MinPanelScale, MaxPanelScale);
+            if (Math.Abs(scale - Dpi.UserScale) > 0.001)
+            {
+                Dpi.UserScale = (float)scale;
+                ApplyDpiScale();   // reaplica ancho + padding con el nuevo factor
+                Relayout();        // re-mide el alto (no reposiciona: _resizing lo bloquea)
+                Invalidate();
+            }
+            return;
+        }
         if (_dragging)
         {
             Location = new Point(Cursor.Position.X - _dragOffset.X, Cursor.Position.Y - _dragOffset.Y);
@@ -943,7 +1013,9 @@ public sealed class DashboardForm : Form
         // HoveredRects). Cursor Hand cuando hay clave. Si la clave cambia, arranca/rearma el fade-in
         // del realce y repinta (bajo demanda, panel visible).
         string? key = HoverHitTest.Resolve(e.Location, HoveredRects());
-        Cursor = key is not null ? Cursors.Hand : Cursors.Default;
+        // Cursor de resize sobre el grip (afordancia: sin esto no se ve que la esquina es arrastrable).
+        bool overGrip = _viewMode == "data" && ResizeHitRect.Contains(e.Location);
+        Cursor = overGrip ? Cursors.SizeNWSE : key is not null ? Cursors.Hand : Cursors.Default;
         if (key != _hoveredKey)
         {
             _hoveredKey = key;
@@ -982,6 +1054,18 @@ public sealed class DashboardForm : Form
     {
         base.OnMouseUp(e);
         Cursor = Cursors.Default;
+        if (_resizing)
+        {
+            _resizing = false;
+            // Persistir el tamaño elegido en la MISMA clave que usan los botones de Ajustes: al reabrir
+            // el panel, ApplyPanelScale(cfg) lo restaura sin lógica extra.
+            _cfg.PanelScale = Dpi.UserScale;
+            float chosen = Dpi.UserScale;
+            SettingsChanged?.Invoke(c => c.PanelScale = chosen);
+            Relayout();   // ya sin el bloqueo de _resizing: recoloca según la posición configurada
+            Invalidate();
+            return;
+        }
         if (!_dragging) return;
         _dragging = false;
         // Remember the dragged spot locally so a later chart change (Relayout/PlaceWindow)
@@ -1010,10 +1094,42 @@ public sealed class DashboardForm : Form
     {
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        // Textura de fondo (estética, "sparkle"/card look): puntos diagonales muy sutiles detrás de
+        // TODO — se pinta primero y el contenido normal la tapa donde haga falta, así no afecta layout.
+        DrawBackgroundTexture(e.Graphics);
         // Realce de hover DETRÁS del contenido: usa los rects de la pasada anterior (los mismos sobre
         // los que OnMouseMove resolvió la clave). Nunca toca el layout — es decoración bajo el texto.
         DrawHoverHighlight(e.Graphics);
         LayoutContent(e.Graphics, draw: true);
+        // Borde del "card": se pinta AL FINAL para quedar siempre nítido por encima de cualquier fila
+        // que roce el borde. Puramente decorativo — no reserva espacio ni mueve el layout.
+        DrawCardBorder(e.Graphics);
+    }
+
+    /// <summary>
+    /// Puntos diagonales muy tenues (≈7% alfa sobre <see cref="Theme.Foreground"/>) repartidos en
+    /// rejilla al tresbolillo por todo el panel: da la textura "card" estética pedida por el usuario,
+    /// sin tocar ninguna medida de layout (se pinta antes que todo, el contenido la tapa encima).
+    /// </summary>
+    private void DrawBackgroundTexture(Graphics g)
+    {
+        int step = Dpi.Scale(14);
+        if (step <= 0) return;
+        using var dotBrush = new SolidBrush(Color.FromArgb(18, _theme.Foreground));
+        int row = 0;
+        for (int yy = 0; yy < Height; yy += step, row++)
+        {
+            int offset = (row % 2 == 0) ? 0 : step / 2;
+            for (int xx = offset; xx < Width; xx += step)
+                g.FillRectangle(dotBrush, xx, yy, 1, 1);
+        }
+    }
+
+    /// <summary>Borde fino tipo "card" alrededor de todo el panel (estética, sin reservar espacio).</summary>
+    private void DrawCardBorder(Graphics g)
+    {
+        using var pen = new Pen(_theme.AccentText, 1f);
+        g.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
     }
 
     /// <summary>
@@ -1063,47 +1179,53 @@ public sealed class DashboardForm : Form
     /// <summary>Walks the sections top-to-bottom. Returns the required window height.</summary>
     private int LayoutContent(Graphics g, bool draw)
     {
-        // Fuentes del sistema de diseño (estáticas y compartidas: NO se hace Dispose de ellas).
+        // Fuentes del sistema de diseño (estáticas y compartidas: NO se hace Dispose de ellas)...
         var titleFont = Typography.Title;
         var planFont = Typography.Caption;
-        var labelFont = Typography.Body;
-        var smallFont = Typography.Caption;
-        var mono = Typography.Mono;
-        // Los tabs de la gráfica quieren peso bold para legibilidad de las píldoras: fuente local desechable.
-        using var tabFont = new Font("Segoe UI", 8f, FontStyle.Bold);
+        // ...salvo cuando "Tamaño del panel" (Dpi.UserScale) no es 1: la geometría escala vía Dpi.Scale
+        // pero los puntos de fuente no, así que a 200% (tablet dedicada) las etiquetas se quedaban
+        // diminutas dentro de un panel enorme. Estas dos SÍ se reescalan y por eso se disponen aquí;
+        // las cacheadas de Typography no deben disponerse nunca (viven toda la app).
+        bool scaleFonts = Math.Abs(Dpi.UserScale - 1f) >= 0.001f;
+        Font labelFont = scaleFonts ? ScaledFont(Typography.Body) : Typography.Body;
+        Font smallFont = scaleFonts ? ScaledFont(Typography.Caption) : Typography.Caption;
         using var fg = new SolidBrush(_theme.TextPrimary);
         using var dim = new SolidBrush(_theme.TextSecondary);
+        try
+        {
 
         int x = Padding.Left;
         int y = Padding.Top;
         int w = Width - Padding.Horizontal;
 
-        // Chrome común a ambas vistas: título + plan + botón cerrar.
-        if (draw)
-        {
-            g.DrawString("ClaudeBar", titleFont, fg, x, y);
-            // T11: el chrome (botón ✕ y avance de la banda de título) escala con el DPI.
-            _closeRect = new Rectangle(Width - Dpi.Scale(26), Dpi.Scale(10), Dpi.Scale(18), Dpi.Scale(18));
-            // T8c: el plan ("Max 20x · resets…") se elide antes de la columna del ✕ — un display largo
-            // se pintaba de largo bajo el botón y rebasaba el borde del panel. Solo pintado (el avance
-            // y += 50 no cambia) → medir==pintar.
-            string planShown = TextWrap.FitLine(_plan.Display, x, _closeRect.X, Spacing.Sm,
-                t => g.MeasureString(t, planFont).Width);
-            g.DrawString(planShown, planFont, dim, x, y + Dpi.Scale(24));
-            using var closeFont = new Font("Segoe UI", 11f, FontStyle.Bold);
-            g.DrawString("✕", closeFont, dim, _closeRect.X, _closeRect.Y - 2);
-        }
-        y += Dpi.Scale(50);
-
-        // ----- Vista de ajustes: alto LIMITADO + scroll (v0.3.7) -----
-        // El panel medía más que la pantalla ("de arriba a abajo"). Ahora: chrome + "‹ Ajustes" fijos
-        // arriba; el contenido se mide ENTERO (pasada de medida con dict desechable), el alto de la
-        // ventana se acota a MaxPanelHeightPct del área útil, y el contenido se pinta desplazado
-        // -_settingsScroll con CLIP al viewport. Los rects clicables salen de la pasada de pintado (ya
-        // desplazados) y se INTERSECAN con el viewport para que una fila medio fuera no responda bajo
-        // el chrome. Con todo visible no hay barra ni scroll (comportamiento de siempre).
         if (_viewMode == "settings")
         {
+            // Chrome (título + plan + botón cerrar): SOLO en Ajustes. La vista "meter" (v0.4, pedida
+            // por el usuario: "literalmente só essas informações, nada além") tiene su propia cabecera
+            // — ver DrawMeterHeader más abajo — sin este chrome ni el resto de secciones/footer.
+            if (draw)
+            {
+                g.DrawString("ClaudeBar", titleFont, fg, x, y);
+                // T11: el chrome (botón ✕ y avance de la banda de título) escala con el DPI.
+                _closeRect = new Rectangle(Width - Dpi.Scale(26), Dpi.Scale(10), Dpi.Scale(18), Dpi.Scale(18));
+                // T8c: el plan ("Max 20x · resets…") se elide antes de la columna del ✕ — un display largo
+                // se pintaba de largo bajo el botón y rebasaba el borde del panel. Solo pintado (el avance
+                // y += 50 no cambia) → medir==pintar.
+                string planShown = TextWrap.FitLine(_plan.Display, x, _closeRect.X, Spacing.Sm,
+                    t => g.MeasureString(t, planFont).Width);
+                g.DrawString(planShown, planFont, dim, x, y + Dpi.Scale(24));
+                using var closeFont = new Font("Segoe UI", 11f, FontStyle.Bold);
+                g.DrawString("✕", closeFont, dim, _closeRect.X, _closeRect.Y - 2);
+            }
+            y += Dpi.Scale(50);
+
+            // ----- Vista de ajustes: alto LIMITADO + scroll (v0.3.7) -----
+            // El panel medía más que la pantalla ("de arriba a abajo"). Ahora: chrome + "‹ Ajustes" fijos
+            // arriba; el contenido se mide ENTERO (pasada de medida con dict desechable), el alto de la
+            // ventana se acota a MaxPanelHeightPct del área útil, y el contenido se pinta desplazado
+            // -_settingsScroll con CLIP al viewport. Los rects clicables salen de la pasada de pintado (ya
+            // desplazados) y se INTERSECAN con el viewport para que una fila medio fuera no responda bajo
+            // el chrome. Con todo visible no hay barra ni scroll (comportamiento de siempre).
             // F11 (v0.3.9): la etiqueta de volver usa _s.Back ("‹ Volver"/"‹ Back"/"‹ Zurück"…), NO
             // _s.Settings ("‹ Ajustes"): el chevron + el nombre de la sección se leía como TÍTULO, no
             // como afordancia de volver. _s.Back existe en los 9 idiomas (revive el string "muerto").
@@ -1168,98 +1290,152 @@ public sealed class DashboardForm : Form
             return h;
         }
 
-        // ----- Vista de datos: cabecera de un vistazo + secciones plegables -----
+        // ----- Vista "meter" (v0.4): SOLO cabecera LIVE/título/USED + las 2 barras de cuota — pedido
+        // explícito del usuario ("literalmente só essas informações, nada além"). Sin mascota, sin
+        // secciones de sesiones/gasto/gráfica, sin footer/sello: todo eso sigue existiendo en el motor
+        // (Ajustes lo sigue controlando) pero deja de PINTARSE aquí. -----
+        _closeRect = Rectangle.Empty;
+        _gearRect = Rectangle.Empty;
         _settingsRects.Clear();
         _backRect = Rectangle.Empty;
 
-        // Entrada escalonada (Tarea 4): cabecera=0, secciones de datos=1..n, footer=n+1. Cada bloque se
-        // dibuja envuelto en una traslación vertical (OffsetY px → 0) desfasada por su índice; el y de
-        // layout NO cambia. El transform solo se aplica en la pasada de pintado (medir devuelve el mismo y).
-        double tSinceOpen = TSinceOpenMs();
+        y = DrawMeterHeader(g, draw, x, y, w);
 
-        // Cabecera (índice 0)
-        int hOff = draw && !_reduceMotion
-            ? Stagger.OffsetY(Stagger.Alpha(tSinceOpen, 0, Motion.StaggerMs, Motion.StaggerDurMs), Motion.StaggerMaxOffsetPx)
-            : 0;
-        // try/finally (fix F3 minor, mismo patrón que DashboardDataView.Section): garantiza que el pop
-        // del transform ocurra aunque DashboardHeader.Draw lance, para no contaminar frames siguientes.
-        if (hOff != 0) g.TranslateTransform(0, hOff);
-        try
+        var usage = _snap?.Usage;
+        if (usage is null)
         {
-            y = DashboardHeader.Draw(g, draw, x, y, w,
-                _snap, _liveView, _cfg, _s, _theme, SampleMascot(), MascotMoodCurrent(),
-                labelFont, smallFont, mono, ref _gearRect,
-                _motion, _reduceMotion, MascotBounceOffsetY(), CelebrationText());
-        }
-        finally
-        {
-            if (hOff != 0) g.TranslateTransform(0, -hOff);
-        }
-
-        // Secciones de datos (índices 1..n)
-        y = DashboardDataView.Draw(g, draw, x, y, w,
-            _snap, _liveView, _cfg, _s, _theme,
-            labelFont, smallFont, tabFont,
-            _chartMode, _chartRange, _chartPctWindow,
-            _chartData, _pctData, _chartLoading,
-            _sectionRects, _tabRects, _modeRects, _pctWinRects, _liveRowRects,
-            _motion, _reduceMotion, tSinceOpen, firstSectionIndex: 1);
-
-        // Footer (índice n+1): se desplaza después de la última sección de datos.
-        int footerIndex = DashboardDataView.VisibleSectionCount(_cfg, _snap) + 1;
-        int fOff = draw && !_reduceMotion
-            ? Stagger.OffsetY(Stagger.Alpha(tSinceOpen, footerIndex, Motion.StaggerMs, Motion.StaggerDurMs), Motion.StaggerMaxOffsetPx)
-            : 0;
-        if (fOff != 0) g.TranslateTransform(0, fOff);
-        try
-        {
-
-        // footer: "Actualizado · hace N min · pista", con marcador stale si el dato envejece, más el
-        // sello de privacidad. F2 truncaba ambos al ancho fijo del panel (340 px); ahora se ENVUELVEN a
-        // varias líneas. PERO el nº de líneas depende del reloj de pared (el flag stale + el texto del
-        // relativo), y el alto de la ventana solo se recalcula en Relayout(). Para no recortar el sello
-        // entre snapshots, las líneas las construye FooterLayout (PURO, único origen de verdad) con un
-        // "ahora" CONGELADO por pasada (_footerNowUtc) — así medir(draw=false) y pintar(draw=true) del
-        // mismo repaint coinciden — y OnMotionTick re-layouta si la firma del footer cambió (la red de
-        // seguridad que faltaba). El marcador stale conserva su color Warn en su línea corta.
-        y += 4;
-        int lineH = (int)Math.Ceiling(smallFont.GetHeight(g));
-        double Mw(string str) => g.MeasureString(str, smallFont).Width;
-
-        var footerLines = BuildFooterLines(w, Mw);
-        // Snapshot de la firma SOLO en la pasada de pintado: es la que el tick compara para decidir si
-        // el alto reservado quedó obsoleto. (Medir no debe pisar la firma del último pintado.)
-        if (draw) _lastFooterSig = FooterLayout.Signature(footerLines);
-
-        bool sealStarted = false;
-        foreach (var fl in footerLines)
-        {
-            // Aire entre el bloque footer y el sello: una sola vez, antes de la primera línea del sello.
-            if (fl.Kind == FooterLayout.LineKind.Seal && !sealStarted)
-            {
-                y += Spacing.Xs;
-                sealStarted = true;
-            }
             if (draw)
             {
-                Color c = fl.Kind switch
-                {
-                    // Marcador stale = texto pequeño → variante AA del ámbar (T6b; en claro Warn caía a 2.8:1).
-                    FooterLayout.LineKind.Stale => _theme.WarnText,
-                    FooterLayout.LineKind.Seal => _theme.TextMuted,
-                    _ => _theme.TextSecondary,
-                };
-                using var brush = new SolidBrush(c);
-                g.DrawString(fl.Text, smallFont, brush, x, y);
+                string msg = _snap is null ? _s.Loading : UsageFormat.StateMessage(_snap.LatestState, _s);
+                g.DrawString(msg, labelFont, dim, x, y);
             }
-            y += lineH;
+            return y + Dpi.Scale(24) + Spacing.Md;
         }
-        return y + Spacing.Sm;
+
+        // Override eased del ancho/número (color por objetivo): muestrea el MotionState por clave de
+        // barra, igual que hacía DashboardDataView.DrawQuotaBody antes de que esta vista lo sustituyera.
+        double? Eased(string key, UsageWindow? win) =>
+            win is null ? null : _motion?.Display(key, win.UtilizationPct, _reduceMotion);
+
+        // --- Mockup 2: dual gauge cards lado a lado (5h | 7d) ---
+        int gap = QuotaGauge.CardGap;
+        int cardW = (w - gap) / 2;
+
+        QuotaGauge.DrawCard(g, draw, $"{_s.SessionWord} (5h)", usage.FiveHour, _snap?.PaceFive,
+            x, y, cardW, _cfg, _s, _theme, smallFont, Eased("bar:5h", usage.FiveHour));
+        QuotaGauge.DrawCard(g, draw, $"{_s.WeekWord} (7d)", usage.SevenDay, _snap?.PaceSeven,
+            x + cardW + gap, y, cardW, _cfg, _s, _theme, smallFont, Eased("bar:7d", usage.SevenDay));
+
+        y += QuotaGauge.CardHeight + Dpi.Scale(8);
+
+        // --- Pace summary tags ---
+        y = DashboardDataView.DrawPaceTags(g, draw, _snap, _s, _theme, x, y, w, smallFont);
+
+        // Estado NO-Ok: línea discreta de aviso. En el camino feliz NO ocupa NADA — el panel queda
+        // exactamente como la referencia que pidió el usuario. Pero al enjugar el panel a "solo las 2
+        // barras" se perdió el footer que antes decía "⚠ Límite de peticiones · datos anteriores", y con
+        // la API en 429 el panel se quedaba CONGELADO mostrando el último dato bueno (ceros y
+        // "reiniciando…") sin explicar por qué (bug real reportado: "fica reiniciando e não sai disso").
+        // Un panel que se congela en silencio es peor que uno con una línea de más: el aviso vuelve,
+        // pero solo cuando hace falta.
+        if (_snap is not null && _snap.LatestState != UsageFetchState.Ok)
+        {
+            y += Spacing.Sm;
+            if (draw)
+            {
+                string msg = $"⚠ {UsageFormat.StateMessage(_snap.LatestState, _s)} · {_s.PreviousDataFooter}";
+                msg = TextWrap.FitLine(msg, x, x + w, 0, t => g.MeasureString(t, smallFont).Width);
+                using var warnBrush = new SolidBrush(_theme.WarnText);
+                g.DrawString(msg, smallFont, warnBrush, x, y);
+            }
+            y += Dpi.Scale(15);
+        }
+
+        y += Spacing.Sm;
+        // Grip de redimensionado (v0.5): rayas diagonales en la esquina inferior derecha. Se le reserva
+        // su PROPIA fila (el return suma gripSize+margen) — antes se anclaba a "y - gripSize + 2", con
+        // lo que su borde inferior caía en Height+2, es decir 2px POR DEBAJO del área visible: se veía
+        // cortado y era casi imposible de agarrar (bug real reportado: "continua sem eu conseguir
+        // decidir o tamanho"). Su rect se registra SIEMPRE (no solo al pintar) para que el hit-test
+        // funcione en el mismo frame que se mide.
+        int gripSize = Dpi.Scale(16);
+        int gripMargin = Dpi.Scale(4);
+        _resizeRect = new Rectangle(Width - gripSize - gripMargin, y, gripSize, gripSize);
+        if (draw)
+        {
+            // Acento (no TextMuted) y trazo de 2px: es una afordancia, tiene que VERSE.
+            using var gripPen = new Pen(_theme.AccentText, Math.Max(1.5f, Dpi.Scale(2)));
+            for (int i = 1; i <= 3; i++)
+            {
+                int off = i * Dpi.Scale(5);
+                g.DrawLine(gripPen,
+                    _resizeRect.Right - off, _resizeRect.Bottom,
+                    _resizeRect.Right, _resizeRect.Bottom - off);
+            }
+        }
+        return y + gripSize + gripMargin;
         }
         finally
         {
-            if (fOff != 0) g.TranslateTransform(0, -fOff);  // deshace el desplazamiento del footer
+            if (scaleFonts) { labelFont.Dispose(); smallFont.Dispose(); }
         }
+    }
+
+    /// <summary>Clona una fuente del sistema de diseño con su tamaño multiplicado por
+    /// <see cref="Dpi.UserScale"/> ("Tamaño del panel"). El llamador la dispone.</summary>
+    private static Font ScaledFont(Font f) => new(f.FontFamily, f.Size * Dpi.UserScale, f.Style);
+
+    /// <summary>
+    /// Cabecera de la vista "meter": punto LIVE (verde si el último fetch fue Ok, apagado si no) +
+    /// título de marca + badge "USED" decorativo, replicando el print de referencia del usuario.
+    /// Altura fija (no depende de draw) → medir(draw=false)==pintar(draw=true) trivialmente.
+    /// </summary>
+    private int DrawMeterHeader(Graphics g, bool draw, int x, int y, int w)
+    {
+        if (draw)
+        {
+            bool live = _snap?.Usage is not null && _snap.LatestState == UsageFetchState.Ok;
+            Color liveColor = live ? _theme.Ok : _theme.TextMuted;
+
+            int dotD = Dpi.Scale(8);
+            int dotY = y + Dpi.Scale(5);
+            using (var dotBrush = new SolidBrush(liveColor))
+                g.FillEllipse(dotBrush, x, dotY, dotD, dotD);
+
+            // "Tamaño del panel" (Dpi.UserScale) reescala la geometría de esta cabecera (dotD, padX...)
+            // vía Dpi.Scale, pero los puntos de fuente NO siguen ese factor por defecto (solo el DPI
+            // real del monitor) — a 85% "AO VIVO" quedaba cortado/montado sobre el título (bug real
+            // reportado). Multiplicar el tamaño en puntos por UserScale mantiene el texto proporcional
+            // a la geometría reescalada.
+            float fscale = Dpi.UserScale;
+            using var liveFont = new Font("Segoe UI", 8.5f * fscale, FontStyle.Bold);
+            using var liveBrush = new SolidBrush(liveColor);
+            g.DrawString(_s.MeterLive, liveFont, liveBrush, x + dotD + Spacing.Xs, y);
+
+            using var titleFont2 = new Font("Segoe UI", 11f * fscale, FontStyle.Bold);
+            using var titleBrush = new SolidBrush(_theme.Foreground);
+            const string title = "CLAUDE CODE METER";
+            var titleSz = g.MeasureString(title, titleFont2);
+            float titleX = x + (w - titleSz.Width) / 2f;
+            g.DrawString(title, titleFont2, titleBrush, titleX, y - Dpi.Scale(1));
+
+            using var badgeFont = new Font("Segoe UI", 7.5f * fscale, FontStyle.Bold);
+            string badge = _s.MeterUsedBadge;
+            var badgeTextSz = g.MeasureString(badge, badgeFont);
+            int padX = Dpi.Scale(8), padY = Dpi.Scale(2);
+            var badgeRect = new Rectangle(
+                x + w - (int)Math.Ceiling(badgeTextSz.Width) - padX * 2,
+                y - Dpi.Scale(2),
+                (int)Math.Ceiling(badgeTextSz.Width) + padX * 2,
+                (int)Math.Ceiling(badgeTextSz.Height) + padY * 2);
+            using (var badgeBg = new SolidBrush(Color.FromArgb(55, _theme.Accent)))
+                Shapes.FillRounded(g, badgeBg, badgeRect, badgeRect.Height / 2);
+            using (var badgeBorder = new Pen(_theme.AccentText, 1f))
+                Shapes.DrawRounded(g, badgeBorder, badgeRect, badgeRect.Height / 2);
+            using var badgeBrush = new SolidBrush(_theme.AccentText);
+            g.DrawString(badge, badgeFont, badgeBrush, badgeRect.X + padX, badgeRect.Y + padY);
+        }
+        return y + Dpi.Scale(30);
     }
 
     /// <summary>

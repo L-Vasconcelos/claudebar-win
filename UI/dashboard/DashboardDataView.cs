@@ -67,7 +67,7 @@ public static class DashboardDataView
 
     // T11: alto del plot y del pie de la gráfica en px de diseño (96 DPI) proyectados al DPI vigente
     // (las etiquetas del eje/leyenda crecen con la fuente; el plot debe crecer con ellas).
-    internal static int ChartH => Dpi.Scale(92);
+    internal static int ChartH => Dpi.Scale(140);
     internal static int ChartFooter => Dpi.Scale(32);
 
     /// <summary>
@@ -196,7 +196,10 @@ public static class DashboardDataView
 
     // ---------------- Cuerpos de sección (movidos de DashboardForm.cs, lógica intacta) ----------------
 
-    /// <summary>Cuota: barra 5h + barra 7d + línea de pace + modelos 7d (Opus/Sonnet).</summary>
+    /// <summary>
+    /// Cuota: dos cards de gauge semicircular lado a lado (5h | 7d) + pace tags + modelos 7d.
+    /// Mockup 2: comparación instantánea entre las dos ventanas con arco visual.
+    /// </summary>
     private static int DrawQuotaBody(Graphics g, bool draw, AppSnapshot? snap, AppConfig cfg, Strings s, Theme theme,
         int x, int y, int w, Font labelFont, Font smallFont, Brush fg, Brush dim,
         MotionState? motion = null, bool reduceMotion = false)
@@ -215,30 +218,33 @@ public static class DashboardDataView
         // Override eased del ancho/número (color por objetivo): muestrea el MotionState por clave de barra.
         double? d5 = SampledUtil(motion, "bar:5h", usage.FiveHour, reduceMotion);
         double? d7 = SampledUtil(motion, "bar:7d", usage.SevenDay, reduceMotion);
-        // T11: el aire entre barras escala con el DPI (los px del plan de auditoría: 22/16/14/BarH).
-        y = QuotaBar.Draw(g, draw, $"{s.SessionWord} (5h)", usage.FiveHour, snap?.PaceFive, x, y, w, cfg, s, theme, labelFont, smallFont, fg, dim, d5);
-        y += Dpi.Scale(16);
-        y = QuotaBar.Draw(g, draw, $"{s.WeekWord} (7d)", usage.SevenDay, snap?.PaceSeven, x, y, w, cfg, s, theme, labelFont, smallFont, fg, dim, d7);
-        y += Dpi.Scale(14);
 
-        y = DrawPace(g, draw, snap, s, theme, x, y, w, smallFont);
+        // --- Dual gauge cards lado a lado (Mockup 2) ---
+        int gap = QuotaGauge.CardGap;
+        int cardW = (w - gap) / 2;
 
-        // Aire entre la línea de pace y el desglose por modelo (Opus/Sonnet): antes iban pegados y se
-        // leían como una sola fila apretada (auditoría visual, T9). Constante en ambas pasadas (medir==pintar).
+        QuotaGauge.DrawCard(g, draw, $"{s.SessionWord} (5h)", usage.FiveHour, snap?.PaceFive,
+            x, y, cardW, cfg, s, theme, smallFont, d5);
+        QuotaGauge.DrawCard(g, draw, $"{s.WeekWord} (7d)", usage.SevenDay, snap?.PaceSeven,
+            x + cardW + gap, y, cardW, cfg, s, theme, smallFont, d7);
+
+        y += QuotaGauge.CardHeight + Dpi.Scale(8);
+
+        // --- Pace summary tags (pills coloreadas) ---
+        y = DrawPaceTags(g, draw, snap, s, theme, x, y, w, smallFont);
+
+        // Aire entre pace y desglose por modelo.
         y += Spacing.Sm;
         y = DrawModelLine(g, draw, "Opus 7d", usage.SevenDayOpus, x, y, w, smallFont, fg, dim, theme, cfg, s.Culture);
         y = DrawModelLine(g, draw, "Sonnet 7d", usage.SevenDaySonnet, x, y, w, smallFont, fg, dim, theme, cfg, s.Culture);
 
-        // Explicación honesta del rolling: la ventana de 5h corre desde tu 1ª petición, no a hora fija.
-        // theme.TextMuted / Typography.Caption; suma su alto en ambas ramas (medir/pintar).
+        // Explicación honesta del rolling.
         if (draw)
         {
             using var muted = new SolidBrush(theme.TextMuted);
             g.DrawString(s.RollingHint, Typography.Caption, muted, x, y);
         }
         y += Dpi.Scale(16);
-        // Aire extra al cierre de la sección Cuota: despega el bloque de modelos/hint del ACORDEÓN de abajo
-        // (la mini-fila Sonnet 7d ya no queda pegada a la siguiente cabecera plegable). P2 #4.
         y += Spacing.Sm;
         return y;
     }
@@ -371,6 +377,120 @@ public static class DashboardDataView
             cx += segW;
         }
         return y + Dpi.Scale(18);
+    }
+
+    /// <summary>
+    /// Pace como pills/tags coloreadas centradas (Mockup 2): cada ventana aporta una pill con su flecha
+    /// y %, más una pill ETA de agotamiento si aplica. Reemplaza la línea de texto corrida de DrawPace
+    /// por un layout centrado de tags que se leen mejor bajo los gauge cards.
+    /// </summary>
+    internal static int DrawPaceTags(Graphics g, bool draw, AppSnapshot? snap, Strings s, Theme theme,
+        int x, int y, int w, Font smallFont)
+    {
+        var pf = snap?.PaceFive;
+        var ps = snap?.PaceSeven;
+        if (pf is null && ps is null) return y;
+
+        // Preparar las tags: (texto, color de estado)
+        var tags = new List<(string text, Color color)>();
+
+        if (pf is not null)
+        {
+            string arrow = PaceArrow(pf.Status);
+            tags.Add(($"{arrow} 5h {pf.PaceRatio * 100:0}%", Theme.PaceTextColor(theme, pf.Status)));
+        }
+        if (ps is not null)
+        {
+            string arrow = PaceArrow(ps.Status);
+            tags.Add(($"{arrow} 7d {ps.PaceRatio * 100:0}%", Theme.PaceTextColor(theme, ps.Status)));
+        }
+
+        // ETA de agotamiento (la ventana que se agota primero)
+        var exa = new[] { pf, ps }
+            .Where(p => p is { ExhaustsBeforeReset: true, EtaUtc: not null })
+            .OrderBy(p => p!.EtaUtc).FirstOrDefault();
+        if (exa is not null)
+            tags.Add(($"⚠ {s.PaceEtaLabel} {UsageFormat.ResetAbsolute(exa.EtaUtc, s.Culture)}",
+                Theme.PaceTextColor(theme, exa.Status)));
+
+        if (tags.Count == 0) return y;
+
+        int tagH = Dpi.Scale(20);
+        int tagPadX = Dpi.Scale(8);
+        int tagGap = Dpi.Scale(6);
+        int tagRadius = Dpi.Scale(4);
+
+        // Medir ancho total para centrar
+        var tagWidths = tags.Select(t => (int)g.MeasureString(t.text, Typography.Mono).Width + tagPadX * 2).ToList();
+        int totalW = tagWidths.Sum() + tagGap * (tags.Count - 1);
+
+        // Si no cabe en una línea, apilar en dos filas
+        bool multiLine = totalW > w;
+        if (!multiLine)
+        {
+            int sx = x + (w - totalW) / 2;
+            if (draw)
+            {
+                for (int i = 0; i < tags.Count; i++)
+                {
+                    var (text, color) = tags[i];
+                    var rect = new Rectangle(sx, y, tagWidths[i], tagH);
+                    using var bgBrush = new SolidBrush(Color.FromArgb(30, color));
+                    Shapes.FillRounded(g, bgBrush, rect, tagRadius);
+                    using var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                    using var tb = new SolidBrush(color);
+                    g.DrawString(text, Typography.Mono, tb, rect, fmt);
+                    sx += tagWidths[i] + tagGap;
+                }
+            }
+            return y + tagH + Dpi.Scale(4);
+        }
+        else
+        {
+            // Dos filas: primero las dos ventanas, luego el ETA (si hay)
+            int row1Count = Math.Min(2, tags.Count);
+            int row1W = tagWidths.Take(row1Count).Sum() + tagGap * (row1Count - 1);
+            int sx = x + (w - Math.Min(row1W, w)) / 2;
+            if (draw)
+            {
+                for (int i = 0; i < row1Count; i++)
+                {
+                    var (text, color) = tags[i];
+                    int tw = Math.Min(tagWidths[i], (w - tagGap) / row1Count);
+                    var rect = new Rectangle(sx, y, tw, tagH);
+                    using var bgBrush = new SolidBrush(Color.FromArgb(30, color));
+                    Shapes.FillRounded(g, bgBrush, rect, tagRadius);
+                    using var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                    using var tb = new SolidBrush(color);
+                    g.DrawString(text, Typography.Mono, tb, rect, fmt);
+                    sx += tw + tagGap;
+                }
+            }
+            y += tagH + Dpi.Scale(4);
+
+            if (tags.Count > row1Count)
+            {
+                int row2W = tagWidths.Skip(row1Count).Sum() + tagGap * (tags.Count - row1Count - 1);
+                sx = x + (w - Math.Min(row2W, w)) / 2;
+                if (draw)
+                {
+                    for (int i = row1Count; i < tags.Count; i++)
+                    {
+                        var (text, color) = tags[i];
+                        int tw = Math.Min(tagWidths[i], w);
+                        var rect = new Rectangle(sx, y, tw, tagH);
+                        using var bgBrush = new SolidBrush(Color.FromArgb(30, color));
+                        Shapes.FillRounded(g, bgBrush, rect, tagRadius);
+                        using var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                        using var tb = new SolidBrush(color);
+                        g.DrawString(text, Typography.Mono, tb, rect, fmt);
+                        sx += tw + tagGap;
+                    }
+                }
+                y += tagH + Dpi.Scale(4);
+            }
+            return y;
+        }
     }
 
     // Mini-fila de modelo (Opus/Sonnet 7d): alto de la línea de texto + barrita de referencia + su gap.
@@ -678,6 +798,19 @@ public static class DashboardDataView
         float X(int i) => n == 1 ? x + w / 2f : x + (float)i * w / (n - 1);
         float Y(double v) => bottom - (float)(v / max) * (ChartH - Dpi.Scale(14)); // T11: headroom escalado
 
+        // Grade de referencia horizontal (25/50/75% del pico), fina y neutra (theme.Separator) — solo
+        // da profundidad de lectura, no es una 4.ª semántica de color. Se pinta ANTES del relleno para
+        // que el área semitransparente la deje ver por debajo (mismo criterio que el gridline de umbral
+        // del modo %).
+        using (var grid = new Pen(theme.Separator, 1f) { DashStyle = DashStyle.Dash })
+        {
+            foreach (double frac in new[] { 0.25, 0.5, 0.75 })
+            {
+                float gy = Y(max * frac);
+                g.DrawLine(grid, x, gy, x + w, gy);
+            }
+        }
+
         // T13a: series dinámicas — las familias reales de la ventana, apiladas por rango de gasto
         // (la 1.ª abajo) y con color por slot estable de theme.ChartSeries (no por nombre).
         var families = ChartFamilies(chartData);
@@ -692,8 +825,26 @@ public static class DashboardDataView
             var pts = new List<PointF>(2 * n);
             for (int i = 0; i < n; i++) pts.Add(new PointF(X(i), Y(topArr[i])));
             for (int i = n - 1; i >= 0; i--) pts.Add(new PointF(X(i), Y(baseline[i])));
-            using var br = new SolidBrush(SeriesColor(theme, slots, family));
-            if (pts.Count >= 3) g.FillPolygon(br, pts.ToArray());
+
+            Color seriesColor = SeriesColor(theme, slots, family);
+            if (pts.Count >= 3)
+            {
+                // Degradado vertical (más opaco arriba, se desvanece hacia la base) en vez de relleno
+                // plano: da sensación de profundidad y separa mejor las capas apiladas.
+                using var br = new LinearGradientBrush(
+                    new PointF(0, top), new PointF(0, bottom),
+                    Color.FromArgb(210, seriesColor), Color.FromArgb(90, seriesColor));
+                g.FillPolygon(br, pts.ToArray());
+            }
+            // Borde superior de la capa: define el límite entre familias apiladas (antes solo el color
+            // plano las separaba, sin contorno).
+            if (n >= 2)
+            {
+                using var edge = new Pen(seriesColor, 1.5f);
+                var topLine = new PointF[n];
+                for (int i = 0; i < n; i++) topLine[i] = new PointF(X(i), Y(topArr[i]));
+                g.DrawLines(edge, topLine);
+            }
 
             baseline = topArr;
         }
@@ -798,20 +949,33 @@ public static class DashboardDataView
             }
         }
 
-        // filled area under the line
+        // filled area under the line — degradado vertical (antes plano) para más profundidad visual.
         var poly = new List<PointF>(n + 2);
         for (int i = 0; i < n; i++) poly.Add(new PointF(X(i), Y(pts[i].v)));
         poly.Add(new PointF(X(n - 1), bottom));
         poly.Add(new PointF(X(0), bottom));
-        using (var fill = new SolidBrush(Color.FromArgb(70, status)))
-            if (poly.Count >= 3) g.FillPolygon(fill, poly.ToArray());
+        if (poly.Count >= 3)
+            using (var fill = new LinearGradientBrush(
+                new PointF(0, top), new PointF(0, bottom),
+                Color.FromArgb(110, status), Color.FromArgb(15, status)))
+                g.FillPolygon(fill, poly.ToArray());
         // line on top
         if (n >= 2)
         {
-            using var pen = new Pen(status, 1.8f);
+            using var pen = new Pen(status, 2.2f) { LineJoin = LineJoin.Round };
             var line = new PointF[n];
             for (int i = 0; i < n; i++) line[i] = new PointF(X(i), Y(pts[i].v));
             g.DrawLines(pen, line);
+            // Puntos discretos sobre la línea: marcan cada muestra real (antes solo la línea, sin
+            // referencia de dónde caen los datos).
+            using var dot = new SolidBrush(theme.Background);
+            using var dotEdge = new Pen(status, 1.5f);
+            float r = Dpi.Scale(3);
+            foreach (var p in line)
+            {
+                g.FillEllipse(dot, p.X - r, p.Y - r, r * 2, r * 2);
+                g.DrawEllipse(dotEdge, p.X - r, p.Y - r, r * 2, r * 2);
+            }
         }
 
         // peak annotation
