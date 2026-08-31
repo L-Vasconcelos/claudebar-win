@@ -123,10 +123,10 @@ public static class OverviewSection
         }
         y += Dpi.Scale(14);
 
-        // Compute grid dimensions: fit as many columns as the width allows
-        int cellSize = HeatCellSize;
+        // Compute grid: 10 columns for a 3-row layout (30 days), cells sized to fill width
         int gap = HeatGap;
-        int cols = Math.Max(1, (w + gap) / (cellSize + gap));
+        int cols = 10;
+        int cellSize = Math.Max(8, (w - gap * (cols - 1)) / cols);
         int days = stats.DailyActivity.Count;
         int rows = (int)Math.Ceiling((double)days / cols);
 

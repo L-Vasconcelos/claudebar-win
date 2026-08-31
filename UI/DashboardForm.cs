@@ -32,6 +32,9 @@ public sealed class DashboardForm : Form
     private string _overviewRange = "all"; // "all" | "30d" | "7d"
     private readonly Dictionary<string, Rectangle> _overviewTabRects = new();
 
+    // Detail panel (right side)
+    private readonly DetailPanel _detailPanel = new();
+
     // ---- Motion (F3): reloj bajo demanda + fade de apertura ----
     // Stopwatch monótono (inmune a cambios de hora) propiedad del form: la única fuente de
     // tiempo del motor. Cada tick pasa el delta a los AnimatedValue. El MotionScheduler decide
@@ -283,6 +286,7 @@ public sealed class DashboardForm : Form
     public event Action<string>? ChartWindowChanged;
     public event Action<string>? SessionClicked;
     public event Action<string>? OverviewRangeChanged;
+    public event Action<string>? DetailChartRangeChanged;
 
     /// <summary>Emitido cuando el panel de ajustes cambia un valor: el host lo aplica vía MutateConfig.</summary>
     public event Action<Action<AppConfig>>? SettingsChanged;
@@ -353,6 +357,7 @@ public sealed class DashboardForm : Form
 
         _tick = new System.Windows.Forms.Timer { Interval = Motion.SlowTickMs };
         _tick.Tick += (_, _) => OnMotionTick();
+        _detailPanel.ChartRangeChanged += range => DetailChartRangeChanged?.Invoke(range);
     }
 
     /// <summary>
@@ -563,7 +568,19 @@ public sealed class DashboardForm : Form
             _ => null
         };
         _overviewStats = UsageStatsService.Compute(records, since);
+
+        // Feed detail panel with records + spend data
+        _detailPanel.UpdateData(_theme, _s, _snap?.Spend, _chartData, records);
+        if (_detailPanel.Visible) _detailPanel.DockTo(this);
+
         if (IsHandleCreated) BeginInvoke(Invalidate);
+    }
+
+    /// <summary>Updates the detail panel chart data from the background thread.</summary>
+    public void UpdateDetailChart(List<HistoryBucket> buckets)
+    {
+        if (IsHandleCreated)
+            BeginInvoke(() => _detailPanel.UpdateChart(buckets));
     }
 
     /// <summary>
@@ -669,6 +686,11 @@ public sealed class DashboardForm : Form
         _tick.Interval = _reduceMotion ? Motion.SlowTickMs : Motion.FastTickMs; // reduce-motion: solo countdown
         _tick.Start();
         if (cfg.ShowChart) _ = ReloadChart();
+
+        // Detail panel: dock to the right and show
+        _detailPanel.TopMost = TopMost;
+        _detailPanel.DockTo(this);
+        _detailPanel.Show();
     }
 
     /// <summary>
@@ -835,10 +857,10 @@ public sealed class DashboardForm : Form
         if (!Visible)
         {
             _tick.Stop();
-            // Descarta el hover para que un re-open no muestre un realce obsoleto (sin tick que lo limpie).
             _hoveredKey = null;
             _hoverIntensity.Set(0.0, 0);
             _hoverIntensity.Snap();
+            _detailPanel.Hide();
         }
     }
 
