@@ -15,10 +15,10 @@ public static class QuotaGauge
     internal static int CardPadding => Dpi.Scale(10);
     internal static int ArcSize => Dpi.Scale(80);          // diámetro del arco
     internal static int ArcStroke => Dpi.Scale(8);          // grosor del trazo
-    internal static int NumberFontPt => 16;                 // pt del número (normalizado, un poco mayor que body)
+    internal static int NumberFontPt => 14;                 // pt del número (auditoria: 16→14, proporcional ao card)
     internal static int CardRadius => Dpi.Scale(12);        // radio de las esquinas del card (redondeado como el mockup)
-    internal static int BadgeH => Dpi.Scale(16);            // alto del badge de estado
-    internal static int ResetLineH => Dpi.Scale(14);        // alto de cada línea de reset
+    internal static int BadgeH => Dpi.Scale(14);            // alto del badge (auditoria: 16→14)
+    internal static int ResetLineH => Dpi.Scale(12);        // alto de cada línea de reset (auditoria: 14→12)
     internal static int CardGap => Dpi.Scale(10);           // gap entre los dos cards
 
     /// <summary>
@@ -27,11 +27,11 @@ public static class QuotaGauge
     /// </summary>
     internal static int CardHeight =>
         CardPadding                        // top padding
-        + Dpi.Scale(14)                    // label
-        + Dpi.Scale(6)                     // gap label → arco
+        + Dpi.Scale(12)                    // label (auditoria: 14→12)
+        + Dpi.Scale(4)                     // gap label → arco (auditoria: 6→4)
         + ArcSize / 2 + ArcStroke          // arco semicircular (mitad superior del diámetro + stroke)
         + Dpi.Scale(4)                     // gap arco → número
-        + Dpi.Scale(24)                    // número (normalizado)
+        + Dpi.Scale(20)                    // número (auditoria: 24→20, 14pt precisa menos)
         + Dpi.Scale(4)                     // gap número → badge
         + BadgeH                           // badge de estado
         + Dpi.Scale(4)                     // gap badge → reset
@@ -70,9 +70,10 @@ public static class QuotaGauge
 
         // --- Label ("Session (5h)" / "Week (7d)") ---
         using var dimBrush = new SolidBrush(theme.TextSecondary);
-        var labelSize = g.MeasureString(label, smallFont);
-        g.DrawString(label, smallFont, dimBrush, cx - labelSize.Width / 2, cy);
-        cy += Dpi.Scale(14) + Dpi.Scale(6);
+        using var labelFont = new Font(smallFont.FontFamily, 9f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
+        var labelSize = g.MeasureString(label, labelFont);
+        g.DrawString(label, labelFont, dimBrush, cx - labelSize.Width / 2, cy);
+        cy += Dpi.Scale(12) + Dpi.Scale(4);
 
         // --- Arco semicircular ---
         int arcDiameter = ArcSize;
@@ -103,21 +104,22 @@ public static class QuotaGauge
         // --- Número grande (%) ---
         using var numBrush = new SolidBrush(textColor);
         using var numFont = new Font(Typography.Hero.FontFamily, NumberFontPt * Dpi.UserScale, Typography.Hero.Style);
+        using var suffixFont = new Font(smallFont.FontFamily, 9f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
         string numText = UsageFormat.PercentNumber(shown, s.Culture);
         string suffix = $"% {s.MeterUsedSuffix}";
         var numSize = g.MeasureString(numText, numFont, int.MaxValue, TextMetrics.Typographic);
-        var suffixSize = g.MeasureString(suffix, smallFont, int.MaxValue, TextMetrics.Typographic);
-        float totalNumW = numSize.Width + Dpi.Scale(3) + suffixSize.Width;
+        var suffixSize = g.MeasureString(suffix, suffixFont, int.MaxValue, TextMetrics.Typographic);
+        float totalNumW = numSize.Width + Dpi.Scale(2) + suffixSize.Width;
         float numX = cx - totalNumW / 2;
         g.DrawString(numText, numFont, numBrush, numX, cy, TextMetrics.Typographic);
 
         // Sufijo "% used" alineado por baseline
         float numBaseline = cy + BaselineOffset(numFont, g);
-        float suffixY = numBaseline - BaselineOffset(smallFont, g);
+        float suffixY = numBaseline - BaselineOffset(suffixFont, g);
         using var suffixBrush = new SolidBrush(textColor);
-        g.DrawString(suffix, smallFont, suffixBrush, numX + numSize.Width + Dpi.Scale(3), suffixY, TextMetrics.Typographic);
+        g.DrawString(suffix, suffixFont, suffixBrush, numX + numSize.Width + Dpi.Scale(2), suffixY, TextMetrics.Typographic);
 
-        cy += Dpi.Scale(24) + Dpi.Scale(4);
+        cy += Dpi.Scale(20) + Dpi.Scale(4);
 
         // --- Badge de estado (● OK / ▲ WARN / ◆ CRIT) ---
         string glyph = Tray.ShapeGlyph(Tray.ShapeFor(status));
@@ -128,16 +130,17 @@ public static class QuotaGauge
             _ => "OK"
         };
         string badgeText = $"{glyph} {statusLabel}";
-        var badgeSize = g.MeasureString(badgeText, smallFont);
-        int badgeW = (int)badgeSize.Width + Dpi.Scale(12);
+        using var badgeFont = new Font(smallFont.FontFamily, 8f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
+        var badgeSize = g.MeasureString(badgeText, badgeFont);
+        int badgeW = (int)badgeSize.Width + Dpi.Scale(10);
         int badgeX = cx - badgeW / 2;
         var badgeRect = new Rectangle(badgeX, cy, badgeW, BadgeH);
         Color badgeBg = Color.FromArgb(30, fillColor);
         using (var badgeBgBrush = new SolidBrush(badgeBg))
-            Shapes.FillRounded(g, badgeBgBrush, badgeRect, Dpi.Scale(6));
+            Shapes.FillRounded(g, badgeBgBrush, badgeRect, Dpi.Scale(4));
         using var badgeFmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
         using var badgeBrush = new SolidBrush(textColor);
-        g.DrawString(badgeText, smallFont, badgeBrush, badgeRect, badgeFmt);
+        g.DrawString(badgeText, badgeFont, badgeBrush, badgeRect, badgeFmt);
 
         cy += BadgeH + Dpi.Scale(4);
 
@@ -145,18 +148,20 @@ public static class QuotaGauge
         string countdown = UsageFormat.Countdown(win?.ResetsAt, s.Resetting);
         string resetAbs = UsageFormat.ResetAbsolute(win?.ResetsAt, s.Culture);
 
+        using var resetFont = new Font(Typography.Mono.FontFamily, 8f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
+        using var resetAbsFont = new Font(smallFont.FontFamily, 8f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
         if (countdown.Length > 0)
         {
             string resetLine = $"↻ {countdown}";
-            var resetSize = g.MeasureString(resetLine, Typography.Mono);
-            g.DrawString(resetLine, Typography.Mono, dimBrush, cx - resetSize.Width / 2, cy);
+            var resetSize = g.MeasureString(resetLine, resetFont);
+            g.DrawString(resetLine, resetFont, dimBrush, cx - resetSize.Width / 2, cy);
         }
         cy += ResetLineH;
 
         if (resetAbs.Length > 0)
         {
-            var absSize = g.MeasureString(resetAbs, smallFont);
-            g.DrawString(resetAbs, smallFont, dimBrush, cx - absSize.Width / 2, cy);
+            var absSize = g.MeasureString(resetAbs, resetAbsFont);
+            g.DrawString(resetAbs, resetAbsFont, dimBrush, cx - absSize.Width / 2, cy);
         }
     }
 

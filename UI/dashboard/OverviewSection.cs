@@ -81,7 +81,7 @@ public static class OverviewSection
 
         // Label (top, centered, muted — auto-elide if too wide)
         using var labelBrush = new SolidBrush(theme.TextMuted);
-        using var labelFont = new Font(smallFont.FontFamily, 7.5f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
+        using var labelFont = new Font(smallFont.FontFamily, 7f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
         string shownLabel = label;
         var labelSz = g.MeasureString(shownLabel, labelFont);
         if (labelSz.Width > w - CardPad * 2)
@@ -94,7 +94,7 @@ public static class OverviewSection
         Color valueColor = accent ? theme.Accent : theme.TextPrimary;
         using var valueBrush = new SolidBrush(valueColor);
         float maxValueW = w - CardPad * 2;
-        float basePt = 11f;
+        float basePt = 10f;
         Font valueFont = new Font(Typography.Mono.FontFamily, basePt * Dpi.UserScale, FontStyle.Bold, GraphicsUnit.Point);
         var valueSz = g.MeasureString(value, valueFont);
         // Shrink font if value doesn't fit

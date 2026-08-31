@@ -1472,9 +1472,10 @@ public sealed class DashboardForm : Form
             // "Detalhes" header
             if (draw)
             {
-                g.DrawString("Detalhes", Typography.Title, fg, rightX, ry);
+                using var detailTitleFont = new Font(Typography.Title.FontFamily, 12f * Dpi.UserScale, FontStyle.Bold, GraphicsUnit.Point);
+                g.DrawString("Detalhes", detailTitleFont, fg, rightX, ry);
             }
-            ry += Dpi.Scale(28);
+            ry += Dpi.Scale(24);
 
             // Spend bars
             ry = DetailColumnRenderer.DrawSpendBars(g, draw, rightX, ry, rightColW, _snap?.Spend, _s, _theme, smallFont, dim);

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>ClaudeBar — Auditoria Visual (Antes vs Depois)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg: #18181B; --surface: #2C2C2E; --border: #38383A; --text: #F4F4F5;
+    --dim: #A1A1AA; --muted: #8E8E93; --ok: #16A34A; --accent: #CC785C;
+    --track: #3A3A3C; --opus: #8B5CF6; --sonnet: #3B82F6; --fable: #06B6D4; --haiku: #10B981;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#111; color:var(--text); font-family:'Inter',sans-serif; padding:32px 16px; display:flex; flex-direction:column; align-items:center; gap:40px; }
+  h1 { font-size:22px; font-weight:300; color:#FBBF24; } h1 span { font-weight:700; }
+  .subtitle { color:var(--dim); font-size:12px; margin-top:-28px; text-align:center; max-width:700px; }
+
+  .compare { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .col-label { text-align:center; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+
+  .panel { background:var(--bg); border:1px solid var(--accent); border-radius:12px; display:flex; overflow:hidden; }
+  .left, .right { width:340px; padding:14px; }
+  .right { border-left:1px solid var(--border); }
+
+  /* Header */
+  .header { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--ok); margin-bottom:10px; }
+  .header .dot { width:6px; height:6px; border-radius:50%; background:var(--ok); }
+  .header .title { font-size:12px; font-weight:700; color:var(--text); flex:1; text-align:center; }
+  .header .badge { font-size:8px; padding:2px 8px; border-radius:8px; border:1px solid var(--accent); color:var(--accent); font-weight:600; }
+
+  /* Gauges */
+  .gauge-row { display:flex; gap:8px; }
+  .gauge-card { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px 4px; text-align:center; }
+  .gauge-card .label { font-size:9px; color:var(--dim); margin-bottom:4px; }
+  .gauge-card .arc { width:64px; height:36px; margin:0 auto 2px; border:5px solid var(--track); border-bottom:none; border-radius:64px 64px 0 0; position:relative; }
+  .gauge-card .arc::after { content:''; position:absolute; top:-5px; left:-5px; width:64px; height:36px; border:5px solid var(--ok); border-bottom:none; border-radius:64px 64px 0 0; clip-path:polygon(0 0,20% 0,20% 100%,0 100%); }
+  .gauge-card .pct { font-size:14px; font-weight:700; color:var(--ok); }
+  .gauge-card .pct .suffix { font-size:9px; font-weight:400; opacity:0.7; }
+  .gauge-card .badge-ok { display:inline-block; font-size:8px; padding:1px 5px; border-radius:4px; background:rgba(22,163,74,0.12); color:var(--ok); margin:2px 0; }
+  .gauge-card .reset { font-family:'JetBrains Mono',monospace; font-size:8px; color:var(--muted); }
+
+  /* Pace */
+  .pace-row { display:flex; gap:4px; justify-content:center; padding:6px 0 2px; }
+  .pace-tag { font-family:'JetBrains Mono',monospace; font-size:9px; padding:2px 8px; border-radius:4px; background:rgba(22,163,74,0.12); color:var(--ok); }
+  .updated { text-align:center; font-size:9px; color:var(--muted); padding:3px 0 6px; }
+
+  /* Overview */
+  .section-hdr { display:flex; align-items:center; justify-content:space-between; padding:4px 0; border-top:1px solid var(--border); margin-bottom:6px; }
+  .section-hdr .left-t { font-size:11px; font-weight:600; }
+  .tabs { display:flex; gap:2px; }
+  .tab { font-size:8px; padding:2px 6px; border-radius:5px; color:var(--dim); border:1px solid transparent; }
+  .tab.active { background:var(--accent); color:#fff; }
+  .tab:not(.active) { border-color:var(--border); }
+
+  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-bottom:4px; }
+  .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:5px 3px; text-align:center; }
+  .stat-card .stat-label { font-size:7px; color:var(--muted); margin-bottom:1px; line-height:1.2; }
+  .stat-card .stat-value { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; }
+  .stat-card .stat-value.accent { color:var(--accent); }
+
+  .heatmap-label { font-size:7px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin:6px 0 3px; }
+  .heatmap { display:grid; grid-template-columns:repeat(10,1fr); gap:2px; }
+  .cell { aspect-ratio:1; border-radius:2px; background:var(--track); }
+  .cell.l1{background:rgba(22,163,74,0.25)}.cell.l2{background:rgba(22,163,74,0.45)}.cell.l3{background:rgba(22,163,74,0.65)}.cell.l4{background:rgba(22,163,74,0.85)}.cell.l5{background:var(--ok)}
+  .heatmap-legend { display:flex; align-items:center; justify-content:flex-end; gap:2px; margin-top:3px; font-size:7px; color:var(--muted); }
+  .heatmap-legend .cell { width:8px; height:8px; border-radius:2px; aspect-ratio:auto; }
+
+  /* RIGHT: Detail column */
+  .section-title { font-size:8px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; }
+  .right-title { font-size:12px; font-weight:700; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+
+  .spend-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; font-size:10px; }
+  .spend-model { width:42px; font-weight:600; font-size:10px; flex-shrink:0; }
+  .spend-bar { flex:1; height:10px; background:var(--track); border-radius:3px; overflow:hidden; }
+  .spend-fill { height:100%; border-radius:3px; }
+  .spend-amt { width:52px; text-align:right; font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--dim); }
+
+  .chart-section { border-top:1px solid var(--border); padding-top:10px; margin-top:10px; }
+  .chart-hdr { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .chart-area { height:90px; background:linear-gradient(180deg,rgba(139,92,246,0.08) 0%,transparent 100%); border-radius:4px; position:relative; margin-bottom:4px; border-bottom:1px solid var(--border); }
+  .chart-area svg { width:100%; height:100%; }
+  .chart-labels { display:flex; justify-content:space-between; font-size:7px; color:var(--muted); margin-bottom:4px; }
+
+  .model-section { border-top:1px solid var(--border); padding-top:10px; margin-top:8px; }
+  .model-row { display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+  .model-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .model-info { flex:1; }
+  .model-name { font-size:10px; font-weight:600; }
+  .model-sub { font-size:7px; color:var(--muted); margin-top:1px; }
+  .model-pct { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:600; }
+
+  /* Annotations */
+  .fix-note { position:relative; }
+  .fix-note::after {
+    content:attr(data-fix); position:absolute; right:-8px; top:50%; transform:translateY(-50%);
+    font-size:8px; color:#FBBF24; background:rgba(251,191,36,0.15); padding:1px 4px; border-radius:3px;
+    white-space:nowrap; pointer-events:none;
+  }
+
+  .changes-list { max-width:700px; font-size:12px; color:var(--dim); line-height:1.8; }
+  .changes-list li { margin-bottom:2px; }
+  .changes-list code { color:var(--accent); font-size:11px; font-family:'JetBrains Mono',monospace; }
+</style>
+</head>
+<body>
+
+<h1>Auditoria Visual — <span>Antes vs Depois</span></h1>
+<p class="subtitle">Normalização de fontes, espaçamentos e hierarquia visual. Todas as mudanças listadas abaixo.</p>
+
+<div class="compare">
+
+<!-- DEPOIS (proposta corrigida) -->
+<div>
+<div class="col-label">Proposta corrigida</div>
+<div class="panel">
+
+  <!-- LEFT COLUMN -->
+  <div class="left">
+    <div class="header">
+      <div class="dot"></div><span>AO VIVO</span>
+      <span class="title">CLAUDE CODE METER</span>
+      <span class="badge">USADO</span>
+    </div>
+
+    <div class="gauge-row">
+      <div class="gauge-card">
+        <div class="label">Sessão (5h)</div>
+        <div class="arc"></div>
+        <div class="pct">19<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 2h 0m</div>
+        <div class="reset">seg. 13:29</div>
+      </div>
+      <div class="gauge-card">
+        <div class="label">Semana (7d)</div>
+        <div class="arc"></div>
+        <div class="pct">5<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 3d 16h</div>
+        <div class="reset">sex. 03:59</div>
+      </div>
+    </div>
+
+    <div class="pace-row"><span class="pace-tag">→ 5h 32%</span><span class="pace-tag">→ 7d 11%</span></div>
+    <div class="updated">Atualizado · há 18 s</div>
+
+    <div class="section-hdr">
+      <div class="left-t">▾ Visão Geral</div>
+      <div class="tabs"><span class="tab active">Todos</span><span class="tab">30d</span><span class="tab">7d</span></div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Sessões</div><div class="stat-value">138</div></div>
+      <div class="stat-card"><div class="stat-label">Mensagens</div><div class="stat-value">9.4k</div></div>
+      <div class="stat-card"><div class="stat-label">Tokens</div><div class="stat-value">1.8B</div></div>
+      <div class="stat-card"><div class="stat-label">Dias ativos</div><div class="stat-value">48</div></div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Seq. atual</div><div class="stat-value accent">1d</div></div>
+      <div class="stat-card"><div class="stat-label">Maior seq.</div><div class="stat-value accent">11d</div></div>
+      <div class="stat-card"><div class="stat-label">Hora pico</div><div class="stat-value">14h</div></div>
+      <div class="stat-card"><div class="stat-label">Favorito</div><div class="stat-value accent">Opus</div></div>
+    </div>
+
+    <div class="heatmap-label">ATIVIDADE (ÚLTIMOS 30 DIAS)</div>
+    <div class="heatmap">
+      <div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell"></div><div class="cell l2"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l2"></div>
+      <div class="cell l1"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l1"></div><div class="cell l3"></div>
+      <div class="cell l2"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell l4"></div><div class="cell l1"></div><div class="cell l2"></div>
+    </div>
+    <div class="heatmap-legend">
+      <span>menos</span>
+      <div class="cell" style="background:var(--track);"></div><div class="cell l1"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l5"></div>
+      <span>mais</span>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="right">
+    <div class="right-title">Detalhes</div>
+
+    <div class="section-title">GASTO ESTIMADO (7D, API-EQUIV)</div>
+    <div class="spend-row">
+      <span class="spend-model" style="color:var(--opus);">Opus</span>
+      <div class="spend-bar"><div class="spend-fill" style="width:100%;background:var(--opus);"></div></div>
+      <span class="spend-amt">$149,31</span>
+    </div>
+    <div class="spend-row">
+      <span class="spend-model" style="color:var(--haiku);">Haiku</span>
+      <div class="spend-bar"><div class="spend-fill" style="width:1.6%;min-width:3px;background:var(--haiku);"></div></div>
+      <span class="spend-amt">$2,46</span>
+    </div>
+    <div class="spend-row">
+      <span class="spend-model" style="color:var(--sonnet);">Sonnet</span>
+      <div class="spend-bar"><div class="spend-fill" style="width:0.9%;min-width:3px;background:var(--sonnet);"></div></div>
+      <span class="spend-amt">$1,37</span>
+    </div>
+
+    <div class="chart-section">
+      <div class="chart-hdr">
+        <div class="section-title" style="margin-bottom:0;">USO AO LONGO DO TEMPO</div>
+        <div class="tabs"><span class="tab">1H</span><span class="tab active">5H</span><span class="tab">24H</span><span class="tab">7D</span></div>
+      </div>
+      <div class="chart-area">
+        <svg viewBox="0 0 300 90" preserveAspectRatio="none">
+          <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.45"/><stop offset="100%" stop-color="#8B5CF6" stop-opacity="0.03"/></linearGradient></defs>
+          <polygon points="0,80 30,78 60,72 90,74 120,65 150,55 180,50 210,42 240,35 270,30 300,22 300,90 0,90" fill="url(#g1)"/>
+          <polyline points="0,80 30,78 60,72 90,74 120,65 150,55 180,50 210,42 240,35 270,30 300,22" fill="none" stroke="#8B5CF6" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="chart-labels"><span>06:29</span><span>07:29</span><span>08:29</span><span>09:29</span><span>10:29</span></div>
+    </div>
+
+    <div class="model-section">
+      <div class="section-title">USO POR MODELO</div>
+      <div class="model-row">
+        <div class="model-dot" style="background:var(--opus);"></div>
+        <div class="model-info"><div class="model-name">Opus</div><div class="model-sub">7.9k msgs · 1.5B tokens</div></div>
+        <div class="model-pct" style="color:var(--opus);">84%</div>
+      </div>
+      <div class="model-row">
+        <div class="model-dot" style="background:var(--sonnet);"></div>
+        <div class="model-info"><div class="model-name">Sonnet</div><div class="model-sub">1.1k msgs · 297M tokens</div></div>
+        <div class="model-pct" style="color:var(--sonnet);">11%</div>
+      </div>
+      <div class="model-row">
+        <div class="model-dot" style="background:var(--haiku);"></div>
+        <div class="model-info"><div class="model-name">Haiku</div><div class="model-sub">359 msgs · 15.4M tokens</div></div>
+        <div class="model-pct" style="color:var(--haiku);">4%</div>
+      </div>
+      <div class="model-row">
+        <div class="model-dot" style="background:var(--fable);"></div>
+        <div class="model-info"><div class="model-name">Fable</div><div class="model-sub">32 msgs · 9.3M tokens</div></div>
+        <div class="model-pct" style="color:var(--fable);">0%</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+</div>
+
+<!-- CHANGES LIST -->
+<div class="changes-list">
+<strong style="color:#FBBF24;">Mudanças aplicadas:</strong>
+<ol>
+  <li><strong>Gauge %</strong>: <code>16pt → 14pt</code> — número menor, mais proporcional ao card</li>
+  <li><strong>Gauge suffix</strong>: <code>smallFont → 9pt</code> — "% usado" menor e mais discreto</li>
+  <li><strong>Gauge badge</strong>: <code>smallFont → 8pt</code> — compacto, não compete com o número</li>
+  <li><strong>Gauge label</strong>: <code>smallFont → 9pt</code> — "Sessão (5h)" mais leve</li>
+  <li><strong>Gauge reset</strong>: <code>12pt Mono → 8pt Mono</code> — countdown e hora menores</li>
+  <li><strong>"Detalhes" título</strong>: <code>15pt Title → 12pt Bold</code> — não dominar a coluna</li>
+  <li><strong>Section titles</strong>: padronizar em <code>8pt uppercase</code> em toda a coluna direita</li>
+  <li><strong>Spend bar row</strong>: <code>22px → 20px</code> de altura, bar <code>14px → 10px</code></li>
+  <li><strong>Spend amount</strong>: <code>12pt → 9pt Mono</code> — mais discreto</li>
+  <li><strong>Model name</strong>: <code>10pt Bold → 10pt Bold</code> (mantido)</li>
+  <li><strong>Model sub</strong>: <code>7.5pt → 7pt</code> — ainda mais discreto</li>
+  <li><strong>Model row height</strong>: <code>32px → 28px</code> — menos espaço desperdiçado</li>
+  <li><strong>Chart height</strong>: <code>100px → 90px</code> — compacto</li>
+  <li><strong>Separadores</strong>: padding <code>8px → 10px</code> acima e abaixo de cada seção</li>
+  <li><strong>Stat cards</strong>: valor <code>11pt → 10pt</code> base, label <code>7.5pt → 7pt</code></li>
+</ol>
+</div>
+
+</body>
+</html>
