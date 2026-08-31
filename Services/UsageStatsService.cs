@@ -130,9 +130,10 @@ public static class UsageStatsService
             heatmap);
     }
 
-    /// <summary>Formats a token count for display: "16M", "420k", "1.2k", "89".</summary>
+    /// <summary>Formats a token count for display: "1.8B", "16M", "420k", "89".</summary>
     public static string FormatTokens(long tokens)
     {
+        if (tokens >= 1_000_000_000) return $"{tokens / 1_000_000_000.0:0.#}B";
         if (tokens >= 1_000_000) return $"{tokens / 1_000_000.0:0.#}M";
         if (tokens >= 1_000) return $"{tokens / 1_000.0:0.#}k";
         return tokens.ToString();
@@ -142,8 +143,9 @@ public static class UsageStatsService
     public static string FormatCount(int count)
     {
         if (count >= 1_000_000) return $"{count / 1_000_000.0:0.#}M";
-        if (count >= 10_000) return $"{count / 1_000.0:0.#}k";
-        return count.ToString("N0");
+        if (count >= 100_000) return $"{count / 1_000.0:0}k";
+        if (count >= 1_000) return $"{count / 1_000.0:0.#}k";
+        return count.ToString();
     }
 
     /// <summary>

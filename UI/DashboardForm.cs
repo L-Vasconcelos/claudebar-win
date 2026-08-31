@@ -772,6 +772,7 @@ public sealed class DashboardForm : Form
         using (var g = CreateGraphics())
             needed = LayoutContent(g, draw: false);
         if (Height != needed) Height = needed;
+        ApplyRoundedRegion();
         // Bug real reportado: arrastrar el panel a un segundo monitor con OTRO DPI dispara
         // OnDpiChanged→Relayout a MITAD del arrastre; como cfg.DashboardPosition todavía no pasó a
         // "Custom" (eso solo ocurre en OnMouseUp, al soltar), PlaceWindow lo TELEPORTABA de vuelta a la
@@ -1168,6 +1169,16 @@ public sealed class DashboardForm : Form
     {
         using var pen = new Pen(_theme.AccentText, 1f);
         Shapes.DrawRounded(g, pen, new Rectangle(0, 0, Width, Height), Dpi.Scale(12));
+    }
+
+    /// <summary>
+    /// Clips the form itself to a rounded rectangle so Windows doesn't show a square shadow.
+    /// </summary>
+    private void ApplyRoundedRegion()
+    {
+        int radius = Dpi.Scale(12);
+        using var path = Shapes.RoundedRectPath(new Rectangle(0, 0, Width, Height), radius);
+        Region = new Region(path);
     }
 
     /// <summary>

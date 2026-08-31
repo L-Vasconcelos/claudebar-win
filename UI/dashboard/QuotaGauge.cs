@@ -15,7 +15,7 @@ public static class QuotaGauge
     internal static int CardPadding => Dpi.Scale(10);
     internal static int ArcSize => Dpi.Scale(80);          // diámetro del arco
     internal static int ArcStroke => Dpi.Scale(8);          // grosor del trazo
-    internal static int NumberFontPt => 22;                 // pt del número grande
+    internal static int NumberFontPt => 16;                 // pt del número (normalizado, un poco mayor que body)
     internal static int CardRadius => Dpi.Scale(12);        // radio de las esquinas del card (redondeado como el mockup)
     internal static int BadgeH => Dpi.Scale(16);            // alto del badge de estado
     internal static int ResetLineH => Dpi.Scale(14);        // alto de cada línea de reset
@@ -31,7 +31,7 @@ public static class QuotaGauge
         + Dpi.Scale(6)                     // gap label → arco
         + ArcSize / 2 + ArcStroke          // arco semicircular (mitad superior del diámetro + stroke)
         + Dpi.Scale(4)                     // gap arco → número
-        + Dpi.Scale(32)                    // número grande
+        + Dpi.Scale(24)                    // número (normalizado)
         + Dpi.Scale(4)                     // gap número → badge
         + BadgeH                           // badge de estado
         + Dpi.Scale(4)                     // gap badge → reset
@@ -117,7 +117,7 @@ public static class QuotaGauge
         using var suffixBrush = new SolidBrush(textColor);
         g.DrawString(suffix, smallFont, suffixBrush, numX + numSize.Width + Dpi.Scale(3), suffixY, TextMetrics.Typographic);
 
-        cy += Dpi.Scale(32) + Dpi.Scale(4);
+        cy += Dpi.Scale(24) + Dpi.Scale(4);
 
         // --- Badge de estado (● OK / ▲ WARN / ◆ CRIT) ---
         string glyph = Tray.ShapeGlyph(Tray.ShapeFor(status));
