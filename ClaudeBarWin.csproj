@@ -34,6 +34,11 @@
     <EmbeddedResource Include="hooks\claudebar-hook.ps1" />
     <!-- T13b: snapshot de tarifas (models.dev, provider anthropic) — respaldo offline del catálogo. -->
     <EmbeddedResource Include="Resources\models-pricing-snapshot.json" />
+    <!-- Fontes embutidas: Inter (UI) + JetBrains Mono (números/countdown) -->
+    <EmbeddedResource Include="Resources\Fonts\Inter-Regular.ttf" />
+    <EmbeddedResource Include="Resources\Fonts\Inter-Bold.ttf" />
+    <EmbeddedResource Include="Resources\Fonts\Inter-SemiBold.ttf" />
+    <EmbeddedResource Include="Resources\Fonts\JetBrainsMono-Regular.ttf" />
   </ItemGroup>
 
   <!-- The test project lives in a subfolder; exclude it from the root project's default glob. -->

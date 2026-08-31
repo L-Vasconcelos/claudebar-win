@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>ClaudeBar — Comparativo de Fontes</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=DM+Sans:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600;700&family=Outfit:wght@400;600;700&family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Fira+Code:wght@400;600&family=IBM+Plex+Mono:wght@400;600&family=Source+Code+Pro:wght@400;600&display=swap');
+
+  :root {
+    --bg: #18181B;
+    --surface: #2C2C2E;
+    --border: #38383A;
+    --text: #F4F4F5;
+    --dim: #A1A1AA;
+    --muted: #8E8E93;
+    --ok: #16A34A;
+    --warn: #D97706;
+    --accent: #CC785C;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #111;
+    color: var(--text);
+    font-family: 'Segoe UI', sans-serif;
+    padding: 40px 20px;
+  }
+
+  h1 { text-align: center; font-size: 24px; font-weight: 300; color: #FBBF24; margin-bottom: 6px; }
+  h1 span { font-weight: 700; }
+  .subtitle { text-align: center; color: var(--dim); font-size: 13px; margin-bottom: 40px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .option {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+
+  .option-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .option-header .name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .option-header .tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .tag.current { background: rgba(142,142,147,0.2); color: var(--muted); }
+  .tag.recommended { background: rgba(22,163,74,0.15); color: var(--ok); }
+  .tag.modern { background: rgba(204,120,92,0.15); color: var(--accent); }
+
+  .option-body { padding: 16px; }
+
+  /* Gauge card mock */
+  .gauge-row { display: flex; gap: 10px; }
+  .gauge-card {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 8px;
+    text-align: center;
+  }
+  .gauge-card .label { font-size: 11px; color: var(--dim); margin-bottom: 8px; }
+  .gauge-card .arc {
+    width: 80px; height: 44px;
+    margin: 0 auto 6px;
+    border: 6px solid #3A3A3C;
+    border-bottom: none;
+    border-radius: 80px 80px 0 0;
+    position: relative;
+  }
+  .gauge-card .arc::after {
+    content: '';
+    position: absolute;
+    top: -6px; left: -6px;
+    width: 80px; height: 44px;
+    border: 6px solid var(--ok);
+    border-bottom: none;
+    border-radius: 80px 80px 0 0;
+    clip-path: polygon(0 0, 15% 0, 15% 100%, 0 100%);
+  }
+  .gauge-card .pct { font-weight: 700; margin: 4px 0 2px; }
+  .gauge-card .pct .num { color: var(--ok); }
+  .gauge-card .pct .suffix { color: var(--ok); opacity: 0.7; }
+  .gauge-card .badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 8px;
+    border-radius: 6px;
+    background: rgba(22,163,74,0.12);
+    color: var(--ok);
+    margin: 4px 0;
+  }
+  .gauge-card .reset { color: var(--muted); margin-top: 4px; }
+  .gauge-card .reset-abs { font-size: 11px; color: var(--muted); }
+
+  /* Pace tags */
+  .pace-row { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
+  .pace-tag {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: rgba(22,163,74,0.12);
+    color: var(--ok);
+  }
+
+  /* Font specimen */
+  .specimen {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+  .specimen code {
+    color: var(--dim);
+    font-size: 10px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Comparativo de <span>Fontes</span></h1>
+<p class="subtitle">Atual: Segoe UI Variable + Cascadia Mono &mdash; 5 alternativas modernas</p>
+
+<div class="grid">
+
+<!-- 1. ATUAL -->
+<div class="option">
+  <div class="option-header">
+    <span class="name">A. Segoe UI Variable</span>
+    <span class="tag current">Atual</span>
+  </div>
+  <div class="option-body">
+    <div class="gauge-row">
+      <div class="gauge-card" style="font-family:'Segoe UI Variable Text','Segoe UI',sans-serif;">
+        <div class="label">Sessao (5h)</div>
+        <div class="arc"></div>
+        <div class="pct" style="font-size:22px;"><span class="num">2</span><span class="suffix" style="font-size:12px;"> % usado</span></div>
+        <div class="badge">● OK</div>
+        <div class="reset" style="font-family:'Cascadia Mono','Consolas',monospace;font-size:11px;">↻ 4h 24m</div>
+        <div class="reset-abs">seg. 13:30</div>
+      </div>
+      <div class="gauge-card" style="font-family:'Segoe UI Variable Text','Segoe UI',sans-serif;">
+        <div class="label">Semana (7d)</div>
+        <div class="arc"></div>
+        <div class="pct" style="font-size:22px;"><span class="num">3</span><span class="suffix" style="font-size:12px;"> % usado</span></div>
+        <div class="badge">● OK</div>
+        <div class="reset" style="font-family:'Cascadia Mono','Consolas',monospace;font-size:11px;">↻ 3d 18h</div>
+        <div class="reset-abs">sex. 04:00</div>
+      </div>
+    </div>
+    <div class="pace-row" style="font-family:'Cascadia Mono','Consolas',monospace;">
+      <span class="pace-tag">→ 5h 17%</span>
+      <span class="pace-tag">→ 7d 7%</span>
+    </div>
+    <div class="specimen">
+      UI: <code>Segoe UI Variable Text/Display</code><br>
+      Mono: <code>Cascadia Mono / Consolas</code><br>
+      Nativa do Windows 11. Boa, mas genérica.
+    </div>
+  </div>
+</div>
+
+<!-- 2. INTER -->
+<div class="option">
+  <div class="option-header">
+    <span class="name">B. Inter</span>
+    <span class="tag recommended">Recomendada</span>
+  </div>
+  <div class="option-body">
+    <div class="gauge-row">
+      <div class="gauge-card" style="font-family:'Inter',sans-serif;">
+        <div class="label" style="font-weight:400;">Sessao (5h)</div>
+        <div class="arc"></div>
+        <div class="pct" style="font-size:22px;font-family:'Inter',sans-serif;"><span class="num">2</span><span class="suffix" style="font-size:12px;"> % usado</span></div>
+        <div class="badge" style="font-family:'Inter',sans-serif;">● OK</div>
+        <div class="reset" style="font-family:'JetBrains Mono',monospace;font-size:11px;">↻ 4h 24m</div>
+        <div class="reset-abs" style="font-family:'Inter',sans-serif;">seg. 13:30</div>
+      </div>
+      <div class="gauge-card" style="font-family:'Inter',sans-serif;">
+        <div class="label" style="font-weight:400;">Semana (7d)</div>
+        <div class="arc"></div>
+        <div class="pct" style="font-size:22px;font-family:'Inter',sans-serif;"><span class="num">3</span><span class="suffix" style="font-size:12px;"> % usado</span></div>
+        <div class="badge" style="font-family:'Inter',sans-serif;">● OK</div>
+        <div class="reset" style="font-family:'JetBrains Mono',monospace;font-size:11px;">↻ 3d 18h</div>
+        <div class="reset-abs" style="font-family:'Inter',sans-serif;">sex. 04:00</div>
+      </div>
+    </div>
+    <div class="pace-row" style="font-family:'JetBrains Mono',monospace;">
+      <span class="pace-tag">→ 5h 17%</span>
+      <span class="pace-tag">→ 7d 7%</span>
+    </div>
+    <div class="specimen">
+      UI: <code>Inter (Google Fonts)</code><br>
+      Mono: <code>JetBrains Mono</code><br>
+      A mais usada em dashboards modernos. Altamente legível em tamanhos pequenos, números tabulares nativos.
+    </div>
+  </div>
+</div>
+
+<!-- 3. DM SANS -->
+<div class="option">
+  <div class="option-header">
+    <span class="name">C. DM Sans</span>
+    <span class="tag modern">Moderna</span>
+  </div>
+  <div class="option-body">
+    <div class="gauge-row">
+      <div class="gauge-card" style="font-family:'DM Sans',sans-serif;">
+        <div class="label">Sessao (5h)</div>
+        <div class="arc"></div>
+        <div class="pct" style="font-size:22px;font-family:'DM Sans',sans-serif;"><span class="num">2</span><span class="suffix" style="font-size:12px;"> % usado</span></div>
+        <div class="badge" style="font-family:'DM Sans',sans-serif;">● OK</div>
+        <div class="reset" style="font-family:'Fira Code',monospace;font-size:11px;">↻ 4h 24m</div>
+        <div class="reset-abs" style="font-family:'DM Sans',sans-serif;">seg. 13:30</div>
+      </div>
+      <div class="gauge-card" style="font-family:'DM Sans',sans-serif;">
+        <div class="label">Semana (7d)</div>
+        <div class="arc"></div>
+        <div class="pct" style="font-size:22px;font-family:'DM Sans',sans-serif;"><span class="num">3</span><span class="suffix" style="font-size:12px;"> % usado</span></div>
+        <div class="badge" style="font-family:'DM Sans',sans-serif;">● OK</div>
+        <div class="reset" style="font-family:'Fira Code',monospace;font-size:11px;">↻ 3d 18h</div>
+        <div class="reset-abs" style="font-family:'DM Sans',sans-serif;">sex. 04:00</div>
+      </div>
+    </div>
+    <div class="pace-row" style="font-family:'Fira Code',monospace;">
+      <span class="pace-tag">→ 5h 17%</span>
+      <span class="pace-tag">→ 7d 7%</span>
+    </div>
+    <div class="specimen">
+      UI: <code>DM Sans (Google Fonts)</code><br>
+      Mono: <code>Fira Code</code><br>
+      Geométrica e clean. Ótima para interfaces data-driven com visual premium.
+    </div>
+  </div>
+</div>
+
+<!-- 4. PLUS JAKARTA SANS -->
+<div class="option">
+  <div class="option-header">
+    <span class="name">D. Plus Jakarta Sans</span>
+    <span class="tag modern">Moderna</span>
+  </div>
+  <div class="option-body">
+    <div class="gauge-row">
+      <div class="gauge-card" style="font-family:'Plus Jakarta Sans',sans-serif;">
+        <div class="label">Sessao (5h)</div>
+        <div class="arc"></div>
+        <div class="pct" style="font-size:22px;font-family:'Plus Jakarta Sans',sans-serif;"><span class="num">2</span><span class="suffix" style="font-size:12px;"> % usado</span></div>
+        <div class="badge" style="font-family:'Plus Jakarta Sans',sans-serif;">● OK</div>
+        <div class="reset" style="font-family:'IBM Plex Mono',monospace;font-size:11px;">↻ 4h 24m</div>
+        <div class="reset-abs" style="font-family:'Plus Jakarta Sans',sans-serif;">seg. 13:30</div>
+      </div>
+      <div class="gauge-card" style="font-family:'Plus Jakarta Sans',sans-serif;">
+        <div class="label">Semana (7d)</div>
+        <div class="arc"></div>
+        <div class="pct" style="font-size:22px;font-family:'Plus Jakarta Sans',sans-serif;"><span class="num">3</span><span class="suffix" style="font-size:12px;"> % usado</span></div>
+        <div class="badge" style="font-family:'Plus Jakarta Sans',sans-serif;">● OK</div>
+        <div class="reset" style="font-family:'IBM Plex Mono',monospace;font-size:11px;">↻ 3d 18h</div>
+        <div class="reset-abs" style="font-family:'Plus Jakarta Sans',sans-serif;">sex. 04:00</div>
+      </div>
+    </div>
+    <div class="pace-row" style="font-family:'IBM Plex Mono',monospace;">
+      <span class="pace-tag">→ 5h 17%</span>
+      <span class="pace-tag">→ 7d 7%</span>
+    </div>
+    <div class="specimen">
+      UI: <code>Plus Jakarta Sans (Google Fonts)</code><br>
+      Mono: <code>IBM Plex Mono</code><br>
+      Suave e arredondada. Sensação premium, ótima para dark themes.
+    </div>
+  </div>
+</div>
+
+<!-- 5. OUTFIT -->
+<div class="option">
+  <div class="option-header">
+    <span class="name">E. Outfit</span>
+    <span class="tag modern">Moderna</span>
+  </div>
+  <div class="option-body">
+    <div class="gauge-row">
+      <div class="gauge-card" style="font-family:'Outfit',sans-serif;">
+        <div class="label">Sessao (5h)</div>
+        <div class="arc"></div>
+        <div class="pct" style="font-size:22px;font-family:'Outfit',sans-serif;"><span class="num">2</span><span class="suffix" style="font-size:12px;"> % usado</span></div>
+        <div class="badge" style="font-family:'Outfit',sans-serif;">● OK</div>
+        <div class="reset" style="font-family:'Source Code Pro',monospace;font-size:11px;">↻ 4h 24m</div>
+        <div class="reset-abs" style="font-family:'Outfit',sans-serif;">seg. 13:30</div>
+      </div>
+      <div class="gauge-card" style="font-family:'Outfit',sans-serif;">
+        <div class="label">Semana (7d)</div>
+        <div class="arc"></div>
+        <div class="pct" style="font-size:22px;font-family:'Outfit',sans-serif;"><span class="num">3</span><span class="suffix" style="font-size:12px;"> % usado</span></div>
+        <div class="badge" style="font-family:'Outfit',sans-serif;">● OK</div>
+        <div class="reset" style="font-family:'Source Code Pro',monospace;font-size:11px;">↻ 3d 18h</div>
+        <div class="reset-abs" style="font-family:'Outfit',sans-serif;">sex. 04:00</div>
+      </div>
+    </div>
+    <div class="pace-row" style="font-family:'Source Code Pro',monospace;">
+      <span class="pace-tag">→ 5h 17%</span>
+      <span class="pace-tag">→ 7d 7%</span>
+    </div>
+    <div class="specimen">
+      UI: <code>Outfit (Google Fonts)</code><br>
+      Mono: <code>Source Code Pro</code><br>
+      Geométrica minimalista. Números muito limpos, ótima para gauges e dashboards.
+    </div>
+  </div>
+</div>
+
+<!-- 6. SPACE GROTESK -->
+<div class="option">
+  <div class="option-header">
+    <span class="name">F. Space Grotesk</span>
+    <span class="tag modern">Moderna</span>
+  </div>
+  <div class="option-body">
+    <div class="gauge-row">
+      <div class="gauge-card" style="font-family:'Space Grotesk',sans-serif;">
+        <div class="label">Sessao (5h)</div>
+        <div class="arc"></div>
+        <div class="pct" style="font-size:22px;font-family:'Space Grotesk',sans-serif;"><span class="num">2</span><span class="suffix" style="font-size:12px;"> % usado</span></div>
+        <div class="badge" style="font-family:'Space Grotesk',sans-serif;">● OK</div>
+        <div class="reset" style="font-family:'JetBrains Mono',monospace;font-size:11px;">↻ 4h 24m</div>
+        <div class="reset-abs" style="font-family:'Space Grotesk',sans-serif;">seg. 13:30</div>
+      </div>
+      <div class="gauge-card" style="font-family:'Space Grotesk',sans-serif;">
+        <div class="label">Semana (7d)</div>
+        <div class="arc"></div>
+        <div class="pct" style="font-size:22px;font-family:'Space Grotesk',sans-serif;"><span class="num">3</span><span class="suffix" style="font-size:12px;"> % usado</span></div>
+        <div class="badge" style="font-family:'Space Grotesk',sans-serif;">● OK</div>
+        <div class="reset" style="font-family:'JetBrains Mono',monospace;font-size:11px;">↻ 3d 18h</div>
+        <div class="reset-abs" style="font-family:'Space Grotesk',sans-serif;">sex. 04:00</div>
+      </div>
+    </div>
+    <div class="pace-row" style="font-family:'JetBrains Mono',monospace;">
+      <span class="pace-tag">→ 5h 17%</span>
+      <span class="pace-tag">→ 7d 7%</span>
+    </div>
+    <div class="specimen">
+      UI: <code>Space Grotesk (Google Fonts)</code><br>
+      Mono: <code>JetBrains Mono</code><br>
+      Tech/dev aesthetic. Personalidade forte, ideal para ferramentas de developer.
+    </div>
+  </div>
+</div>
+
+</div>
+
+</body>
+</html>

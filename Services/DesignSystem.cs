@@ -128,14 +128,35 @@ public static class TextMetrics
 /// </summary>
 public static class Typography
 {
-    public static readonly Font Hero    = Ui("Segoe UI Variable Display", 28f, FontStyle.Bold);
-    public static readonly Font Title   = Ui("Segoe UI Variable Text", 15f, FontStyle.Bold);
-    public static readonly Font Body    = Ui("Segoe UI Variable Text", 12f, FontStyle.Regular);
-    public static readonly Font Caption = Ui("Segoe UI Variable Text", 11f, FontStyle.Regular);
-    public static readonly Font Mono    = MonoFont(12f);
+    public static readonly Font Hero    = InterFont(28f, FontStyle.Bold);
+    public static readonly Font Title   = InterFont(15f, FontStyle.Bold);
+    public static readonly Font Body    = InterFont(12f, FontStyle.Regular);
+    public static readonly Font Caption = InterFont(11f, FontStyle.Regular);
+    public static readonly Font Mono    = JetBrainsMonoFont(12f);
 
-    // Crea la fuente pedida; si el sistema sustituye por otra familia (no instalada), cae a "Segoe UI".
-    private static Font Ui(string family, float size, FontStyle style)
+    /// <summary>
+    /// Cria fonte Inter embutida; se não carregou, cai a Segoe UI Variable Display/Text → Segoe UI.
+    /// </summary>
+    private static Font InterFont(float size, FontStyle style)
+    {
+        EmbeddedFonts.Load();
+        if (EmbeddedFonts.Inter is { } inter)
+            return new Font(inter, size, style, GraphicsUnit.Point);
+        return FallbackUi("Segoe UI Variable Text", size, style);
+    }
+
+    /// <summary>
+    /// Cria fonte JetBrains Mono embutida; se não carregou, cai a Cascadia Mono → Consolas.
+    /// </summary>
+    private static Font JetBrainsMonoFont(float size)
+    {
+        EmbeddedFonts.Load();
+        if (EmbeddedFonts.JetBrainsMono is { } jb)
+            return new Font(jb, size, FontStyle.Regular, GraphicsUnit.Point);
+        return FallbackMono(size);
+    }
+
+    private static Font FallbackUi(string family, float size, FontStyle style)
     {
         try
         {
@@ -147,7 +168,7 @@ public static class Typography
         return new Font("Segoe UI", size, style);
     }
 
-    private static Font MonoFont(float size)
+    private static Font FallbackMono(float size)
     {
         foreach (var family in new[] { "Cascadia Mono", "Consolas" })
         {

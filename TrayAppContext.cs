@@ -13,6 +13,8 @@ public sealed class TrayAppContext : ApplicationContext
     private readonly NotifyIcon _tray;
     private readonly System.Windows.Forms.Timer _timer;
     private readonly UsageApiClient _api;
+    /// <summary>Respaldo local (app de escritorio de Claude) cuando la API OAuth no responde.</summary>
+    private readonly LocalPlanUsageReader _localUsage = new();
     private readonly TranscriptParser _parser;
     private readonly UsageHistoryStore _history;
     private readonly PlanInfo _plan;
@@ -85,6 +87,7 @@ public sealed class TrayAppContext : ApplicationContext
         _sessionAgg = new SessionAggregator();
         _foreground = new ForegroundDetector();
         _dashboard.SetLiveSessionsProvider(() => _sessionAgg.BuildView(_sessions.Snapshot()));
+        _dashboard.OverviewRangeChanged += _ => RefreshOverviewStats();
         _dashboard.SettingsChanged += a => MutateConfig(a);
         _dashboard.SpecialActionRequested += key =>
         {
@@ -397,6 +400,26 @@ public sealed class TrayAppContext : ApplicationContext
                 _history.Append(result.Usage, now);   // sample real % into SQLite
                 if (now - _lastPruneUtc > TimeSpan.FromHours(1)) { _history.Prune(); _lastPruneUtc = now; }
             }
+            else
+            {
+                // FUENTE LOCAL DE RESPALDO (2026-08-10): con la API OAuth devolviendo 429 de forma
+                // permanente, el panel se quedaba congelado en el último dato bueno (16 días viejo). La
+                // app de escritorio de Claude escribe la cota real en disco cada ~15 min, sin token y sin
+                // red: si ese dato es MÁS NUEVO que el que tenemos, se usa. Es dato real y fresco, así
+                // que el estado pasa a Ok (el aviso de "datos anteriores" solo debe salir cuando de
+                // verdad estamos mostrando algo viejo).
+                var localAt = _localUsage.LastSampleAt();
+                if (localAt is { } at && at.UtcDateTime > _lastUsageAtUtc
+                    && _localUsage.Read(now) is { } localUsage)
+                {
+                    _lastUsage = localUsage;
+                    _lastUsageAtUtc = at.UtcDateTime;
+                    result = new UsageResult { State = UsageFetchState.Ok, Usage = localUsage };
+                    UsageCache.Save(localUsage, _lastUsageAtUtc);
+                    _history.Append(localUsage, _lastUsageAtUtc);
+                    if (now - _lastPruneUtc > TimeSpan.FromHours(1)) { _history.Prune(); _lastPruneUtc = now; }
+                }
+            }
 
             PaceResult? paceFive = null, paceSeven = null;
             if (_lastUsage is not null)
@@ -463,7 +486,20 @@ public sealed class TrayAppContext : ApplicationContext
         _currentIcon = newIcon;
 
         if (_dashboard.Visible)
+        {
             _dashboard.UpdateData(snap, _config, _plan);
+            RefreshOverviewStats();
+        }
+    }
+
+    private void RefreshOverviewStats()
+    {
+        Task.Run(() =>
+        {
+            // Read all transcripts (alltime lookback) — TranscriptParser is cheap for local files.
+            var records = _parser.Read(DateTime.UtcNow.AddDays(-365));
+            _dashboard.UpdateOverviewStats(records);
+        });
     }
 
     // ---------- Milestone notifications ----------
@@ -605,6 +641,7 @@ public sealed class TrayAppContext : ApplicationContext
     {
         if (_lastSnapshot is not null)
             _dashboard.UpdateData(_lastSnapshot, _config, _plan);
+        RefreshOverviewStats();
         _dashboard.ShowConfigured(_config);
     }
 

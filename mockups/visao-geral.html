@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>ClaudeBar — Mockup Visão Geral</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg: #18181B;
+    --surface: #2C2C2E;
+    --border: #38383A;
+    --text: #F4F4F5;
+    --dim: #A1A1AA;
+    --muted: #8E8E93;
+    --ok: #16A34A;
+    --warn: #D97706;
+    --accent: #CC785C;
+    --track: #3A3A3C;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #111;
+    color: var(--text);
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    padding: 40px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+  }
+
+  h1 { font-size: 24px; font-weight: 300; color: #FBBF24; }
+  h1 span { font-weight: 700; }
+  .subtitle { color: var(--dim); font-size: 13px; text-align: center; margin-top: -36px; }
+
+  /* === Widget frame === */
+  .widget {
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    width: 340px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  /* === Header === */
+  .header {
+    padding: 14px 16px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--ok);
+  }
+  .header .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+  .header .title { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; color: var(--text); flex: 1; text-align: center; }
+  .header .badge {
+    font-size: 10px; padding: 2px 10px; border-radius: 10px;
+    border: 1px solid var(--accent); color: var(--accent); font-weight: 600;
+  }
+
+  /* === Gauge row === */
+  .gauge-row { display: flex; gap: 10px; padding: 0 14px; }
+  .gauge-card {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 8px; text-align: center;
+    font-family: 'Inter', sans-serif;
+  }
+  .gauge-card .label { font-size: 11px; color: var(--dim); margin-bottom: 8px; }
+  .gauge-card .arc-wrap { position: relative; width: 80px; height: 48px; margin: 0 auto 4px; }
+  .gauge-card .arc-wrap svg { width: 80px; height: 48px; }
+  .gauge-card .pct { font-size: 22px; font-weight: 700; color: var(--ok); }
+  .gauge-card .pct .suffix { font-size: 11px; font-weight: 400; opacity: 0.7; }
+  .gauge-card .badge-ok {
+    display: inline-block; font-size: 10px; padding: 1px 8px; border-radius: 6px;
+    background: rgba(22,163,74,0.12); color: var(--ok); margin: 4px 0;
+  }
+  .gauge-card .reset { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .gauge-card .reset-abs { font-size: 10px; color: var(--muted); }
+
+  /* === Pace tags === */
+  .pace-row { display: flex; gap: 6px; justify-content: center; padding: 10px 14px 4px; }
+  .pace-tag {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    padding: 3px 10px; border-radius: 4px;
+    background: rgba(22,163,74,0.12); color: var(--ok);
+  }
+
+  /* === Updated === */
+  .updated { text-align: center; font-size: 10px; color: var(--muted); padding: 4px 0 8px; }
+
+  /* === VISÃO GERAL SECTION === */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .section-header .left { font-size: 12px; font-weight: 600; color: var(--text); }
+  .section-header .tabs { display: flex; gap: 4px; }
+  .section-header .tab {
+    font-size: 10px; padding: 2px 8px; border-radius: 8px; cursor: pointer;
+    color: var(--dim); background: transparent; border: 1px solid transparent;
+  }
+  .section-header .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .section-header .tab:not(.active) { border-color: var(--border); }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 6px; padding: 8px 14px;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 6px; text-align: center;
+  }
+  .stat-card .stat-label { font-size: 9px; color: var(--muted); margin-bottom: 4px; line-height: 1.2; }
+  .stat-card .stat-value { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; color: var(--text); }
+  .stat-card .stat-value.accent { color: var(--accent); }
+  .stat-card .stat-value.small { font-size: 11px; }
+
+  /* Heatmap */
+  .heatmap-wrap { padding: 8px 14px 6px; }
+  .heatmap-label { font-size: 9px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .heatmap {
+    display: grid;
+    grid-template-columns: repeat(15, 1fr);
+    gap: 3px;
+  }
+  .heatmap .cell {
+    aspect-ratio: 1; border-radius: 3px; background: var(--track);
+  }
+  .heatmap .cell.l1 { background: rgba(22,163,74,0.25); }
+  .heatmap .cell.l2 { background: rgba(22,163,74,0.45); }
+  .heatmap .cell.l3 { background: rgba(22,163,74,0.65); }
+  .heatmap .cell.l4 { background: rgba(22,163,74,0.85); }
+  .heatmap .cell.l5 { background: var(--ok); }
+
+  .heatmap-legend {
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: 3px; margin-top: 4px; font-size: 9px; color: var(--muted);
+  }
+  .heatmap-legend .cell {
+    width: 10px; height: 10px; border-radius: 2px;
+  }
+
+  /* Fun fact */
+  .fun-fact {
+    padding: 6px 14px 12px; font-size: 10px; color: var(--dim); text-align: center;
+    font-style: italic;
+  }
+
+  /* === Layout options === */
+  .options { display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+  .option-col { display: flex; flex-direction: column; align-items: center; }
+  .option-label {
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 8px;
+  }
+
+  .benefit {
+    background: rgba(251,191,36,0.08);
+    border-left: 3px solid #FBBF24;
+    padding: 10px 14px;
+    border-radius: 0 8px 8px 0;
+    font-size: 13px; color: var(--dim);
+    max-width: 720px;
+    margin-top: 8px;
+  }
+  .benefit strong { color: #FBBF24; }
+</style>
+</head>
+<body>
+
+<h1>Mockup — <span>Visão Geral</span></h1>
+<p class="subtitle">Seção colapsável abaixo dos gauge cards com stats de uso e heatmap de atividade</p>
+
+<div class="options">
+
+<!-- === OPÇÃO A: Completa (8 stats + heatmap) === -->
+<div class="option-col">
+  <div class="option-label">Opção A — Completa</div>
+  <div class="widget">
+    <!-- Header -->
+    <div class="header">
+      <div class="dot"></div><span>AO VIVO</span>
+      <span class="title">CLAUDE CODE METER</span>
+      <span class="badge">USADO</span>
+    </div>
+
+    <!-- Gauges -->
+    <div class="gauge-row">
+      <div class="gauge-card">
+        <div class="label">Sessão (5h)</div>
+        <div class="arc-wrap">
+          <svg viewBox="0 0 80 48">
+            <path d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="#3A3A3C" stroke-width="6" stroke-linecap="round"/>
+            <path d="M8 44 A32 32 0 0 1 12 20" fill="none" stroke="#16A34A" stroke-width="6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="pct">2<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 4h 24m</div>
+        <div class="reset-abs">seg. 13:30</div>
+      </div>
+      <div class="gauge-card">
+        <div class="label">Semana (7d)</div>
+        <div class="arc-wrap">
+          <svg viewBox="0 0 80 48">
+            <path d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="#3A3A3C" stroke-width="6" stroke-linecap="round"/>
+            <path d="M8 44 A32 32 0 0 1 14 24" fill="none" stroke="#16A34A" stroke-width="6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="pct">3<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 3d 18h</div>
+        <div class="reset-abs">sex. 04:00</div>
+      </div>
+    </div>
+
+    <!-- Pace -->
+    <div class="pace-row">
+      <span class="pace-tag">→ 5h 17%</span>
+      <span class="pace-tag">→ 7d 7%</span>
+    </div>
+    <div class="updated">Atualizado · há 15 s</div>
+
+    <!-- VISÃO GERAL -->
+    <div class="section-header">
+      <div class="left">▾ Visão Geral</div>
+      <div class="tabs">
+        <span class="tab active">Todos</span>
+        <span class="tab">30d</span>
+        <span class="tab">7d</span>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Sessões</div>
+        <div class="stat-value">146</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Mensagens</div>
+        <div class="stat-value">26.4k</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Tokens</div>
+        <div class="stat-value">16M</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Dias ativos</div>
+        <div class="stat-value">52</div>
+      </div>
+    </div>
+
+    <div class="stats-grid" style="padding-top:0;">
+      <div class="stat-card">
+        <div class="stat-label">Sequência atual</div>
+        <div class="stat-value accent small">1d</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Maior sequência</div>
+        <div class="stat-value accent small">11d</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Hora de pico</div>
+        <div class="stat-value small">14h</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Modelo favorito</div>
+        <div class="stat-value accent small">Opus</div>
+      </div>
+    </div>
+
+    <!-- Heatmap -->
+    <div class="heatmap-wrap">
+      <div class="heatmap-label">Atividade (últimos 30 dias)</div>
+      <div class="heatmap">
+        <div class="cell"></div><div class="cell l1"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l4"></div>
+        <div class="cell l2"></div><div class="cell l5"></div><div class="cell l3"></div><div class="cell l1"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div>
+        <div class="cell l1"></div>
+
+        <div class="cell l3"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div>
+        <div class="cell l5"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l1"></div>
+        <div class="cell l2"></div>
+      </div>
+      <div class="heatmap-legend">
+        <span>menos</span>
+        <div class="cell" style="background:var(--track);"></div>
+        <div class="cell l1"></div>
+        <div class="cell l2"></div>
+        <div class="cell l3"></div>
+        <div class="cell l4"></div>
+        <div class="cell l5"></div>
+        <span>mais</span>
+      </div>
+    </div>
+
+    <div class="fun-fact">Você usou ~27× mais tokens que The Lord of the Rings.</div>
+  </div>
+</div>
+
+<!-- === OPÇÃO B: Compacta (4 stats + heatmap) === -->
+<div class="option-col">
+  <div class="option-label">Opção B — Compacta</div>
+  <div class="widget">
+    <!-- Header -->
+    <div class="header">
+      <div class="dot"></div><span>AO VIVO</span>
+      <span class="title">CLAUDE CODE METER</span>
+      <span class="badge">USADO</span>
+    </div>
+
+    <!-- Gauges -->
+    <div class="gauge-row">
+      <div class="gauge-card">
+        <div class="label">Sessão (5h)</div>
+        <div class="arc-wrap">
+          <svg viewBox="0 0 80 48">
+            <path d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="#3A3A3C" stroke-width="6" stroke-linecap="round"/>
+            <path d="M8 44 A32 32 0 0 1 12 20" fill="none" stroke="#16A34A" stroke-width="6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="pct">2<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 4h 24m</div>
+        <div class="reset-abs">seg. 13:30</div>
+      </div>
+      <div class="gauge-card">
+        <div class="label">Semana (7d)</div>
+        <div class="arc-wrap">
+          <svg viewBox="0 0 80 48">
+            <path d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="#3A3A3C" stroke-width="6" stroke-linecap="round"/>
+            <path d="M8 44 A32 32 0 0 1 14 24" fill="none" stroke="#16A34A" stroke-width="6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="pct">3<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 3d 18h</div>
+        <div class="reset-abs">sex. 04:00</div>
+      </div>
+    </div>
+
+    <!-- Pace -->
+    <div class="pace-row">
+      <span class="pace-tag">→ 5h 17%</span>
+      <span class="pace-tag">→ 7d 7%</span>
+    </div>
+    <div class="updated">Atualizado · há 15 s</div>
+
+    <!-- VISÃO GERAL compacta -->
+    <div class="section-header">
+      <div class="left">▾ Visão Geral</div>
+      <div class="tabs">
+        <span class="tab active">30d</span>
+        <span class="tab">7d</span>
+      </div>
+    </div>
+
+    <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
+      <div class="stat-card">
+        <div class="stat-label">Sessões</div>
+        <div class="stat-value">146</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Mensagens</div>
+        <div class="stat-value">26.4k</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total de tokens</div>
+        <div class="stat-value">16M</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Modelo favorito</div>
+        <div class="stat-value accent small">Opus 4.6</div>
+      </div>
+    </div>
+
+    <!-- Heatmap -->
+    <div class="heatmap-wrap">
+      <div class="heatmap-label">Atividade (últimos 30 dias)</div>
+      <div class="heatmap">
+        <div class="cell"></div><div class="cell l1"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l4"></div>
+        <div class="cell l2"></div><div class="cell l5"></div><div class="cell l3"></div><div class="cell l1"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div>
+        <div class="cell l1"></div>
+
+        <div class="cell l3"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div>
+        <div class="cell l5"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l1"></div>
+        <div class="cell l2"></div>
+      </div>
+      <div class="heatmap-legend">
+        <span>menos</span>
+        <div class="cell" style="background:var(--track);"></div>
+        <div class="cell l1"></div>
+        <div class="cell l2"></div>
+        <div class="cell l3"></div>
+        <div class="cell l4"></div>
+        <div class="cell l5"></div>
+        <span>mais</span>
+      </div>
+    </div>
+
+    <div class="fun-fact">Você usou ~27× mais tokens que The Lord of the Rings.</div>
+  </div>
+</div>
+
+<!-- === OPÇÃO C: Só heatmap (mínima) === -->
+<div class="option-col">
+  <div class="option-label">Opção C — Mínima</div>
+  <div class="widget">
+    <!-- Header -->
+    <div class="header">
+      <div class="dot"></div><span>AO VIVO</span>
+      <span class="title">CLAUDE CODE METER</span>
+      <span class="badge">USADO</span>
+    </div>
+
+    <!-- Gauges -->
+    <div class="gauge-row">
+      <div class="gauge-card">
+        <div class="label">Sessão (5h)</div>
+        <div class="arc-wrap">
+          <svg viewBox="0 0 80 48">
+            <path d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="#3A3A3C" stroke-width="6" stroke-linecap="round"/>
+            <path d="M8 44 A32 32 0 0 1 12 20" fill="none" stroke="#16A34A" stroke-width="6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="pct">2<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 4h 24m</div>
+        <div class="reset-abs">seg. 13:30</div>
+      </div>
+      <div class="gauge-card">
+        <div class="label">Semana (7d)</div>
+        <div class="arc-wrap">
+          <svg viewBox="0 0 80 48">
+            <path d="M8 44 A32 32 0 0 1 72 44" fill="none" stroke="#3A3A3C" stroke-width="6" stroke-linecap="round"/>
+            <path d="M8 44 A32 32 0 0 1 14 24" fill="none" stroke="#16A34A" stroke-width="6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="pct">3<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 3d 18h</div>
+        <div class="reset-abs">sex. 04:00</div>
+      </div>
+    </div>
+
+    <!-- Pace -->
+    <div class="pace-row">
+      <span class="pace-tag">→ 5h 17%</span>
+      <span class="pace-tag">→ 7d 7%</span>
+    </div>
+    <div class="updated">Atualizado · há 15 s</div>
+
+    <!-- Stats inline + heatmap -->
+    <div class="section-header">
+      <div class="left">▾ Visão Geral</div>
+      <div class="tabs">
+        <span class="tab active">30d</span>
+      </div>
+    </div>
+
+    <!-- Inline stats row -->
+    <div style="display:flex; justify-content:space-around; padding:6px 14px 2px; font-size:10px; color:var(--dim);">
+      <div style="text-align:center;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--text);">146</div>
+        <div>sessões</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--text);">26.4k</div>
+        <div>mensagens</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--text);">16M</div>
+        <div>tokens</div>
+      </div>
+    </div>
+
+    <!-- Heatmap -->
+    <div class="heatmap-wrap">
+      <div class="heatmap">
+        <div class="cell"></div><div class="cell l1"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l4"></div>
+        <div class="cell l2"></div><div class="cell l5"></div><div class="cell l3"></div><div class="cell l1"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div>
+        <div class="cell l1"></div>
+
+        <div class="cell l3"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div>
+        <div class="cell l5"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l1"></div>
+        <div class="cell l2"></div>
+      </div>
+      <div class="heatmap-legend">
+        <span>menos</span>
+        <div class="cell" style="background:var(--track);"></div>
+        <div class="cell l1"></div>
+        <div class="cell l2"></div>
+        <div class="cell l3"></div>
+        <div class="cell l4"></div>
+        <div class="cell l5"></div>
+        <span>mais</span>
+      </div>
+    </div>
+
+    <div class="fun-fact">~27× mais tokens que The Lord of the Rings</div>
+  </div>
+</div>
+
+</div>
+
+<div class="benefit">
+  <strong>Nota:</strong> Todos os dados vêm dos transcripts locais do Claude Desktop/Code (já parseados pelo TranscriptParser existente). A seção é colapsável (▾/▸) e configurável em Ajustes. O heatmap mostra atividade por dia — quanto mais escuro, mais tokens consumidos.
+</div>
+
+</body>
+</html>

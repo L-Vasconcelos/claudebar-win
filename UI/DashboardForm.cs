@@ -26,6 +26,12 @@ public sealed class DashboardForm : Form
     private Theme _theme = Theme.Dark;
     private readonly System.Windows.Forms.Timer _tick;
 
+    // Overview section (Visão Geral)
+    private UsageStats? _overviewStats;
+    private bool _overviewCollapsed;
+    private string _overviewRange = "all"; // "all" | "30d" | "7d"
+    private readonly Dictionary<string, Rectangle> _overviewTabRects = new();
+
     // ---- Motion (F3): reloj bajo demanda + fade de apertura ----
     // Stopwatch monótono (inmune a cambios de hora) propiedad del form: la única fuente de
     // tiempo del motor. Cada tick pasa el delta a los AnimatedValue. El MotionScheduler decide
@@ -276,6 +282,7 @@ public sealed class DashboardForm : Form
     public event Action<string>? ChartModeChanged;
     public event Action<string>? ChartWindowChanged;
     public event Action<string>? SessionClicked;
+    public event Action<string>? OverviewRangeChanged;
 
     /// <summary>Emitido cuando el panel de ajustes cambia un valor: el host lo aplica vía MutateConfig.</summary>
     public event Action<Action<AppConfig>>? SettingsChanged;
@@ -542,6 +549,21 @@ public sealed class DashboardForm : Form
                 Invalidate();
                 if (Visible && cfg.ShowChart) _ = ReloadChart();
             });
+    }
+
+    /// <summary>
+    /// Updates overview stats from transcript records. Called by TrayAppContext after each data refresh.
+    /// </summary>
+    public void UpdateOverviewStats(IReadOnlyList<Models.UsageRecord> records)
+    {
+        DateTime? since = _overviewRange switch
+        {
+            "30d" => DateTime.UtcNow.AddDays(-30),
+            "7d" => DateTime.UtcNow.AddDays(-7),
+            _ => null
+        };
+        _overviewStats = UsageStatsService.Compute(records, since);
+        if (IsHandleCreated) BeginInvoke(Invalidate);
     }
 
     /// <summary>
@@ -978,6 +1000,22 @@ public sealed class DashboardForm : Form
             if (rect.Contains(e.Location)) { SessionClicked?.Invoke(id); return; }
         }
 
+        // Overview section: tab clicks (range selector)
+        foreach (var (range, rect) in _overviewTabRects)
+        {
+            if (rect.Contains(e.Location))
+            {
+                if (_overviewRange != range)
+                {
+                    _overviewRange = range;
+                    // Recompute stats for the new range — fire event to TrayAppContext
+                    OverviewRangeChanged?.Invoke(range);
+                }
+                Relayout(); Invalidate();
+                return;
+            }
+        }
+
         _dragging = true;
         _dragOffset = new Point(Cursor.Position.X - Location.X, Cursor.Position.Y - Location.Y);
         Cursor = Cursors.SizeAll;
@@ -1129,7 +1167,7 @@ public sealed class DashboardForm : Form
     private void DrawCardBorder(Graphics g)
     {
         using var pen = new Pen(_theme.AccentText, 1f);
-        g.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
+        Shapes.DrawRounded(g, pen, new Rectangle(0, 0, Width, Height), Dpi.Scale(12));
     }
 
     /// <summary>
@@ -1330,6 +1368,52 @@ public sealed class DashboardForm : Form
 
         // --- Pace summary tags ---
         y = DashboardDataView.DrawPaceTags(g, draw, _snap, _s, _theme, x, y, w, smallFont);
+
+        // --- Última atualização (timestamp discreto) ---
+        if (_snap is not null)
+        {
+            y += Dpi.Scale(4);
+            DateTime now = _footerNowUtc == DateTime.MinValue ? DateTime.UtcNow : _footerNowUtc;
+            string updatedText = $"{_s.UpdatedAt} · {UsageFormat.RelativeAt(_snap.UsageAtUtc, now, _s)}";
+            if (draw)
+            {
+                using var mutedBrush = new SolidBrush(_theme.TextMuted);
+                var sz = g.MeasureString(updatedText, Typography.Caption);
+                g.DrawString(updatedText, Typography.Caption, mutedBrush, x + (w - sz.Width) / 2, y);
+            }
+            y += Dpi.Scale(14);
+        }
+
+        // --- Visão Geral (Overview) section ---
+        {
+            // Section header: "▾ Visão Geral" + range tabs (Todos/30d/7d)
+            var overviewHeaderRect = new Rectangle(x, y, w, Dpi.Scale(18));
+            if (draw)
+            {
+                using var hdrBrush = new SolidBrush(_theme.TextPrimary);
+                using var sepPen = new Pen(_theme.Separator);
+                g.DrawLine(sepPen, x, y - Dpi.Scale(2), x + w, y - Dpi.Scale(2));
+                g.DrawString((_overviewCollapsed ? "▸ " : "▾ ") + _s.SectionOverview, labelFont, hdrBrush, x, y);
+
+                // Range tabs (right-aligned)
+                _overviewTabRects.Clear();
+                var tabs = new[] { (_s.OverviewAll, "all"), ("30d", "30d"), ("7d", "7d") };
+                DashboardDataView.DrawSegments(g, draw, Typography.Caption, _theme,
+                    tabs, _overviewRange, x + w, y, rightAlign: true, _overviewTabRects);
+            }
+            else
+            {
+                _overviewTabRects.Clear();
+                using var tempG = Graphics.FromHwnd(IntPtr.Zero);
+                var tabs = new[] { (_s.OverviewAll, "all"), ("30d", "30d"), ("7d", "7d") };
+                DashboardDataView.DrawSegments(tempG, false, Typography.Caption, _theme,
+                    tabs, _overviewRange, x + w, y, rightAlign: true, _overviewTabRects);
+            }
+            y += Dpi.Scale(22);
+
+            if (!_overviewCollapsed)
+                y = OverviewSection.Draw(g, draw, x, y, w, _overviewStats, _s, _theme, smallFont);
+        }
 
         // Estado NO-Ok: línea discreta de aviso. En el camino feliz NO ocupa NADA — el panel queda
         // exactamente como la referencia que pidió el usuario. Pero al enjugar el panel a "solo las 2

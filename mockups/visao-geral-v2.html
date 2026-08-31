@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>ClaudeBar — Visão Geral v2 (indicadores lado a lado)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg: #18181B;
+    --surface: #2C2C2E;
+    --border: #38383A;
+    --text: #F4F4F5;
+    --dim: #A1A1AA;
+    --muted: #8E8E93;
+    --ok: #16A34A;
+    --warn: #D97706;
+    --accent: #CC785C;
+    --track: #3A3A3C;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #111;
+    color: var(--text);
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    padding: 40px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+  }
+
+  h1 { font-size: 24px; font-weight: 300; color: #FBBF24; }
+  h1 span { font-weight: 700; }
+  .subtitle { color: var(--dim); font-size: 13px; margin-top: -20px; }
+
+  .options { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+  .option-col { display: flex; flex-direction: column; align-items: center; }
+  .option-label {
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 8px;
+  }
+
+  /* === Widget === */
+  .widget {
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    width: 340px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  /* Header */
+  .header {
+    padding: 14px 16px 10px;
+    display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ok);
+  }
+  .header .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+  .header .title { font-size: 14px; font-weight: 700; color: var(--text); flex: 1; text-align: center; }
+  .header .badge { font-size: 10px; padding: 2px 10px; border-radius: 10px; border: 1px solid var(--accent); color: var(--accent); font-weight: 600; }
+
+  /* Gauge */
+  .gauge-row { display: flex; gap: 10px; padding: 0 14px; }
+  .gauge-card {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 6px; text-align: center;
+  }
+  .gauge-card .label { font-size: 10px; color: var(--dim); margin-bottom: 6px; }
+  .gauge-card .arc-wrap { width: 72px; height: 42px; margin: 0 auto 2px; }
+  .gauge-card .arc-wrap svg { width: 72px; height: 42px; }
+  .gauge-card .pct { font-size: 20px; font-weight: 700; color: var(--ok); }
+  .gauge-card .pct .suffix { font-size: 10px; font-weight: 400; opacity: 0.7; }
+  .gauge-card .badge-ok { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 5px; background: rgba(22,163,74,0.12); color: var(--ok); margin: 2px 0; }
+  .gauge-card .reset { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--muted); margin-top: 2px; }
+  .gauge-card .reset-abs { font-size: 9px; color: var(--muted); }
+
+  /* Pace */
+  .pace-row { display: flex; gap: 6px; justify-content: center; padding: 8px 14px 2px; }
+  .pace-tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 3px 10px; border-radius: 4px; background: rgba(22,163,74,0.12); color: var(--ok); }
+  .updated { text-align: center; font-size: 10px; color: var(--muted); padding: 4px 0 6px; }
+
+  /* Section header */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 16px; border-top: 1px solid var(--border);
+  }
+  .section-header .left { font-size: 12px; font-weight: 600; }
+  .section-header .tabs { display: flex; gap: 4px; }
+  .section-header .tab { font-size: 10px; padding: 2px 8px; border-radius: 8px; color: var(--dim); border: 1px solid transparent; }
+  .section-header .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .section-header .tab:not(.active) { border-color: var(--border); }
+
+  /* === LAYOUT V2A: Rows lado a lado (label esq + valor dir) === */
+  .stats-rows { padding: 6px 14px; }
+  .stat-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row .stat-label { font-size: 11px; color: var(--dim); }
+  .stat-row .stat-value { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--text); }
+  .stat-row .stat-value.accent { color: var(--accent); }
+
+  /* === LAYOUT V2B: Duas colunas de pares === */
+  .stats-pairs { padding: 6px 14px; }
+  .stats-pair-row { display: flex; gap: 8px; margin-bottom: 6px; }
+  .stats-pair-row:last-child { margin-bottom: 0; }
+  .stat-pair {
+    flex: 1; display: flex; justify-content: space-between; align-items: center;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px;
+  }
+  .stat-pair .sp-label { font-size: 9px; color: var(--muted); max-width: 55px; line-height: 1.2; }
+  .stat-pair .sp-value { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; color: var(--text); }
+  .stat-pair .sp-value.accent { color: var(--accent); }
+
+  /* === LAYOUT V2C: Grid horizontal compacto === */
+  .stats-hstrip { padding: 6px 14px; }
+  .stats-hstrip-row {
+    display: flex; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .stats-hstrip-row:last-child { margin-bottom: 0; }
+  .sh-cell {
+    flex: 1; text-align: center; padding: 8px 4px;
+    border-right: 1px solid var(--border);
+  }
+  .sh-cell:last-child { border-right: none; }
+  .sh-cell .sh-value { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; color: var(--text); }
+  .sh-cell .sh-value.accent { color: var(--accent); }
+  .sh-cell .sh-label { font-size: 8px; color: var(--muted); margin-top: 2px; line-height: 1.2; }
+
+  /* Heatmap */
+  .heatmap-wrap { padding: 8px 14px 4px; }
+  .heatmap-label { font-size: 9px; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .heatmap { display: grid; grid-template-columns: repeat(15, 1fr); gap: 3px; }
+  .heatmap .cell { aspect-ratio: 1; border-radius: 3px; background: var(--track); }
+  .heatmap .cell.l1 { background: rgba(22,163,74,0.25); }
+  .heatmap .cell.l2 { background: rgba(22,163,74,0.45); }
+  .heatmap .cell.l3 { background: rgba(22,163,74,0.65); }
+  .heatmap .cell.l4 { background: rgba(22,163,74,0.85); }
+  .heatmap .cell.l5 { background: var(--ok); }
+  .heatmap-legend { display: flex; align-items: center; justify-content: flex-end; gap: 3px; margin-top: 4px; font-size: 9px; color: var(--muted); }
+  .heatmap-legend .cell { width: 10px; height: 10px; border-radius: 2px; }
+
+  .fun-fact { padding: 4px 14px 12px; font-size: 10px; color: var(--dim); text-align: center; font-style: italic; }
+
+  .heatmap-cells-30 { grid-template-columns: repeat(15, 1fr); }
+</style>
+</head>
+<body>
+
+<h1>Visão Geral v2 — <span>Indicadores lado a lado</span></h1>
+<p class="subtitle">3 variações de layout horizontal para os 8 indicadores</p>
+
+<div class="options">
+
+<!-- ============ V2A: Lista com linhas ============ -->
+<div class="option-col">
+  <div class="option-label">V2A — Lista horizontal</div>
+  <div class="widget">
+    <div class="header">
+      <div class="dot"></div><span>AO VIVO</span>
+      <span class="title">CLAUDE CODE METER</span>
+      <span class="badge">USADO</span>
+    </div>
+    <div class="gauge-row">
+      <div class="gauge-card">
+        <div class="label">Sessão (5h)</div>
+        <div class="arc-wrap"><svg viewBox="0 0 72 42"><path d="M6 38 A28 28 0 0 1 66 38" fill="none" stroke="#3A3A3C" stroke-width="5" stroke-linecap="round"/><path d="M6 38 A28 28 0 0 1 10 18" fill="none" stroke="#16A34A" stroke-width="5" stroke-linecap="round"/></svg></div>
+        <div class="pct">2<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 4h 24m</div>
+        <div class="reset-abs">seg. 13:30</div>
+      </div>
+      <div class="gauge-card">
+        <div class="label">Semana (7d)</div>
+        <div class="arc-wrap"><svg viewBox="0 0 72 42"><path d="M6 38 A28 28 0 0 1 66 38" fill="none" stroke="#3A3A3C" stroke-width="5" stroke-linecap="round"/><path d="M6 38 A28 28 0 0 1 12 20" fill="none" stroke="#16A34A" stroke-width="5" stroke-linecap="round"/></svg></div>
+        <div class="pct">3<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 3d 18h</div>
+        <div class="reset-abs">sex. 04:00</div>
+      </div>
+    </div>
+    <div class="pace-row"><span class="pace-tag">→ 5h 17%</span><span class="pace-tag">→ 7d 7%</span></div>
+    <div class="updated">Atualizado · há 15 s</div>
+
+    <div class="section-header">
+      <div class="left">▾ Visão Geral</div>
+      <div class="tabs"><span class="tab active">Todos</span><span class="tab">30d</span><span class="tab">7d</span></div>
+    </div>
+
+    <div class="stats-rows">
+      <div class="stat-row"><span class="stat-label">Sessões</span><span class="stat-value">146</span></div>
+      <div class="stat-row"><span class="stat-label">Mensagens</span><span class="stat-value">26.486</span></div>
+      <div class="stat-row"><span class="stat-label">Total de tokens</span><span class="stat-value">16M</span></div>
+      <div class="stat-row"><span class="stat-label">Dias ativos</span><span class="stat-value">52</span></div>
+      <div class="stat-row"><span class="stat-label">Sequência atual</span><span class="stat-value accent">1d</span></div>
+      <div class="stat-row"><span class="stat-label">Maior sequência</span><span class="stat-value accent">11d</span></div>
+      <div class="stat-row"><span class="stat-label">Horário de pico</span><span class="stat-value">14h</span></div>
+      <div class="stat-row"><span class="stat-label">Modelo favorito</span><span class="stat-value accent">Opus 4.6</span></div>
+    </div>
+
+    <div class="heatmap-wrap">
+      <div class="heatmap-label">Atividade (últimos 30 dias)</div>
+      <div class="heatmap">
+        <div class="cell"></div><div class="cell l1"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l5"></div><div class="cell l3"></div><div class="cell l1"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell l1"></div>
+        <div class="cell l3"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l1"></div><div class="cell l2"></div>
+      </div>
+      <div class="heatmap-legend"><span>menos</span><div class="cell" style="background:var(--track);"></div><div class="cell l1"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l5"></div><span>mais</span></div>
+    </div>
+    <div class="fun-fact">~27× mais tokens que The Lord of the Rings</div>
+  </div>
+</div>
+
+<!-- ============ V2B: Cards em pares ============ -->
+<div class="option-col">
+  <div class="option-label">V2B — Cards em pares</div>
+  <div class="widget">
+    <div class="header">
+      <div class="dot"></div><span>AO VIVO</span>
+      <span class="title">CLAUDE CODE METER</span>
+      <span class="badge">USADO</span>
+    </div>
+    <div class="gauge-row">
+      <div class="gauge-card">
+        <div class="label">Sessão (5h)</div>
+        <div class="arc-wrap"><svg viewBox="0 0 72 42"><path d="M6 38 A28 28 0 0 1 66 38" fill="none" stroke="#3A3A3C" stroke-width="5" stroke-linecap="round"/><path d="M6 38 A28 28 0 0 1 10 18" fill="none" stroke="#16A34A" stroke-width="5" stroke-linecap="round"/></svg></div>
+        <div class="pct">2<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 4h 24m</div>
+        <div class="reset-abs">seg. 13:30</div>
+      </div>
+      <div class="gauge-card">
+        <div class="label">Semana (7d)</div>
+        <div class="arc-wrap"><svg viewBox="0 0 72 42"><path d="M6 38 A28 28 0 0 1 66 38" fill="none" stroke="#3A3A3C" stroke-width="5" stroke-linecap="round"/><path d="M6 38 A28 28 0 0 1 12 20" fill="none" stroke="#16A34A" stroke-width="5" stroke-linecap="round"/></svg></div>
+        <div class="pct">3<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 3d 18h</div>
+        <div class="reset-abs">sex. 04:00</div>
+      </div>
+    </div>
+    <div class="pace-row"><span class="pace-tag">→ 5h 17%</span><span class="pace-tag">→ 7d 7%</span></div>
+    <div class="updated">Atualizado · há 15 s</div>
+
+    <div class="section-header">
+      <div class="left">▾ Visão Geral</div>
+      <div class="tabs"><span class="tab active">Todos</span><span class="tab">30d</span><span class="tab">7d</span></div>
+    </div>
+
+    <div class="stats-pairs">
+      <div class="stats-pair-row">
+        <div class="stat-pair"><span class="sp-label">Sessões</span><span class="sp-value">146</span></div>
+        <div class="stat-pair"><span class="sp-label">Mensagens</span><span class="sp-value">26.4k</span></div>
+      </div>
+      <div class="stats-pair-row">
+        <div class="stat-pair"><span class="sp-label">Tokens</span><span class="sp-value">16M</span></div>
+        <div class="stat-pair"><span class="sp-label">Dias ativos</span><span class="sp-value">52</span></div>
+      </div>
+      <div class="stats-pair-row">
+        <div class="stat-pair"><span class="sp-label">Sequência atual</span><span class="sp-value accent">1d</span></div>
+        <div class="stat-pair"><span class="sp-label">Maior sequência</span><span class="sp-value accent">11d</span></div>
+      </div>
+      <div class="stats-pair-row">
+        <div class="stat-pair"><span class="sp-label">Hora de pico</span><span class="sp-value">14h</span></div>
+        <div class="stat-pair"><span class="sp-label">Modelo favorito</span><span class="sp-value accent">Opus</span></div>
+      </div>
+    </div>
+
+    <div class="heatmap-wrap">
+      <div class="heatmap-label">Atividade (últimos 30 dias)</div>
+      <div class="heatmap">
+        <div class="cell"></div><div class="cell l1"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l5"></div><div class="cell l3"></div><div class="cell l1"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell l1"></div>
+        <div class="cell l3"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l1"></div><div class="cell l2"></div>
+      </div>
+      <div class="heatmap-legend"><span>menos</span><div class="cell" style="background:var(--track);"></div><div class="cell l1"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l5"></div><span>mais</span></div>
+    </div>
+    <div class="fun-fact">~27× mais tokens que The Lord of the Rings</div>
+  </div>
+</div>
+
+<!-- ============ V2C: Strips horizontais ============ -->
+<div class="option-col">
+  <div class="option-label">V2C — Faixas contínuas</div>
+  <div class="widget">
+    <div class="header">
+      <div class="dot"></div><span>AO VIVO</span>
+      <span class="title">CLAUDE CODE METER</span>
+      <span class="badge">USADO</span>
+    </div>
+    <div class="gauge-row">
+      <div class="gauge-card">
+        <div class="label">Sessão (5h)</div>
+        <div class="arc-wrap"><svg viewBox="0 0 72 42"><path d="M6 38 A28 28 0 0 1 66 38" fill="none" stroke="#3A3A3C" stroke-width="5" stroke-linecap="round"/><path d="M6 38 A28 28 0 0 1 10 18" fill="none" stroke="#16A34A" stroke-width="5" stroke-linecap="round"/></svg></div>
+        <div class="pct">2<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 4h 24m</div>
+        <div class="reset-abs">seg. 13:30</div>
+      </div>
+      <div class="gauge-card">
+        <div class="label">Semana (7d)</div>
+        <div class="arc-wrap"><svg viewBox="0 0 72 42"><path d="M6 38 A28 28 0 0 1 66 38" fill="none" stroke="#3A3A3C" stroke-width="5" stroke-linecap="round"/><path d="M6 38 A28 28 0 0 1 12 20" fill="none" stroke="#16A34A" stroke-width="5" stroke-linecap="round"/></svg></div>
+        <div class="pct">3<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 3d 18h</div>
+        <div class="reset-abs">sex. 04:00</div>
+      </div>
+    </div>
+    <div class="pace-row"><span class="pace-tag">→ 5h 17%</span><span class="pace-tag">→ 7d 7%</span></div>
+    <div class="updated">Atualizado · há 15 s</div>
+
+    <div class="section-header">
+      <div class="left">▾ Visão Geral</div>
+      <div class="tabs"><span class="tab active">Todos</span><span class="tab">30d</span><span class="tab">7d</span></div>
+    </div>
+
+    <div class="stats-hstrip">
+      <div class="stats-hstrip-row">
+        <div class="sh-cell"><div class="sh-value">146</div><div class="sh-label">Sessões</div></div>
+        <div class="sh-cell"><div class="sh-value">26.4k</div><div class="sh-label">Mensagens</div></div>
+        <div class="sh-cell"><div class="sh-value">16M</div><div class="sh-label">Tokens</div></div>
+        <div class="sh-cell"><div class="sh-value">52</div><div class="sh-label">Dias ativos</div></div>
+      </div>
+      <div class="stats-hstrip-row">
+        <div class="sh-cell"><div class="sh-value accent">1d</div><div class="sh-label">Sequência atual</div></div>
+        <div class="sh-cell"><div class="sh-value accent">11d</div><div class="sh-label">Maior sequência</div></div>
+        <div class="sh-cell"><div class="sh-value">14</div><div class="sh-label">Hora de pico</div></div>
+        <div class="sh-cell"><div class="sh-value accent">Opus</div><div class="sh-label">Modelo favorito</div></div>
+      </div>
+    </div>
+
+    <div class="heatmap-wrap">
+      <div class="heatmap-label">Atividade (últimos 30 dias)</div>
+      <div class="heatmap">
+        <div class="cell"></div><div class="cell l1"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l5"></div><div class="cell l3"></div><div class="cell l1"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell l1"></div>
+        <div class="cell l3"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l1"></div><div class="cell l2"></div>
+      </div>
+      <div class="heatmap-legend"><span>menos</span><div class="cell" style="background:var(--track);"></div><div class="cell l1"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l5"></div><span>mais</span></div>
+    </div>
+    <div class="fun-fact">~27× mais tokens que The Lord of the Rings</div>
+  </div>
+</div>
+
+</div>
+
+</body>
+</html>
