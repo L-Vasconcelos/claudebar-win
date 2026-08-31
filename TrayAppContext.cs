@@ -88,13 +88,6 @@ public sealed class TrayAppContext : ApplicationContext
         _foreground = new ForegroundDetector();
         _dashboard.SetLiveSessionsProvider(() => _sessionAgg.BuildView(_sessions.Snapshot()));
         _dashboard.OverviewRangeChanged += _ => RefreshOverviewStats();
-        _dashboard.DetailChartRangeChanged += range => Task.Run(() =>
-        {
-            var cr = range switch { "1h" => ChartRange.Hour1, "24h" => ChartRange.Day1, "7d" => ChartRange.Week1, _ => ChartRange.Hours5 };
-            var records = _parser.Read(DateTime.UtcNow - UsageHistory.Lookback(cr));
-            var buckets = UsageHistory.Build(records, cr, DateTime.UtcNow, _s.Culture);
-            _dashboard.UpdateDetailChart(buckets);
-        });
         _dashboard.SettingsChanged += a => MutateConfig(a);
         _dashboard.SpecialActionRequested += key =>
         {

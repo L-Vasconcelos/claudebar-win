@@ -32,8 +32,8 @@ public sealed class DashboardForm : Form
     private string _overviewRange = "all"; // "all" | "30d" | "7d"
     private readonly Dictionary<string, Rectangle> _overviewTabRects = new();
 
-    // Detail panel (right side)
-    private readonly DetailPanel _detailPanel = new();
+    // Records for the right column (model breakdown)
+    private IReadOnlyList<Models.UsageRecord>? _overviewRecords;
 
     // ---- Motion (F3): reloj bajo demanda + fade de apertura ----
     // Stopwatch monótono (inmune a cambios de hora) propiedad del form: la única fuente de
@@ -286,7 +286,6 @@ public sealed class DashboardForm : Form
     public event Action<string>? ChartWindowChanged;
     public event Action<string>? SessionClicked;
     public event Action<string>? OverviewRangeChanged;
-    public event Action<string>? DetailChartRangeChanged;
 
     /// <summary>Emitido cuando el panel de ajustes cambia un valor: el host lo aplica vía MutateConfig.</summary>
     public event Action<Action<AppConfig>>? SettingsChanged;
@@ -303,7 +302,7 @@ public sealed class DashboardForm : Form
     /// con <see cref="DashboardSettingsView.ClampScroll"/> en cada pasada, así que si el contenido
     /// encogió (p.ej. menos filas) el pulgar NUNCA queda fuera de rango. Reajusta el alto y repinta.
     /// </summary>
-    public void ShowSettings() { _viewMode = "settings"; _settingsWheelAccum = 0; Relayout(); Invalidate(); }
+    public void ShowSettings() { _viewMode = "settings"; _settingsWheelAccum = 0; Width = Dpi.Scale(BaseWidth); Relayout(); Invalidate(); }
 
     // ---- Ganchos SOLO para el render de GIFs (--render-gif): conducir el scroll de ajustes a mano ----
     // En vivo el scroll lo gobierna la rueda (OnMouseWheel); para el GIF de "ajustes" necesitamos barrer
@@ -343,13 +342,15 @@ public sealed class DashboardForm : Form
     // al 125/150% el texto crecía dentro de filas que no, con solapes y un panel de 340px enano.
     // ApplyDpiScale proyecta ancho/padding con Dpi.Scale; el alto lo recalcula Relayout (auto-fit).
     private const int BaseWidth = 340, BaseHeight = 380, BasePanelPad = 18;
+    private const int DividerW = 1; // vertical divider between columns
+    private const int DualBaseWidth = BaseWidth * 2 + DividerW;
 
     public DashboardForm()
     {
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
-        Size = new Size(Dpi.Scale(BaseWidth), Dpi.Scale(BaseHeight));
+        Size = new Size(Dpi.Scale(DualBaseWidth), Dpi.Scale(BaseHeight));
         BackColor = _theme.Background;
         DoubleBuffered = true;
         TopMost = true;
@@ -357,7 +358,6 @@ public sealed class DashboardForm : Form
 
         _tick = new System.Windows.Forms.Timer { Interval = Motion.SlowTickMs };
         _tick.Tick += (_, _) => OnMotionTick();
-        _detailPanel.ChartRangeChanged += range => DetailChartRangeChanged?.Invoke(range);
     }
 
     /// <summary>
@@ -370,7 +370,7 @@ public sealed class DashboardForm : Form
     private void ApplyDpiScale()
     {
         Dpi.Apply(DeviceDpi);
-        Width = Dpi.Scale(BaseWidth);
+        Width = _viewMode == "settings" ? Dpi.Scale(BaseWidth) : Dpi.Scale(DualBaseWidth);
         Padding = new Padding(Dpi.Scale(BasePanelPad));
     }
 
@@ -568,19 +568,8 @@ public sealed class DashboardForm : Form
             _ => null
         };
         _overviewStats = UsageStatsService.Compute(records, since);
-
-        // Feed detail panel with records + spend data
-        _detailPanel.UpdateData(_theme, _s, _snap?.Spend, _chartData, records);
-        if (_detailPanel.Visible) _detailPanel.DockTo(this);
-
-        if (IsHandleCreated) BeginInvoke(Invalidate);
-    }
-
-    /// <summary>Updates the detail panel chart data from the background thread.</summary>
-    public void UpdateDetailChart(List<HistoryBucket> buckets)
-    {
-        if (IsHandleCreated)
-            BeginInvoke(() => _detailPanel.UpdateChart(buckets));
+        _overviewRecords = records;
+        if (IsHandleCreated) BeginInvoke(() => { Relayout(); Invalidate(); });
     }
 
     /// <summary>
@@ -686,11 +675,6 @@ public sealed class DashboardForm : Form
         _tick.Interval = _reduceMotion ? Motion.SlowTickMs : Motion.FastTickMs; // reduce-motion: solo countdown
         _tick.Start();
         if (cfg.ShowChart) _ = ReloadChart();
-
-        // Detail panel: dock to the right and show
-        _detailPanel.TopMost = TopMost;
-        _detailPanel.DockTo(this);
-        _detailPanel.Show();
     }
 
     /// <summary>
@@ -860,7 +844,6 @@ public sealed class DashboardForm : Form
             _hoveredKey = null;
             _hoverIntensity.Set(0.0, 0);
             _hoverIntensity.Snap();
-            _detailPanel.Hide();
         }
     }
 
@@ -953,7 +936,7 @@ public sealed class DashboardForm : Form
         // Vista de ajustes: ‹ vuelve a datos; cada fila clicada emite su mutación. Sin drag aquí.
         if (_viewMode == "settings")
         {
-            if (_backRect.Contains(e.Location)) { _viewMode = "data"; Relayout(); Invalidate(); return; }
+            if (_backRect.Contains(e.Location)) { _viewMode = "data"; Width = Dpi.Scale(DualBaseWidth); Relayout(); Invalidate(); return; }
             foreach (var (key, r) in _settingsRects)
             {
                 if (r.Contains(e.Location))
@@ -1054,7 +1037,7 @@ public sealed class DashboardForm : Form
             // que usan los botones 85/100/115/130% — una sola fuente de verdad para el tamaño, en vez de
             // un segundo mecanismo paralelo. El alto lo recalcula Relayout (auto-fit del contenido).
             int targetWidth = _resizeStartWidth + (Cursor.Position.X - _resizeStartMouseX);
-            float dpiOnlyBaseW = Math.Max(1, Dpi.Scale(BaseWidth, Dpi.FactorFor(DeviceDpi)));
+            float dpiOnlyBaseW = Math.Max(1, Dpi.Scale(DualBaseWidth, Dpi.FactorFor(DeviceDpi)));
             double scale = Math.Clamp(targetWidth / dpiOnlyBaseW, MinPanelScale, MaxPanelScale);
             if (Math.Abs(scale - Dpi.UserScale) > 0.001)
             {
@@ -1361,14 +1344,19 @@ public sealed class DashboardForm : Form
             return h;
         }
 
-        // ----- Vista "meter" (v0.4): SOLO cabecera LIVE/título/USED + las 2 barras de cuota — pedido
-        // explícito del usuario ("literalmente só essas informações, nada além"). Sin mascota, sin
-        // secciones de sesiones/gasto/gráfica, sin footer/sello: todo eso sigue existiendo en el motor
-        // (Ajustes lo sigue controlando) pero deja de PINTARSE aquí. -----
+        // ----- Vista "meter" (v0.4) con layout de duas colunas: esquerda (gauges+overview),
+        // direita (spend+chart+models). Um único form, sem painéis separados. -----
         _closeRect = Rectangle.Empty;
         _gearRect = Rectangle.Empty;
         _settingsRects.Clear();
         _backRect = Rectangle.Empty;
+
+        // Duas colunas: a largura total é DualBaseWidth escalado
+        int colW = (Width - Padding.Horizontal - Dpi.Scale(DividerW)) / 2;
+        int leftX = x;
+        int rightX = x + colW + Dpi.Scale(DividerW);
+        // Left column uses colW, not the full w
+        w = colW;
 
         y = DrawMeterHeader(g, draw, x, y, w);
 
@@ -1466,6 +1454,38 @@ public sealed class DashboardForm : Form
                 g.DrawString(msg, smallFont, warnBrush, x, y);
             }
             y += Dpi.Scale(15);
+        }
+
+        // --- RIGHT COLUMN: divider + spend + chart + model breakdown ---
+        {
+            int ry = Padding.Top; // right column starts at the top
+            // Divider
+            if (draw)
+            {
+                int divX = leftX + colW + Dpi.Scale(DividerW) / 2;
+                using var divPen = new Pen(_theme.Separator);
+                g.DrawLine(divPen, divX, ry, divX, Math.Max(y, ry + Dpi.Scale(100)));
+            }
+
+            // "Detalhes" header
+            if (draw)
+            {
+                g.DrawString("Detalhes", Typography.Title, fg, rightX, ry);
+            }
+            ry += Dpi.Scale(28);
+
+            // Spend bars
+            ry = DetailColumnRenderer.DrawSpendBars(g, draw, rightX, ry, colW, _snap?.Spend, _s, _theme, smallFont, dim);
+
+            // Chart
+            ry = DetailColumnRenderer.DrawChart(g, draw, rightX, ry, colW, _chartData, _s, _theme, smallFont, dim);
+
+            // Model breakdown
+            if (_overviewRecords is not null)
+                ry = DetailColumnRenderer.DrawModelBreakdown(g, draw, rightX, ry, colW, _overviewRecords, _s, _theme, smallFont, dim);
+
+            // Make height = max of left and right columns
+            y = Math.Max(y, ry);
         }
 
         y += Spacing.Sm;
