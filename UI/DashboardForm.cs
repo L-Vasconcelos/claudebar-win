@@ -1352,11 +1352,16 @@ public sealed class DashboardForm : Form
         _backRect = Rectangle.Empty;
 
         // Duas colunas: a largura total é DualBaseWidth escalado
-        int colW = (Width - Padding.Horizontal - Dpi.Scale(DividerW)) / 2;
+        int divGap = Dpi.Scale(DividerW);
+        int colW = (Width - Padding.Horizontal - divGap) / 2;
         int leftX = x;
-        int rightX = x + colW + Dpi.Scale(DividerW);
+        int rightX = x + colW + divGap;
+        int rightColW = Width - rightX - Padding.Right;
         // Left column uses colW, not the full w
         w = colW;
+
+        // Clip left column so nothing overflows into the right
+        if (draw) g.SetClip(new Rectangle(0, 0, leftX + colW + divGap / 2, Height));
 
         y = DrawMeterHeader(g, draw, x, y, w);
 
@@ -1456,18 +1461,23 @@ public sealed class DashboardForm : Form
             y += Dpi.Scale(15);
         }
 
+        // Restore clip before right column
+        if (draw) g.ResetClip();
+
         // --- RIGHT COLUMN: divider + spend + chart + model breakdown ---
         {
             int ry = Padding.Top; // right column starts at the top
-            int rightColW = Width - rightX - Padding.Right; // right column fills to the edge
 
             // Vertical divider line (centered in the gap)
             if (draw)
             {
-                int divX = leftX + colW + Dpi.Scale(DividerW) / 2;
+                int divX = leftX + colW + divGap / 2;
                 using var divPen = new Pen(_theme.Separator);
                 g.DrawLine(divPen, divX, Padding.Top, divX, Math.Max(y, ry + Dpi.Scale(200)));
             }
+
+            // Clip right column
+            if (draw) g.SetClip(new Rectangle(rightX, 0, rightColW + Padding.Right, Height));
 
             // "Detalhes" header
             if (draw)
@@ -1486,6 +1496,9 @@ public sealed class DashboardForm : Form
             // Model breakdown
             if (_overviewRecords is not null)
                 ry = DetailColumnRenderer.DrawModelBreakdown(g, draw, rightX, ry, rightColW, _overviewRecords, _s, _theme, smallFont, dim);
+
+            // Restore clip
+            if (draw) g.ResetClip();
 
             // Make height = max of left and right columns
             y = Math.Max(y, ry);
