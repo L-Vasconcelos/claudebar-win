@@ -52,8 +52,13 @@ public sealed class DetailPanel : Form
     /// <summary>Position to the right of the main dashboard, sharing the top edge.</summary>
     public void DockTo(Form main)
     {
+        // Use available screen space to the right, min = main width, max = screen edge
+        var screen = Screen.FromControl(main).WorkingArea;
+        int availW = screen.Right - main.Right;
+        int desiredW = Math.Max(main.Width, Dpi.Scale(380));
+        Width = Math.Min(desiredW, Math.Max(availW, Dpi.Scale(280)));
         Location = new Point(main.Right, main.Top);
-        Width = main.Width;
+        Relayout();
     }
 
     private void Relayout()
