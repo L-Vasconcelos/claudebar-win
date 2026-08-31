@@ -63,7 +63,7 @@ public static class DetailColumnRenderer
             }
             y += rowH;
         }
-        y += Dpi.Scale(6);
+        y += Dpi.Scale(10);
         return y;
     }
 
@@ -75,7 +75,7 @@ public static class DetailColumnRenderer
             using var sepPen = new Pen(theme.Separator);
             g.DrawLine(sepPen, x, y, x + w, y);
         }
-        y += Dpi.Scale(8);
+        y += Dpi.Scale(12);
 
         if (draw)
         {
@@ -162,7 +162,7 @@ public static class DetailColumnRenderer
             using var sepPen = new Pen(theme.Separator);
             g.DrawLine(sepPen, x, y, x + w, y);
         }
-        y += Dpi.Scale(8);
+        y += Dpi.Scale(12);
 
         if (draw)
         {

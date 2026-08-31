@@ -342,7 +342,7 @@ public sealed class DashboardForm : Form
     // al 125/150% el texto crecía dentro de filas que no, con solapes y un panel de 340px enano.
     // ApplyDpiScale proyecta ancho/padding con Dpi.Scale; el alto lo recalcula Relayout (auto-fit).
     private const int BaseWidth = 340, BaseHeight = 380, BasePanelPad = 18;
-    private const int DividerW = 1; // vertical divider between columns
+    private const int DividerW = 16; // vertical gap + divider between columns
     private const int DualBaseWidth = BaseWidth * 2 + DividerW;
 
     public DashboardForm()
@@ -1459,12 +1459,14 @@ public sealed class DashboardForm : Form
         // --- RIGHT COLUMN: divider + spend + chart + model breakdown ---
         {
             int ry = Padding.Top; // right column starts at the top
-            // Divider
+            int rightColW = Width - rightX - Padding.Right; // right column fills to the edge
+
+            // Vertical divider line (centered in the gap)
             if (draw)
             {
                 int divX = leftX + colW + Dpi.Scale(DividerW) / 2;
                 using var divPen = new Pen(_theme.Separator);
-                g.DrawLine(divPen, divX, ry, divX, Math.Max(y, ry + Dpi.Scale(100)));
+                g.DrawLine(divPen, divX, Padding.Top, divX, Math.Max(y, ry + Dpi.Scale(200)));
             }
 
             // "Detalhes" header
@@ -1475,14 +1477,14 @@ public sealed class DashboardForm : Form
             ry += Dpi.Scale(28);
 
             // Spend bars
-            ry = DetailColumnRenderer.DrawSpendBars(g, draw, rightX, ry, colW, _snap?.Spend, _s, _theme, smallFont, dim);
+            ry = DetailColumnRenderer.DrawSpendBars(g, draw, rightX, ry, rightColW, _snap?.Spend, _s, _theme, smallFont, dim);
 
             // Chart
-            ry = DetailColumnRenderer.DrawChart(g, draw, rightX, ry, colW, _chartData, _s, _theme, smallFont, dim);
+            ry = DetailColumnRenderer.DrawChart(g, draw, rightX, ry, rightColW, _chartData, _s, _theme, smallFont, dim);
 
             // Model breakdown
             if (_overviewRecords is not null)
-                ry = DetailColumnRenderer.DrawModelBreakdown(g, draw, rightX, ry, colW, _overviewRecords, _s, _theme, smallFont, dim);
+                ry = DetailColumnRenderer.DrawModelBreakdown(g, draw, rightX, ry, rightColW, _overviewRecords, _s, _theme, smallFont, dim);
 
             // Make height = max of left and right columns
             y = Math.Max(y, ry);
