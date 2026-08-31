@@ -10,9 +10,9 @@ public static class OverviewSection
 {
     // Layout constants (design px at 96 DPI, scaled by Dpi.Scale)
     private static int CardPad => Dpi.Scale(6);
-    private static int CardH => Dpi.Scale(52);
-    private static int CardRadius => Dpi.Scale(8);
-    private static int GridGap => Dpi.Scale(6);
+    private static int CardH => Dpi.Scale(48);
+    private static int CardRadius => Dpi.Scale(7);
+    private static int GridGap => Dpi.Scale(5);
     private static int HeatCellSize => Dpi.Scale(14);
     private static int HeatGap => Dpi.Scale(3);
     private static int SectionPad => Dpi.Scale(6);
@@ -79,26 +79,31 @@ public static class OverviewSection
         using (var border = new Pen(theme.Separator))
             Shapes.DrawRounded(g, border, rect, CardRadius);
 
-        // Label (top, centered, muted — auto-elide if too wide)
+        // Label (top, centered, muted — auto-shrink font to fit, never truncate)
         using var labelBrush = new SolidBrush(theme.TextMuted);
-        using var labelFont = new Font(smallFont.FontFamily, 7f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
-        string shownLabel = label;
-        var labelSz = g.MeasureString(shownLabel, labelFont);
-        if (labelSz.Width > w - CardPad * 2)
-            shownLabel = TextWrap.FitLine(label, 0, w - CardPad * 2, 0, t => g.MeasureString(t, labelFont).Width);
-        labelSz = g.MeasureString(shownLabel, labelFont);
+        float maxLabelW = w - CardPad * 2;
+        float labelPt = 6.5f;
+        Font labelFont = new Font(smallFont.FontFamily, labelPt * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
+        var labelSz = g.MeasureString(label, labelFont);
+        while (labelSz.Width > maxLabelW && labelPt > 5f)
+        {
+            labelFont.Dispose();
+            labelPt -= 0.5f;
+            labelFont = new Font(smallFont.FontFamily, labelPt * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
+            labelSz = g.MeasureString(label, labelFont);
+        }
         float labelX = x + (w - labelSz.Width) / 2;
-        g.DrawString(shownLabel, labelFont, labelBrush, labelX, y + CardPad);
+        g.DrawString(label, labelFont, labelBrush, labelX, y + CardPad);
+        labelFont.Dispose();
 
         // Value (bottom, centered, bold — auto-shrink font to fit)
         Color valueColor = accent ? theme.Accent : theme.TextPrimary;
         using var valueBrush = new SolidBrush(valueColor);
         float maxValueW = w - CardPad * 2;
-        float basePt = 10f;
+        float basePt = 9f;
         Font valueFont = new Font(Typography.Mono.FontFamily, basePt * Dpi.UserScale, FontStyle.Bold, GraphicsUnit.Point);
         var valueSz = g.MeasureString(value, valueFont);
-        // Shrink font if value doesn't fit
-        while (valueSz.Width > maxValueW && basePt > 7f)
+        while (valueSz.Width > maxValueW && basePt > 6f)
         {
             valueFont.Dispose();
             basePt -= 0.5f;

@@ -30,12 +30,12 @@ public static class DetailColumnRenderer
         double maxCost = spend.CostByModel.Values.Max();
         var families = spend.CostByModel.OrderByDescending(kv => kv.Value).Select(kv => kv.Key).ToList();
         var slots = DashboardDataView.SeriesAssigner.Assign(families);
-        int barH = Dpi.Scale(10);     // auditoria: 14→10
-        int rowH = Dpi.Scale(20);     // auditoria: 22→20
+        int barH = Dpi.Scale(9);
+        int rowH = Dpi.Scale(20);
         int modelW = Dpi.Scale(46);
-        int amtW = Dpi.Scale(52);
+        int amtW = Dpi.Scale(50);
         int barGap = Dpi.Scale(6);
-        using var spendNameFont = new Font(smallFont.FontFamily, 10f * Dpi.UserScale, FontStyle.Bold, GraphicsUnit.Point);
+        using var spendNameFont = new Font(smallFont.FontFamily, 9.5f * Dpi.UserScale, FontStyle.Bold, GraphicsUnit.Point);
         using var spendAmtFont = new Font(Typography.Mono.FontFamily, 9f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
 
         foreach (var family in families)
@@ -139,20 +139,21 @@ public static class DetailColumnRenderer
                     baseline = topArr;
                 }
 
-                // X-axis labels
+                // X-axis labels (smaller font for chart axis)
                 using var muted = new SolidBrush(theme.TextMuted);
+                using var axisFont = new Font(smallFont.FontFamily, 8f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
                 int labelEvery = Math.Max(1, n / 5);
                 for (int i = 0; i < n; i += labelEvery)
                 {
                     var lbl = chartData[i].Label;
-                    var lsz = g.MeasureString(lbl, smallFont);
+                    var lsz = g.MeasureString(lbl, axisFont);
                     float lx = DashboardDataView.AxisLabelX(X(i), lsz.Width, x, x + w);
-                    g.DrawString(lbl, smallFont, muted, lx, y + chartH + 2);
+                    g.DrawString(lbl, axisFont, muted, lx, y + chartH + 2);
                 }
             }
             y += chartH;
         }
-        y += Dpi.Scale(18);
+        y += Dpi.Scale(16);
         return y;
     }
 
@@ -190,8 +191,12 @@ public static class DetailColumnRenderer
 
         var familyNames = familyGroups.Select(fg => fg.Key).ToList();
         var slots = DashboardDataView.SeriesAssigner.Assign(familyNames);
-        int rowH = Dpi.Scale(28);    // auditoria: 32→28
-        int dotSize = Dpi.Scale(6);  // auditoria: 8→6
+        int rowH = Dpi.Scale(26);
+        int dotSize = Dpi.Scale(6);
+
+        using var nameFont = new Font(smallFont.FontFamily, 9.5f * Dpi.UserScale, FontStyle.Bold, GraphicsUnit.Point);
+        using var subFont = new Font(smallFont.FontFamily, 7.5f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
+        using var pctFont = new Font(Typography.Mono.FontFamily, 9.5f * Dpi.UserScale, FontStyle.Bold, GraphicsUnit.Point);
 
         foreach (var grp in familyGroups)
         {
@@ -207,19 +212,16 @@ public static class DetailColumnRenderer
 
                 int textX = x + dotSize + Dpi.Scale(6);
                 using var nameBrush = new SolidBrush(theme.TextPrimary);
-                using var nameFont = new Font(smallFont.FontFamily, 10f * Dpi.UserScale, FontStyle.Bold, GraphicsUnit.Point);
-                g.DrawString(grp.Key, nameFont, nameBrush, textX, y + 1);
+                g.DrawString(grp.Key, nameFont, nameBrush, textX, y);
 
                 string sub = $"{UsageStatsService.FormatCount(msgs)} mensagens · {UsageStatsService.FormatTokens(tokens)} tokens";
-                using var subFont = new Font(smallFont.FontFamily, 7f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
                 using var muted = new SolidBrush(theme.TextMuted);
-                g.DrawString(sub, subFont, muted, textX, y + Dpi.Scale(14));
+                g.DrawString(sub, subFont, muted, textX, y + Dpi.Scale(13));
 
                 string pctText = $"{pct}%";
                 using var pctBrush = new SolidBrush(sc);
-                using var pctFont = new Font(Typography.Mono.FontFamily, 10f * Dpi.UserScale, FontStyle.Bold, GraphicsUnit.Point);
                 int pctW = TextMetrics.MeasureWidth(g, pctText, pctFont);
-                g.DrawString(pctText, pctFont, pctBrush, x + w - pctW, y + 4, TextMetrics.Typographic);
+                g.DrawString(pctText, pctFont, pctBrush, x + w - pctW, y + 2, TextMetrics.Typographic);
             }
             y += rowH;
         }

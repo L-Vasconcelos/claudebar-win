@@ -1398,33 +1398,36 @@ public sealed class DashboardForm : Form
         // --- Última atualização (timestamp discreto) ---
         if (_snap is not null)
         {
-            y += Dpi.Scale(4);
+            y += Dpi.Scale(6);
             DateTime now = _footerNowUtc == DateTime.MinValue ? DateTime.UtcNow : _footerNowUtc;
             string updatedText = $"{_s.UpdatedAt} · {UsageFormat.RelativeAt(_snap.UsageAtUtc, now, _s)}";
             if (draw)
             {
                 using var mutedBrush = new SolidBrush(_theme.TextMuted);
-                var sz = g.MeasureString(updatedText, Typography.Caption);
-                g.DrawString(updatedText, Typography.Caption, mutedBrush, x + (w - sz.Width) / 2, y);
+                using var updatedFont = new Font(Typography.Caption.FontFamily, 8.5f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
+                var sz = g.MeasureString(updatedText, updatedFont);
+                g.DrawString(updatedText, updatedFont, mutedBrush, x + (w - sz.Width) / 2, y);
             }
-            y += Dpi.Scale(14);
+            y += Dpi.Scale(16);
         }
 
         // --- Visão Geral (Overview) section ---
         {
             // Section header: "▾ Visão Geral" + range tabs (Todos/30d/7d)
-            var overviewHeaderRect = new Rectangle(x, y, w, Dpi.Scale(18));
+            using var overviewLabelFont = new Font(labelFont.FontFamily, 9.5f * Dpi.UserScale, FontStyle.Bold, GraphicsUnit.Point);
+            using var overviewTabFont = new Font(Typography.Caption.FontFamily, 8.5f * Dpi.UserScale, FontStyle.Regular, GraphicsUnit.Point);
+            var overviewHeaderRect = new Rectangle(x, y, w, Dpi.Scale(16));
             if (draw)
             {
                 using var hdrBrush = new SolidBrush(_theme.TextPrimary);
                 using var sepPen = new Pen(_theme.Separator);
                 g.DrawLine(sepPen, x, y - Dpi.Scale(2), x + w, y - Dpi.Scale(2));
-                g.DrawString((_overviewCollapsed ? "▸ " : "▾ ") + _s.SectionOverview, labelFont, hdrBrush, x, y);
+                g.DrawString((_overviewCollapsed ? "▸ " : "▾ ") + _s.SectionOverview, overviewLabelFont, hdrBrush, x, y);
 
                 // Range tabs (right-aligned)
                 _overviewTabRects.Clear();
                 var tabs = new[] { (_s.OverviewAll, "all"), ("30d", "30d"), ("7d", "7d") };
-                DashboardDataView.DrawSegments(g, draw, Typography.Caption, _theme,
+                DashboardDataView.DrawSegments(g, draw, overviewTabFont, _theme,
                     tabs, _overviewRange, x + w, y, rightAlign: true, _overviewTabRects);
             }
             else
@@ -1432,10 +1435,10 @@ public sealed class DashboardForm : Form
                 _overviewTabRects.Clear();
                 using var tempG = Graphics.FromHwnd(IntPtr.Zero);
                 var tabs = new[] { (_s.OverviewAll, "all"), ("30d", "30d"), ("7d", "7d") };
-                DashboardDataView.DrawSegments(tempG, false, Typography.Caption, _theme,
+                DashboardDataView.DrawSegments(tempG, false, overviewTabFont, _theme,
                     tabs, _overviewRange, x + w, y, rightAlign: true, _overviewTabRects);
             }
-            y += Dpi.Scale(22);
+            y += Dpi.Scale(20);
 
             if (!_overviewCollapsed)
                 y = OverviewSection.Draw(g, draw, x, y, w, _overviewStats, _s, _theme, smallFont);
@@ -1482,10 +1485,10 @@ public sealed class DashboardForm : Form
             // "Detalhes" header
             if (draw)
             {
-                using var detailTitleFont = new Font(Typography.Title.FontFamily, 12f * Dpi.UserScale, FontStyle.Bold, GraphicsUnit.Point);
+                using var detailTitleFont = new Font(Typography.Title.FontFamily, 11f * Dpi.UserScale, FontStyle.Bold, GraphicsUnit.Point);
                 g.DrawString("Detalhes", detailTitleFont, fg, rightX, ry);
             }
-            ry += Dpi.Scale(24);
+            ry += Dpi.Scale(20);
 
             // Spend bars
             ry = DetailColumnRenderer.DrawSpendBars(g, draw, rightX, ry, rightColW, _snap?.Spend, _s, _theme, smallFont, dim);
