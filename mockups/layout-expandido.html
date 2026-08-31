@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>ClaudeBar — Layout Expandido (lado a lado)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg: #18181B;
+    --surface: #2C2C2E;
+    --border: #38383A;
+    --text: #F4F4F5;
+    --dim: #A1A1AA;
+    --muted: #8E8E93;
+    --ok: #16A34A;
+    --warn: #D97706;
+    --critical: #DC2626;
+    --accent: #CC785C;
+    --track: #3A3A3C;
+    --opus: #8B5CF6;
+    --sonnet: #3B82F6;
+    --fable: #06B6D4;
+    --haiku: #10B981;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #111;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    padding: 40px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+  }
+
+  h1 { font-size: 22px; font-weight: 300; color: #FBBF24; text-align: center; }
+  h1 span { font-weight: 700; }
+  .subtitle { color: var(--dim); font-size: 13px; text-align: center; margin-top: -36px; }
+
+  .layout-row { display: flex; gap: 0; align-items: flex-start; }
+
+  /* Main widget (left) */
+  .widget-main {
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 12px 0 0 12px;
+    width: 340px;
+    border-right: none;
+  }
+
+  /* Expanded panel (right) */
+  .widget-expand {
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 0 12px 12px 0;
+    width: 400px;
+    min-height: 100%;
+  }
+
+  /* Standalone version */
+  .standalone .widget-main {
+    border-radius: 12px;
+    border-right: 1px solid var(--accent);
+  }
+  .standalone .widget-expand {
+    border-radius: 12px;
+    margin-left: 12px;
+  }
+
+  /* Shared components */
+  .header {
+    padding: 14px 16px 10px;
+    display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ok);
+  }
+  .header .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+  .header .title { font-size: 14px; font-weight: 700; color: var(--text); flex: 1; text-align: center; }
+  .header .badge { font-size: 10px; padding: 2px 10px; border-radius: 10px; border: 1px solid var(--accent); color: var(--accent); font-weight: 600; }
+
+  .gauge-row { display: flex; gap: 10px; padding: 0 14px; }
+  .gauge-card {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 6px; text-align: center;
+  }
+  .gauge-card .label { font-size: 10px; color: var(--dim); margin-bottom: 6px; }
+  .gauge-card .arc-wrap { width: 72px; height: 42px; margin: 0 auto 2px; }
+  .gauge-card .arc-wrap svg { width: 72px; height: 42px; }
+  .gauge-card .pct { font-size: 16px; font-weight: 700; color: var(--ok); }
+  .gauge-card .pct .suffix { font-size: 10px; font-weight: 400; opacity: 0.7; }
+  .gauge-card .badge-ok { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 5px; background: rgba(22,163,74,0.12); color: var(--ok); margin: 2px 0; }
+  .gauge-card .reset { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--muted); margin-top: 2px; }
+  .gauge-card .reset-abs { font-size: 9px; color: var(--muted); }
+
+  .pace-row { display: flex; gap: 6px; justify-content: center; padding: 8px 14px 2px; }
+  .pace-tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 3px 10px; border-radius: 4px; background: rgba(22,163,74,0.12); color: var(--ok); }
+  .updated { text-align: center; font-size: 10px; color: var(--muted); padding: 4px 0 6px; }
+
+  /* Overview (compact in left panel) */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 14px; border-top: 1px solid var(--border);
+  }
+  .section-header .left { font-size: 12px; font-weight: 600; }
+  .tabs { display: flex; gap: 3px; }
+  .tab { font-size: 9px; padding: 2px 7px; border-radius: 6px; color: var(--dim); border: 1px solid transparent; }
+  .tab.active { background: var(--accent); color: #fff; }
+  .tab:not(.active) { border-color: var(--border); }
+
+  .stats-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; padding: 6px 14px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 4px; text-align: center;
+  }
+  .stat-card .stat-label { font-size: 7px; color: var(--muted); margin-bottom: 2px; }
+  .stat-card .stat-value { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; color: var(--text); }
+  .stat-card .stat-value.accent { color: var(--accent); }
+
+  .heatmap-wrap { padding: 6px 14px 10px; }
+  .heatmap-label { font-size: 8px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .heatmap { display: grid; grid-template-columns: repeat(15, 1fr); gap: 2px; }
+  .cell { aspect-ratio: 1; border-radius: 2px; background: var(--track); }
+  .cell.l1 { background: rgba(22,163,74,0.25); }
+  .cell.l2 { background: rgba(22,163,74,0.45); }
+  .cell.l3 { background: rgba(22,163,74,0.65); }
+  .cell.l4 { background: rgba(22,163,74,0.85); }
+  .cell.l5 { background: var(--ok); }
+
+  /* ===== EXPANDED PANEL ===== */
+  .expand-header {
+    padding: 14px 16px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .expand-header .title { font-size: 13px; font-weight: 700; }
+  .expand-header .close { color: var(--dim); cursor: pointer; font-size: 14px; }
+
+  .expand-section { padding: 12px 16px; }
+  .expand-section-title {
+    font-size: 10px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;
+  }
+
+  /* Spend bars */
+  .spend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+  .spend-model { width: 50px; font-weight: 500; flex-shrink: 0; }
+  .spend-bar { flex: 1; height: 14px; background: var(--track); border-radius: 4px; overflow: hidden; }
+  .spend-fill { height: 100%; border-radius: 4px; }
+  .spend-amt { width: 60px; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--dim); }
+
+  /* Mini chart */
+  .chart-area { width: 100%; height: 100px; position: relative; margin-top: 8px; border-bottom: 1px solid var(--border); }
+  .chart-area svg { width: 100%; height: 100%; }
+  .chart-labels { display: flex; justify-content: space-between; font-size: 9px; color: var(--muted); margin-top: 3px; }
+
+  /* Stats list */
+  .stat-list-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+  }
+  .stat-list-row:last-child { border-bottom: none; }
+  .stat-list-row .label { color: var(--dim); }
+  .stat-list-row .value { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+  .stat-list-row .value.accent { color: var(--accent); }
+
+  /* Models breakdown */
+  .model-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .model-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .model-info { flex: 1; }
+  .model-name { font-size: 11px; font-weight: 600; }
+  .model-sub { font-size: 9px; color: var(--muted); }
+  .model-pct { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
+
+  .options-label { text-align: center; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<h1>Layout <span>Expandido</span> — Painel Lateral</h1>
+<p class="subtitle">O widget principal abre um painel detalhado ao lado com gráficos, spend e breakdown por modelo</p>
+
+<!-- ===== OPÇÃO A: Conectado (sem gap) ===== -->
+<div class="options-label">Opção A — Painel conectado</div>
+<div class="layout-row">
+  <!-- LEFT: Main widget -->
+  <div class="widget-main">
+    <div class="header">
+      <div class="dot"></div><span>AO VIVO</span>
+      <span class="title">CLAUDE CODE METER</span>
+      <span class="badge">USADO</span>
+    </div>
+    <div class="gauge-row">
+      <div class="gauge-card">
+        <div class="label">Sessão (5h)</div>
+        <div class="arc-wrap"><svg viewBox="0 0 72 42"><path d="M6 38 A28 28 0 0 1 66 38" fill="none" stroke="#3A3A3C" stroke-width="5" stroke-linecap="round"/><path d="M6 38 A28 28 0 0 1 16 14" fill="none" stroke="#16A34A" stroke-width="5" stroke-linecap="round"/></svg></div>
+        <div class="pct">13<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 2h 36m</div>
+        <div class="reset-abs">seg. 13:29</div>
+      </div>
+      <div class="gauge-card">
+        <div class="label">Semana (7d)</div>
+        <div class="arc-wrap"><svg viewBox="0 0 72 42"><path d="M6 38 A28 28 0 0 1 66 38" fill="none" stroke="#3A3A3C" stroke-width="5" stroke-linecap="round"/><path d="M6 38 A28 28 0 0 1 10 22" fill="none" stroke="#16A34A" stroke-width="5" stroke-linecap="round"/></svg></div>
+        <div class="pct">4<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 3d 17h</div>
+        <div class="reset-abs">sex. 03:59</div>
+      </div>
+    </div>
+    <div class="pace-row"><span class="pace-tag">→ 5h 28%</span><span class="pace-tag">→ 7d 9%</span></div>
+    <div class="updated">Atualizado · há 3 min</div>
+
+    <div class="section-header">
+      <div class="left">▾ Visão Geral</div>
+      <div class="tabs"><span class="tab active">Todos</span><span class="tab">30d</span><span class="tab">7d</span></div>
+    </div>
+    <div class="stats-grid-4">
+      <div class="stat-card"><div class="stat-label">Sessões</div><div class="stat-value">138</div></div>
+      <div class="stat-card"><div class="stat-label">Mensagens</div><div class="stat-value">9.3k</div></div>
+      <div class="stat-card"><div class="stat-label">Tokens</div><div class="stat-value">1.8B</div></div>
+      <div class="stat-card"><div class="stat-label">Dias ativos</div><div class="stat-value">48</div></div>
+    </div>
+    <div class="stats-grid-4" style="padding-top:0;">
+      <div class="stat-card"><div class="stat-label">Seq. atual</div><div class="stat-value accent">1d</div></div>
+      <div class="stat-card"><div class="stat-label">Maior seq.</div><div class="stat-value accent">11d</div></div>
+      <div class="stat-card"><div class="stat-label">Hora pico</div><div class="stat-value">14h</div></div>
+      <div class="stat-card"><div class="stat-label">Favorito</div><div class="stat-value accent">Opus</div></div>
+    </div>
+    <div class="heatmap-wrap">
+      <div class="heatmap-label">Atividade (últimos 30 dias)</div>
+      <div class="heatmap">
+        <div class="cell"></div><div class="cell l1"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l5"></div><div class="cell l3"></div><div class="cell l1"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell l1"></div>
+        <div class="cell l3"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l1"></div><div class="cell l2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Expanded panel -->
+  <div class="widget-expand">
+    <div class="expand-header">
+      <span class="title">Detalhes</span>
+      <span class="close">✕</span>
+    </div>
+
+    <!-- Spend by model -->
+    <div class="expand-section">
+      <div class="expand-section-title">Gasto estimado (7d, API-equiv)</div>
+      <div class="spend-row">
+        <span class="spend-model" style="color:var(--opus);">Opus</span>
+        <div class="spend-bar"><div class="spend-fill" style="width:100%;background:linear-gradient(90deg,var(--opus),#a78bfa);"></div></div>
+        <span class="spend-amt">$420.50</span>
+      </div>
+      <div class="spend-row">
+        <span class="spend-model" style="color:var(--sonnet);">Sonnet</span>
+        <div class="spend-bar"><div class="spend-fill" style="width:8%;background:var(--sonnet);"></div></div>
+        <span class="spend-amt">$35.20</span>
+      </div>
+      <div class="spend-row">
+        <span class="spend-model" style="color:var(--fable);">Fable</span>
+        <div class="spend-bar"><div class="spend-fill" style="width:5.7%;background:var(--fable);"></div></div>
+        <span class="spend-amt">$24.10</span>
+      </div>
+      <div class="spend-row">
+        <span class="spend-model" style="color:var(--haiku);">Haiku</span>
+        <div class="spend-bar"><div class="spend-fill" style="width:0.3%;min-width:3px;background:var(--haiku);"></div></div>
+        <span class="spend-amt">$1.10</span>
+      </div>
+    </div>
+
+    <!-- Usage chart -->
+    <div class="expand-section" style="border-top:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="expand-section-title" style="margin-bottom:0;">Uso ao longo do tempo</div>
+        <div class="tabs"><span class="tab">1H</span><span class="tab active">5H</span><span class="tab">24H</span><span class="tab">7D</span></div>
+      </div>
+      <div class="chart-area">
+        <svg viewBox="0 0 360 100" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0.05"/>
+            </linearGradient>
+          </defs>
+          <polygon points="0,90 30,85 60,70 90,75 120,60 150,55 180,40 210,45 240,30 270,35 300,20 330,25 360,15 360,100 0,100" fill="url(#g1)"/>
+          <polyline points="0,90 30,85 60,70 90,75 120,60 150,55 180,40 210,45 240,30 270,35 300,20 330,25 360,15" fill="none" stroke="#8B5CF6" stroke-width="2"/>
+        </svg>
+      </div>
+      <div class="chart-labels">
+        <span>08:00</span><span>09:00</span><span>10:00</span><span>11:00</span><span>12:00</span>
+      </div>
+    </div>
+
+    <!-- Models breakdown -->
+    <div class="expand-section" style="border-top:1px solid var(--border);">
+      <div class="expand-section-title">Uso por modelo</div>
+      <div class="model-row">
+        <div class="model-dot" style="background:var(--opus);"></div>
+        <div class="model-info"><div class="model-name">Opus 4.6</div><div class="model-sub">5.2k mensagens · 1.6B tokens</div></div>
+        <div class="model-pct" style="color:var(--opus);">62%</div>
+      </div>
+      <div class="model-row">
+        <div class="model-dot" style="background:var(--sonnet);"></div>
+        <div class="model-info"><div class="model-name">Sonnet 4.6</div><div class="model-sub">2.8k mensagens · 180M tokens</div></div>
+        <div class="model-pct" style="color:var(--sonnet);">28%</div>
+      </div>
+      <div class="model-row">
+        <div class="model-dot" style="background:var(--fable);"></div>
+        <div class="model-info"><div class="model-name">Fable</div><div class="model-sub">890 mensagens · 45M tokens</div></div>
+        <div class="model-pct" style="color:var(--fable);">7%</div>
+      </div>
+      <div class="model-row">
+        <div class="model-dot" style="background:var(--haiku);"></div>
+        <div class="model-info"><div class="model-name">Haiku 4.5</div><div class="model-sub">310 mensagens · 12M tokens</div></div>
+        <div class="model-pct" style="color:var(--haiku);">3%</div>
+      </div>
+    </div>
+
+    <!-- Quick stats -->
+    <div class="expand-section" style="border-top:1px solid var(--border);">
+      <div class="expand-section-title">Estatísticas detalhadas</div>
+      <div class="stat-list-row"><span class="label">Tokens de input</span><span class="value">1.2B</span></div>
+      <div class="stat-list-row"><span class="label">Tokens de output</span><span class="value">580M</span></div>
+      <div class="stat-list-row"><span class="label">Cache read</span><span class="value">890M</span></div>
+      <div class="stat-list-row"><span class="label">Custo médio/sessão</span><span class="value accent">$3.48</span></div>
+      <div class="stat-list-row"><span class="label">Sessão mais longa</span><span class="value">4h 12m</span></div>
+      <div class="stat-list-row"><span class="label">Dia mais ativo</span><span class="value accent">15 ago</span></div>
+    </div>
+  </div>
+</div>
+
+<div style="height:32px;"></div>
+
+<!-- ===== OPÇÃO B: Separado (com gap) ===== -->
+<div class="options-label">Opção B — Painéis separados</div>
+<div class="layout-row standalone">
+  <!-- LEFT: Main widget (mesmo conteúdo) -->
+  <div class="widget-main">
+    <div class="header">
+      <div class="dot"></div><span>AO VIVO</span>
+      <span class="title">CLAUDE CODE METER</span>
+      <span class="badge">USADO</span>
+    </div>
+    <div class="gauge-row">
+      <div class="gauge-card">
+        <div class="label">Sessão (5h)</div>
+        <div class="arc-wrap"><svg viewBox="0 0 72 42"><path d="M6 38 A28 28 0 0 1 66 38" fill="none" stroke="#3A3A3C" stroke-width="5" stroke-linecap="round"/><path d="M6 38 A28 28 0 0 1 16 14" fill="none" stroke="#16A34A" stroke-width="5" stroke-linecap="round"/></svg></div>
+        <div class="pct">13<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 2h 36m</div>
+        <div class="reset-abs">seg. 13:29</div>
+      </div>
+      <div class="gauge-card">
+        <div class="label">Semana (7d)</div>
+        <div class="arc-wrap"><svg viewBox="0 0 72 42"><path d="M6 38 A28 28 0 0 1 66 38" fill="none" stroke="#3A3A3C" stroke-width="5" stroke-linecap="round"/><path d="M6 38 A28 28 0 0 1 10 22" fill="none" stroke="#16A34A" stroke-width="5" stroke-linecap="round"/></svg></div>
+        <div class="pct">4<span class="suffix"> % usado</span></div>
+        <div class="badge-ok">● OK</div>
+        <div class="reset">↻ 3d 17h</div>
+        <div class="reset-abs">sex. 03:59</div>
+      </div>
+    </div>
+    <div class="pace-row"><span class="pace-tag">→ 5h 28%</span><span class="pace-tag">→ 7d 9%</span></div>
+    <div class="updated">Atualizado · há 3 min</div>
+
+    <div class="section-header">
+      <div class="left">▾ Visão Geral</div>
+      <div class="tabs"><span class="tab active">Todos</span><span class="tab">30d</span><span class="tab">7d</span></div>
+    </div>
+    <div class="stats-grid-4">
+      <div class="stat-card"><div class="stat-label">Sessões</div><div class="stat-value">138</div></div>
+      <div class="stat-card"><div class="stat-label">Mensagens</div><div class="stat-value">9.3k</div></div>
+      <div class="stat-card"><div class="stat-label">Tokens</div><div class="stat-value">1.8B</div></div>
+      <div class="stat-card"><div class="stat-label">Dias ativos</div><div class="stat-value">48</div></div>
+    </div>
+    <div class="stats-grid-4" style="padding-top:0;">
+      <div class="stat-card"><div class="stat-label">Seq. atual</div><div class="stat-value accent">1d</div></div>
+      <div class="stat-card"><div class="stat-label">Maior seq.</div><div class="stat-value accent">11d</div></div>
+      <div class="stat-card"><div class="stat-label">Hora pico</div><div class="stat-value">14h</div></div>
+      <div class="stat-card"><div class="stat-label">Favorito</div><div class="stat-value accent">Opus</div></div>
+    </div>
+    <div class="heatmap-wrap">
+      <div class="heatmap-label">Atividade (últimos 30 dias)</div>
+      <div class="heatmap">
+        <div class="cell"></div><div class="cell l1"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l5"></div><div class="cell l3"></div><div class="cell l1"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell l1"></div>
+        <div class="cell l3"></div><div class="cell l4"></div><div class="cell l5"></div><div class="cell l2"></div><div class="cell"></div><div class="cell l1"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l2"></div><div class="cell l3"></div><div class="cell l5"></div><div class="cell l4"></div><div class="cell l1"></div><div class="cell l2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Separate floating panel -->
+  <div class="widget-expand">
+    <div class="expand-header">
+      <span class="title">📊 Dashboard Detalhado</span>
+      <span class="close">✕</span>
+    </div>
+
+    <div class="expand-section">
+      <div class="expand-section-title">Gasto estimado (7d)</div>
+      <div class="spend-row">
+        <span class="spend-model" style="color:var(--opus);">Opus</span>
+        <div class="spend-bar"><div class="spend-fill" style="width:100%;background:linear-gradient(90deg,var(--opus),#a78bfa);"></div></div>
+        <span class="spend-amt">$420.50</span>
+      </div>
+      <div class="spend-row">
+        <span class="spend-model" style="color:var(--sonnet);">Sonnet</span>
+        <div class="spend-bar"><div class="spend-fill" style="width:8%;background:var(--sonnet);"></div></div>
+        <span class="spend-amt">$35.20</span>
+      </div>
+      <div class="spend-row">
+        <span class="spend-model" style="color:var(--fable);">Fable</span>
+        <div class="spend-bar"><div class="spend-fill" style="width:5.7%;background:var(--fable);"></div></div>
+        <span class="spend-amt">$24.10</span>
+      </div>
+    </div>
+
+    <div class="expand-section" style="border-top:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="expand-section-title" style="margin-bottom:0;">Quota % (tempo real)</div>
+        <div class="tabs"><span class="tab">1H</span><span class="tab active">5H</span><span class="tab">24H</span></div>
+      </div>
+      <div class="chart-area">
+        <svg viewBox="0 0 360 100" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#16A34A" stop-opacity="0.4"/>
+              <stop offset="100%" stop-color="#16A34A" stop-opacity="0.05"/>
+            </linearGradient>
+          </defs>
+          <!-- 70% threshold -->
+          <line x1="0" y1="30" x2="360" y2="30" stroke="#38383A" stroke-width="1" stroke-dasharray="4"/>
+          <!-- 90% threshold -->
+          <line x1="0" y1="10" x2="360" y2="10" stroke="#38383A" stroke-width="1" stroke-dasharray="4"/>
+          <polygon points="0,95 40,92 80,88 120,85 160,80 200,75 240,70 280,65 320,62 360,58 360,100 0,100" fill="url(#g2)"/>
+          <polyline points="0,95 40,92 80,88 120,85 160,80 200,75 240,70 280,65 320,62 360,58" fill="none" stroke="#16A34A" stroke-width="2"/>
+        </svg>
+      </div>
+      <div class="chart-labels"><span>07:00</span><span>08:30</span><span>10:00</span><span>11:30</span></div>
+    </div>
+
+    <div class="expand-section" style="border-top:1px solid var(--border);">
+      <div class="expand-section-title">Uso por modelo</div>
+      <div class="model-row">
+        <div class="model-dot" style="background:var(--opus);"></div>
+        <div class="model-info"><div class="model-name">Opus 4.6</div><div class="model-sub">5.2k msgs · 1.6B tokens</div></div>
+        <div class="model-pct" style="color:var(--opus);">62%</div>
+      </div>
+      <div class="model-row">
+        <div class="model-dot" style="background:var(--sonnet);"></div>
+        <div class="model-info"><div class="model-name">Sonnet 4.6</div><div class="model-sub">2.8k msgs · 180M tokens</div></div>
+        <div class="model-pct" style="color:var(--sonnet);">28%</div>
+      </div>
+      <div class="model-row">
+        <div class="model-dot" style="background:var(--fable);"></div>
+        <div class="model-info"><div class="model-name">Fable</div><div class="model-sub">890 msgs · 45M tokens</div></div>
+        <div class="model-pct" style="color:var(--fable);">7%</div>
+      </div>
+    </div>
+
+    <div class="expand-section" style="border-top:1px solid var(--border);">
+      <div class="expand-section-title">Detalhes</div>
+      <div class="stat-list-row"><span class="label">Tokens de input</span><span class="value">1.2B</span></div>
+      <div class="stat-list-row"><span class="label">Tokens de output</span><span class="value">580M</span></div>
+      <div class="stat-list-row"><span class="label">Cache read</span><span class="value">890M</span></div>
+      <div class="stat-list-row"><span class="label">Custo médio/sessão</span><span class="value accent">$3.48</span></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

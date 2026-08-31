@@ -66,21 +66,6 @@ public static class OverviewSection
         // --- Heatmap ---
         y = DrawHeatmap(g, draw, x, y, w, stats, s, theme, smallFont);
 
-        // --- Fun fact ---
-        string? fact = UsageStatsService.FunFact(stats.TotalTokens, s);
-        if (fact is not null)
-        {
-            y += Dpi.Scale(2);
-            if (draw)
-            {
-                using var italicFont = new Font(smallFont.FontFamily, smallFont.SizeInPoints - 1, FontStyle.Italic, GraphicsUnit.Point);
-                using var dim = new SolidBrush(theme.TextSecondary);
-                var sz = g.MeasureString(fact, italicFont);
-                g.DrawString(fact, italicFont, dim, x + (w - sz.Width) / 2, y);
-            }
-            y += Dpi.Scale(16);
-        }
-
         return y;
     }
 
