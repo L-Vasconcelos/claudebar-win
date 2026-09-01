@@ -134,10 +134,10 @@ public static class DashboardHeader
                 // "✓ cuota renovada" apenas se distinguía del fondo del panel. 64 lo hace presente
                 // sin tapar el texto Ok que va encima.
                 using var chipBg = new SolidBrush(Color.FromArgb(64, theme.Ok));
-                Shapes.FillRounded(g, chipBg, chip, Spacing.Sm);
+                Shapes.FillRounded(g, chipBg, chip, Dpi.Scale(Spacing.Sm));
                 using var okBrush = new SolidBrush(theme.Ok);
                 g.DrawString(shown, smallFont, okBrush,
-                    chip.X + Spacing.Sm, chip.Y + (chip.Height - textH) / 2);
+                    chip.X + Dpi.Scale(Spacing.Sm), chip.Y + (chip.Height - textH) / 2);
             }
         }
 
@@ -154,7 +154,7 @@ public static class DashboardHeader
         //    DashboardForm; aquí el bounce llega ya gateado y, con draw=false, se fuerza a 0).
         // Margen superior del bloque (T9/§3.4): el contenido arrancaba en y+18 y se solapaba con la fila
         // del ⚙/✕ (24px). Ahora baja a `gearSize + Spacing.Xs` para despegarlo de los botones.
-        int top = y + gearSize + Spacing.Xs;
+        int top = y + gearSize + Dpi.Scale(Spacing.Xs);
         // El bloque de estado usa el ancho COMPLETO: la mascota ya no comparte su fila (banda propia).
         int textX = x;
         if (cfg.ShowMascot)
@@ -193,7 +193,7 @@ public static class DashboardHeader
             // Banda de la mascota: alto de sprite + verbo. El bloque de estado arranca DEBAJO con aire
             // Spacing.Sm (gutter vertical). Esto suma en AMBAS pasadas (no depende de draw) → medir==pintar.
             int mascotBandH = sz.Height + (verbH > 0 ? verbH + 2 : 0);
-            top += mascotBandH + Spacing.Sm;
+            top += mascotBandH + Dpi.Scale(Spacing.Sm);
         }
 
         // 3) bloque de estado a ancho completo: estado de servicio + UN glance de cuota (sin barra/reset/pace).
@@ -223,7 +223,7 @@ public static class DashboardHeader
                 // Estado de servicio ("Operativo"). Anti-corte: se envuelve/encoge dentro del ancho útil
                 // (texto corto; FitHeaderLine deja margen derecho ≥ Spacing.Md). Determinista (medir==pintar).
                 int hlX = textX + HealthDotGutter;
-                string hlShown = FitHeaderLine(hl, hlX, rightX, Spacing.Md, t => g.MeasureString(t, smallFont).Width);
+                string hlShown = FitHeaderLine(hl, hlX, rightX, Dpi.Scale(Spacing.Md), t => g.MeasureString(t, smallFont).Width);
                 g.DrawString(hlShown, smallFont, b, hlX, ty);
             }
         }
@@ -260,16 +260,20 @@ public static class DashboardHeader
                 // Etiqueta a la izquierda (anti-corte: deja sitio al valor con gutter Spacing.Md).
                 // T10 (§3 #16): medida central tipográfica + pintado con el mismo formato → el % del
                 // glance cae en la MISMA columna derecha que los % de las barras de la sección Cuota.
-                int valW = TextMetrics.MeasureWidth(g, right, Typography.Mono);
+                // T14: Typography.Mono escalado por UserScale para acompanhar o resize.
+                bool scm = Math.Abs(Dpi.UserScale - 1f) >= 0.001f;
+                using var scaledMono = scm ? new Font(Typography.Mono.FontFamily, Typography.Mono.SizeInPoints * Dpi.UserScale, Typography.Mono.Style) : null;
+                Font monoScaled = scaledMono ?? Typography.Mono;
+                int valW = TextMetrics.MeasureWidth(g, right, monoScaled);
                 int valX = rightX - valW;
                 using (var fg = new SolidBrush(theme.TextPrimary))
                 {
-                    string labelShown = FitHeaderLine(glanceLabel, textX, valX, Spacing.Md,
+                    string labelShown = FitHeaderLine(glanceLabel, textX, valX, Dpi.Scale(Spacing.Md),
                         t => g.MeasureString(t, smallFont).Width);
                     g.DrawString(labelShown, smallFont, fg, textX, ty);
                 }
                 using var valBrush = new SolidBrush(c);
-                g.DrawString(right, Typography.Mono, valBrush, valX, ty, TextMetrics.Typographic);
+                g.DrawString(right, monoScaled, valBrush, valX, ty, TextMetrics.Typographic);
             }
             ty += StatusRowHeight; // glance de UNA línea (token F12: misma fila de estado que la salud)
         }
@@ -334,12 +338,13 @@ public static class DashboardHeader
         int y, int gearSize, int textH, Func<string, double> measure)
     {
         // Techo del texto: chip.X ≥ x ⟺ chipW ≤ gearLeft - Sm - x ⟺ textoW ≤ eso - padding 2·Sm.
-        int maxTextW = gearLeft - Spacing.Sm - x - Spacing.Sm * 2;
+        int sm = Dpi.Scale(Spacing.Sm);
+        int maxTextW = gearLeft - sm - x - sm * 2;
         string shown = TextWrap.Ellipsize(flash, maxTextW, measure);
         if (shown.Length == 0) return (shown, Rectangle.Empty);
-        int chipW = (int)Math.Ceiling(measure(shown)) + Spacing.Sm * 2;
-        int chipH = textH + Spacing.Xs;
-        var chip = new Rectangle(gearLeft - chipW - Spacing.Sm, y + (gearSize - chipH) / 2, chipW, chipH);
+        int chipW = (int)Math.Ceiling(measure(shown)) + sm * 2;
+        int chipH = textH + Dpi.Scale(Spacing.Xs);
+        var chip = new Rectangle(gearLeft - chipW - sm, y + (gearSize - chipH) / 2, chipW, chipH);
         return (shown, chip);
     }
 }

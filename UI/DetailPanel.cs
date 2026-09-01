@@ -116,12 +116,22 @@ public sealed class DetailPanel : Form
         int y = pad;
         int w = Width - pad * 2;
 
+        // T14: Typography.Title escalado por UserScale para acompanhar o resize.
+        using var scaledTitle = scaleFonts ? new Font(Typography.Title.FontFamily, Typography.Title.SizeInPoints * Dpi.UserScale, Typography.Title.Style, GraphicsUnit.Point) : null;
+        Font titleFont = scaledTitle ?? Typography.Title;
+        // T14: Typography.Mono escalado por UserScale.
+        using var scaledMono = scaleFonts ? new Font(Typography.Mono.FontFamily, Typography.Mono.SizeInPoints * Dpi.UserScale, Typography.Mono.Style, GraphicsUnit.Point) : null;
+        Font monoFont = scaledMono ?? Typography.Mono;
+        // T14: Typography.Caption escalado para DrawSegments.
+        using var scaledCaption = scaleFonts ? new Font(Typography.Caption.FontFamily, Typography.Caption.SizeInPoints * Dpi.UserScale, Typography.Caption.Style, GraphicsUnit.Point) : null;
+        Font captionFont = scaledCaption ?? Typography.Caption;
+
         // --- Header: "Detalhes" + ✕ ---
         _closeRect = new Rectangle(Width - Dpi.Scale(26), Dpi.Scale(10), Dpi.Scale(18), Dpi.Scale(18));
         if (draw)
         {
-            g.DrawString("Detalhes", Typography.Title, fg, x, y);
-            using var closeFont = new Font("Segoe UI", 11f, FontStyle.Bold);
+            g.DrawString("Detalhes", titleFont, fg, x, y);
+            using var closeFont = new Font("Segoe UI", 11f * Dpi.UserScale, FontStyle.Bold);
             g.DrawString("✕", closeFont, dim, _closeRect.X, _closeRect.Y - 2);
         }
         y += Dpi.Scale(28);
@@ -134,10 +144,10 @@ public sealed class DetailPanel : Form
         y += Dpi.Scale(8);
 
         // --- Spend by model (bars) ---
-        y = DrawSpendBars(g, draw, x, y, w, smallFont, dim, muted);
+        y = DrawSpendBars(g, draw, x, y, w, smallFont, monoFont, dim, muted);
 
         // --- Chart ---
-        y = DrawChart(g, draw, x, y, w, smallFont, dim, muted);
+        y = DrawChart(g, draw, x, y, w, smallFont, captionFont, dim, muted);
 
         // --- Model breakdown ---
         y = DrawModelBreakdown(g, draw, x, y, w, smallFont, dim, muted);
@@ -148,7 +158,7 @@ public sealed class DetailPanel : Form
         return y;
     }
 
-    private int DrawSpendBars(Graphics g, bool draw, int x, int y, int w, Font smallFont, Brush dim, Brush muted)
+    private int DrawSpendBars(Graphics g, bool draw, int x, int y, int w, Font smallFont, Font monoFont, Brush dim, Brush muted)
     {
         if (draw)
         {
@@ -199,8 +209,8 @@ public sealed class DetailPanel : Form
 
                 // Amount
                 string amt = UsageFormat.Money(cost, _s.Culture);
-                int amtX = x + w - TextMetrics.MeasureWidth(g, amt, Typography.Mono);
-                g.DrawString(amt, Typography.Mono, dim, amtX, y + 1, TextMetrics.Typographic);
+                int amtX = x + w - TextMetrics.MeasureWidth(g, amt, monoFont);
+                g.DrawString(amt, monoFont, dim, amtX, y + 1, TextMetrics.Typographic);
             }
             y += rowH;
         }
@@ -208,7 +218,7 @@ public sealed class DetailPanel : Form
         return y;
     }
 
-    private int DrawChart(Graphics g, bool draw, int x, int y, int w, Font smallFont, Brush dim, Brush muted)
+    private int DrawChart(Graphics g, bool draw, int x, int y, int w, Font smallFont, Font captionFont, Brush dim, Brush muted)
     {
         if (draw)
         {
@@ -227,7 +237,7 @@ public sealed class DetailPanel : Form
         // Range tabs right-aligned
         _rangeTabRects.Clear();
         var tabs = new[] { ("1H", "1h"), ("5H", "5h"), ("24H", "24h"), ("7D", "7d") };
-        DashboardDataView.DrawSegments(g, draw, Typography.Caption, _theme,
+        DashboardDataView.DrawSegments(g, draw, captionFont, _theme,
             tabs, _chartRange, x + w, y, rightAlign: true, _rangeTabRects);
         y += Dpi.Scale(20);
 

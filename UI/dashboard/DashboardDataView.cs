@@ -234,18 +234,23 @@ public static class DashboardDataView
         y = DrawPaceTags(g, draw, snap, s, theme, x, y, w, smallFont);
 
         // Aire entre pace y desglose por modelo.
-        y += Spacing.Sm;
+        y += Dpi.Scale(Spacing.Sm);
         y = DrawModelLine(g, draw, "Opus 7d", usage.SevenDayOpus, x, y, w, smallFont, fg, dim, theme, cfg, s.Culture);
         y = DrawModelLine(g, draw, "Sonnet 7d", usage.SevenDaySonnet, x, y, w, smallFont, fg, dim, theme, cfg, s.Culture);
 
         // Explicación honesta del rolling.
+        // T14: Typography.Caption escalado por UserScale (antes usava a fonte cacheada que não
+        // acompanhava o resize do painel).
         if (draw)
         {
+            bool scm = Math.Abs(Dpi.UserScale - 1f) >= 0.001f;
+            using var scaledCaption = scm ? new Font(Typography.Caption.FontFamily, Typography.Caption.SizeInPoints * Dpi.UserScale, Typography.Caption.Style) : null;
+            Font captionFont = scaledCaption ?? Typography.Caption;
             using var muted = new SolidBrush(theme.TextMuted);
-            g.DrawString(s.RollingHint, Typography.Caption, muted, x, y);
+            g.DrawString(s.RollingHint, captionFont, muted, x, y);
         }
         y += Dpi.Scale(16);
-        y += Spacing.Sm;
+        y += Dpi.Scale(Spacing.Sm);
         return y;
     }
 
@@ -274,7 +279,7 @@ public static class DashboardDataView
     {
         int rightW = TextMetrics.MeasureWidth(g, right, rightFont);
         int rightX = Math.Max(x, x + w - rightW);
-        string shown = TextWrap.FitLine(left, x, rightX, Spacing.Md,
+        string shown = TextWrap.FitLine(left, x, rightX, Dpi.Scale(Spacing.Md),
             t => g.MeasureString(t, leftFont).Width);
         return (shown, rightX);
     }
@@ -286,20 +291,21 @@ public static class DashboardDataView
         var spend = snap?.Spend;
         if (spend is null || spend.CostByModel.Count == 0) return y;
 
+        // T14: Typography.Mono escalado por UserScale para acompanhar o resize.
+        bool sm = Math.Abs(Dpi.UserScale - 1f) >= 0.001f;
+        using var scaledMono = sm ? new Font(Typography.Mono.FontFamily, Typography.Mono.SizeInPoints * Dpi.UserScale, Typography.Mono.Style) : null;
+        Font mono = scaledMono ?? Typography.Mono;
+
         if (draw) g.DrawString(string.Format(s.SpendHeaderFormat, snap!.SpendDays), smallFont, dim, x, y);
         y += Dpi.Scale(18); // T11: filas de texto del gasto escalan con el DPI
         foreach (var kv in spend.CostByModel.OrderByDescending(k => k.Value))
         {
             if (draw)
             {
-                // Moneda con la cultura del idioma elegido (T2): "$420.50" en inglés, "$420,50" en español.
-                // T8b: la clave (nombre de modelo) se elide contra el $ right-aligned (gutter Md), no lo cruza.
-                // T13a: las claves son familias dinámicas; la canónica "Otros" se localiza al pintar.
-                // T13b: familia sin tarifa en el catálogo → "— <sufijo>" localizado, nunca "$0.00".
                 string val = SpendValueText(spend, kv.Key, s);
-                var (shownKey, valX) = RowWithRightValue(g, FamilyLabel(kv.Key, s), val, x, w, labelFont, Typography.Mono);
+                var (shownKey, valX) = RowWithRightValue(g, FamilyLabel(kv.Key, s), val, x, w, labelFont, mono);
                 g.DrawString(shownKey, labelFont, fg, x, y);
-                g.DrawString(val, Typography.Mono, dim, valX, y, TextMetrics.Typographic);
+                g.DrawString(val, mono, dim, valX, y, TextMetrics.Typographic);
             }
             y += Dpi.Scale(20);
         }
@@ -391,6 +397,11 @@ public static class DashboardDataView
         var ps = snap?.PaceSeven;
         if (pf is null && ps is null) return y;
 
+        // T14: Typography.Mono escalado por UserScale para acompanhar o resize.
+        bool sm = Math.Abs(Dpi.UserScale - 1f) >= 0.001f;
+        using var scaledMono = sm ? new Font(Typography.Mono.FontFamily, Typography.Mono.SizeInPoints * Dpi.UserScale, Typography.Mono.Style) : null;
+        Font mono = scaledMono ?? Typography.Mono;
+
         // Preparar las tags: (texto, color de estado)
         var tags = new List<(string text, Color color)>();
 
@@ -421,7 +432,7 @@ public static class DashboardDataView
         int tagRadius = Dpi.Scale(4);
 
         // Medir ancho total para centrar
-        var tagWidths = tags.Select(t => (int)g.MeasureString(t.text, Typography.Mono).Width + tagPadX * 2).ToList();
+        var tagWidths = tags.Select(t => (int)g.MeasureString(t.text, mono).Width + tagPadX * 2).ToList();
         int totalW = tagWidths.Sum() + tagGap * (tags.Count - 1);
 
         // Si no cabe en una línea, apilar en dos filas
@@ -439,7 +450,7 @@ public static class DashboardDataView
                     Shapes.FillRounded(g, bgBrush, rect, tagRadius);
                     using var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                     using var tb = new SolidBrush(color);
-                    g.DrawString(text, Typography.Mono, tb, rect, fmt);
+                    g.DrawString(text, mono, tb, rect, fmt);
                     sx += tagWidths[i] + tagGap;
                 }
             }
@@ -462,7 +473,7 @@ public static class DashboardDataView
                     Shapes.FillRounded(g, bgBrush, rect, tagRadius);
                     using var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                     using var tb = new SolidBrush(color);
-                    g.DrawString(text, Typography.Mono, tb, rect, fmt);
+                    g.DrawString(text, mono, tb, rect, fmt);
                     sx += tw + tagGap;
                 }
             }
@@ -483,7 +494,7 @@ public static class DashboardDataView
                         Shapes.FillRounded(g, bgBrush, rect, tagRadius);
                         using var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                         using var tb = new SolidBrush(color);
-                        g.DrawString(text, Typography.Mono, tb, rect, fmt);
+                        g.DrawString(text, mono, tb, rect, fmt);
                         sx += tw + tagGap;
                     }
                 }
@@ -530,18 +541,17 @@ public static class DashboardDataView
         Font smallFont, Brush fg, Brush dim, Theme theme, AppConfig cfg, System.Globalization.CultureInfo culture)
     {
         if (win is null) return y;
+        // T14: Typography.Mono escalado por UserScale para acompanhar o resize.
+        bool scm = Math.Abs(Dpi.UserScale - 1f) >= 0.001f;
+        using var scaledMono = scm ? new Font(Typography.Mono.FontFamily, Typography.Mono.SizeInPoints * Dpi.UserScale, Typography.Mono.Style) : null;
+        Font mono = scaledMono ?? Typography.Mono;
         if (draw)
         {
             g.DrawString(label, smallFont, dim, x, y);
-            // % con la cultura del idioma elegido (T2), no la del SO.
-            // T10 (§3 #16): medida central tipográfica + Ceiling, igual que QuotaBar → la columna
-            // derecha del % de modelo queda en la MISMA vertical que el % de las barras grandes.
-            // F7 (v0.3.9 g3): bajo el epsilon de "vacío" (p.ej. "Sonnet 7d 0%") el % va en TextMuted (dim)
-            // y no en foreground — el dato más vacío del panel dejaba de ser el que más resaltaba.
             string val = UsageFormat.Percent(win.UtilizationPct, culture);
-            int valW = TextMetrics.MeasureWidth(g, val, Typography.Mono);
+            int valW = TextMetrics.MeasureWidth(g, val, mono);
             Brush pctBrush = IsModelPctEmpty(win.UtilizationPct) ? dim : fg;
-            g.DrawString(val, Typography.Mono, pctBrush, x + w - valW, y, TextMetrics.Typographic);
+            g.DrawString(val, mono, pctBrush, x + w - valW, y, TextMetrics.Typographic);
 
             // Barrita de referencia (mini-cuota): track + relleno proporcional al %, color NEUTRO —
             // ancla el % como longitud sin reclamar estado (la mini-fila no tiene pace por modelo).
@@ -549,7 +559,7 @@ public static class DashboardDataView
             // ancho tachaba el número (el Mono de 12pt baja hasta la banda de la barrita).
             // F5 (v0.3.9 g3): el relleno deja de ir por RiskColor (verde/rojo) y pasa a ModelBarFill
             // (TextMuted) — quitaba una tercera semántica de color que competía con las barras grandes.
-            int trackW = QuotaBarGeometry.CompactTrackWidth(w, valW, Spacing.Sm);
+            int trackW = QuotaBarGeometry.CompactTrackWidth(w, valW, Dpi.Scale(Spacing.Sm));
             int by = y + ModelLineTextH;
             if (trackW > 0)
             {
@@ -564,7 +574,7 @@ public static class DashboardDataView
                 }
             }
         }
-        return y + ModelLineTextH + ModelBarH + Spacing.Sm;   // texto + barra + gap entre mini-filas
+        return y + ModelLineTextH + ModelBarH + Dpi.Scale(Spacing.Sm);   // texto + barra + gap entre mini-filas
     }
 
     // Cuerpo de DrawLiveSessions SIN su propia cabecera (la pone Section). Solo lista de instancias:
@@ -740,7 +750,8 @@ public static class DashboardDataView
         (string label, TKey key)[] segs, TKey activeKey, int anchorX, int y,
         bool rightAlign, Dictionary<TKey, Rectangle> rects) where TKey : notnull
     {
-        const int gap = 3, padX = 7;
+        // T14: gap/padX escalados con DPI (antes const raw → chips com padding fixo enquanto texto crescia).
+        int gap = Dpi.Scale(3), padX = Dpi.Scale(7);
         int h = Dpi.Scale(18); // T11: el alto del chip escala con el DPI (el texto centrado ya crecía)
         var widths = segs.Select(seg => (int)g.MeasureString(seg.label, font).Width + padX * 2).ToArray();
         int total = widths.Sum() + gap * (segs.Length - 1);
@@ -865,7 +876,7 @@ public static class DashboardDataView
             // Ancla la 1ª/última etiqueta al borde del plot para que no se corten (auditoría visual, T9).
             axisLabels.Add((lbl, AxisLabelX(X(i), lsz.Width, x, x + w), lsz.Width));
         }
-        foreach (int k in VisibleAxisLabels(axisLabels.Select(l => (l.lx, l.lw)).ToArray(), Spacing.Xs))
+        foreach (int k in VisibleAxisLabels(axisLabels.Select(l => (l.lx, l.lw)).ToArray(), Dpi.Scale(Spacing.Xs)))
             g.DrawString(axisLabels[k].text, smallFont, dim, axisLabels[k].lx, bottom + 2);
 
         // T11: la leyenda escala con el DPI (la fila del eje X crece con la fuente; sin escalar, la
@@ -994,7 +1005,7 @@ public static class DashboardDataView
             // Ancla la 1ª/última etiqueta al borde del plot para que no se corten (auditoría visual, T9).
             axisLabels.Add((lbl, AxisLabelX(X(i), lsz.Width, x, x + w), lsz.Width));
         }
-        foreach (int k in VisibleAxisLabels(axisLabels.Select(l => (l.lx, l.lw)).ToArray(), Spacing.Xs))
+        foreach (int k in VisibleAxisLabels(axisLabels.Select(l => (l.lx, l.lw)).ToArray(), Dpi.Scale(Spacing.Xs)))
             g.DrawString(axisLabels[k].text, smallFont, dim, axisLabels[k].lx, bottom + 2);
         return bottom + ChartFooter;
     }

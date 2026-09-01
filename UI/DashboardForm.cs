@@ -941,8 +941,21 @@ public sealed class DashboardForm : Form
             {
                 if (r.Contains(e.Location))
                 {
-                    if (DashboardSettingsView.ActionFor(key) is { } a) SettingsChanged?.Invoke(a);
+                    if (DashboardSettingsView.ActionFor(key) is { } a)
+                    {
+                        // T14: aplica a mutação LOCALMENTE antes de disparar o evento (que faz refresh
+                        // assíncrono da API e pode levar segundos). Sem isso, o PanelScale/Theme/etc.
+                        // só surtiria efeito após o fetch completar — o painel repintava imediatamente
+                        // com o valor ANTIGO (bug real: "as fontes não se ajustam").
+                        a(_cfg);
+                        ApplyPanelScale(_cfg);
+                        _s = Localization.ForConfig(_cfg);
+                        _theme = ThemeResolver.Resolve(_cfg);
+                        BackColor = _theme.Background;
+                        SettingsChanged?.Invoke(a);
+                    }
                     else SpecialActionRequested?.Invoke(key); // claves "special:*": diálogo/instalador en el host
+                    Relayout();
                     Invalidate();
                     return;
                 }
@@ -1213,7 +1226,7 @@ public sealed class DashboardForm : Form
         int alpha = (int)Math.Round(Math.Clamp(intensity, 0.0, 1.0) * _theme.HoverBg.A);
         if (alpha <= 0) return;
         var bg = Color.FromArgb(alpha, _theme.HoverBg);
-        var padded = Rectangle.Inflate(r, Spacing.Xs, Spacing.Xs / 2);
+        var padded = Rectangle.Inflate(r, Dpi.Scale(Spacing.Xs), Dpi.Scale(Spacing.Xs) / 2);
         using var b = new SolidBrush(bg);
 
         // Filas de ajustes: el rect ya viene intersecado con el viewport, pero el Inflate vuelve a
@@ -1223,24 +1236,22 @@ public sealed class DashboardForm : Form
             int viewportH = Math.Max(0, Height - _settingsViewportTop - SettingsViewportBottomPad);
             var prevClip = g.Clip;
             g.SetClip(new Rectangle(0, _settingsViewportTop, Width, viewportH));
-            try { Shapes.FillRounded(g, b, padded, Spacing.Sm); }
+            try { Shapes.FillRounded(g, b, padded, Dpi.Scale(Spacing.Sm)); }
             finally { g.Clip = prevClip; }
             return;
         }
-        Shapes.FillRounded(g, b, padded, Spacing.Sm);
+        Shapes.FillRounded(g, b, padded, Dpi.Scale(Spacing.Sm));
     }
 
     /// <summary>Walks the sections top-to-bottom. Returns the required window height.</summary>
     private int LayoutContent(Graphics g, bool draw)
     {
-        // Fuentes del sistema de diseño (estáticas y compartidas: NO se hace Dispose de ellas)...
-        var titleFont = Typography.Title;
-        var planFont = Typography.Caption;
-        // ...salvo cuando "Tamaño del panel" (Dpi.UserScale) no es 1: la geometría escala vía Dpi.Scale
-        // pero los puntos de fuente no, así que a 200% (tablet dedicada) las etiquetas se quedaban
-        // diminutas dentro de un panel enorme. Estas dos SÍ se reescalan y por eso se disponen aquí;
-        // las cacheadas de Typography no deben disponerse nunca (viven toda la app).
+        // T14: TODAS las fuentes del sistema de diseño se escalan cuando Dpi.UserScale ≠ 1.0.
+        // Las cacheadas de Typography no deben disponerse nunca (viven toda la app); las escaladas
+        // SÍ se disponen al final del bloque try/finally.
         bool scaleFonts = Math.Abs(Dpi.UserScale - 1f) >= 0.001f;
+        Font titleFont = scaleFonts ? ScaledFont(Typography.Title) : Typography.Title;
+        Font planFont = scaleFonts ? ScaledFont(Typography.Caption) : Typography.Caption;
         Font labelFont = scaleFonts ? ScaledFont(Typography.Body) : Typography.Body;
         Font smallFont = scaleFonts ? ScaledFont(Typography.Caption) : Typography.Caption;
         using var fg = new SolidBrush(_theme.TextPrimary);
@@ -1265,10 +1276,10 @@ public sealed class DashboardForm : Form
                 // T8c: el plan ("Max 20x · resets…") se elide antes de la columna del ✕ — un display largo
                 // se pintaba de largo bajo el botón y rebasaba el borde del panel. Solo pintado (el avance
                 // y += 50 no cambia) → medir==pintar.
-                string planShown = TextWrap.FitLine(_plan.Display, x, _closeRect.X, Spacing.Sm,
+                string planShown = TextWrap.FitLine(_plan.Display, x, _closeRect.X, Dpi.Scale(Spacing.Sm),
                     t => g.MeasureString(t, planFont).Width);
                 g.DrawString(planShown, planFont, dim, x, y + Dpi.Scale(24));
-                using var closeFont = new Font("Segoe UI", 11f, FontStyle.Bold);
+                using var closeFont = new Font("Segoe UI", 11f * Dpi.UserScale, FontStyle.Bold);
                 g.DrawString("✕", closeFont, dim, _closeRect.X, _closeRect.Y - 2);
             }
             y += Dpi.Scale(50);
@@ -1373,7 +1384,7 @@ public sealed class DashboardForm : Form
                 string msg = _snap is null ? _s.Loading : UsageFormat.StateMessage(_snap.LatestState, _s);
                 g.DrawString(msg, labelFont, dim, x, y);
             }
-            return y + Dpi.Scale(24) + Spacing.Md;
+            return y + Dpi.Scale(24) + Dpi.Scale(Spacing.Md);
         }
 
         // Override eased del ancho/número (color por objetivo): muestrea el MotionState por clave de
@@ -1453,7 +1464,7 @@ public sealed class DashboardForm : Form
         // pero solo cuando hace falta.
         if (_snap is not null && _snap.LatestState != UsageFetchState.Ok)
         {
-            y += Spacing.Sm;
+            y += Dpi.Scale(Spacing.Sm);
             if (draw)
             {
                 string msg = $"⚠ {UsageFormat.StateMessage(_snap.LatestState, _s)} · {_s.PreviousDataFooter}";
@@ -1507,7 +1518,7 @@ public sealed class DashboardForm : Form
             y = Math.Max(y, ry);
         }
 
-        y += Spacing.Sm;
+        y += Dpi.Scale(Spacing.Sm);
         // Grip de redimensionado (v0.5): rayas diagonales en la esquina inferior derecha. Se le reserva
         // su PROPIA fila (el return suma gripSize+margen) — antes se anclaba a "y - gripSize + 2", con
         // lo que su borde inferior caía en Height+2, es decir 2px POR DEBAJO del área visible: se veía
@@ -1533,7 +1544,7 @@ public sealed class DashboardForm : Form
         }
         finally
         {
-            if (scaleFonts) { labelFont.Dispose(); smallFont.Dispose(); }
+            if (scaleFonts) { titleFont.Dispose(); planFont.Dispose(); labelFont.Dispose(); smallFont.Dispose(); }
         }
     }
 
@@ -1566,7 +1577,7 @@ public sealed class DashboardForm : Form
             float fscale = Dpi.UserScale;
             using var liveFont = new Font("Segoe UI", 8.5f * fscale, FontStyle.Bold);
             using var liveBrush = new SolidBrush(liveColor);
-            g.DrawString(_s.MeterLive, liveFont, liveBrush, x + dotD + Spacing.Xs, y);
+            g.DrawString(_s.MeterLive, liveFont, liveBrush, x + dotD + Dpi.Scale(Spacing.Xs), y);
 
             using var titleFont2 = new Font("Segoe UI", 11f * fscale, FontStyle.Bold);
             using var titleBrush = new SolidBrush(_theme.Foreground);
@@ -1633,7 +1644,10 @@ public sealed class DashboardForm : Form
             float h = Typography.Caption.GetHeight(g); // forzar contexto válido (no usado para la firma)
             _ = h;
             int w = Width - Padding.Horizontal;
-            nowSig = FooterLayout.Signature(BuildFooterLines(w, str => g.MeasureString(str, Typography.Caption).Width));
+            bool sf = Math.Abs(Dpi.UserScale - 1f) >= 0.001f;
+            using var footerFont = sf ? ScaledFont(Typography.Caption) : null;
+            Font ff = footerFont ?? Typography.Caption;
+            nowSig = FooterLayout.Signature(BuildFooterLines(w, str => g.MeasureString(str, ff).Width));
         }
         if (nowSig == prev) return false;
         Relayout();   // re-mide el alto con el footer actual; LayoutContent(draw:true) ya leerá _footerNowUtc

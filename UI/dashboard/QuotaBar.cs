@@ -13,8 +13,22 @@ public static class QuotaBar
 {
     // T11: alto/radio de la barra en px de diseño (96 DPI) proyectados al DPI vigente — antes eran
     // const y al 125/150% la barra quedaba fina respecto al texto crecido. A factor 1.0, idénticos.
-    private static int BarH => Dpi.Scale(11);
-    private static int BarRadius => Dpi.Scale(5);
+    // v0.3.9 "meter": barra más alta y bloques más gruesos (look LED/segmentado) + fila superior más
+    // alta para el número grande. Internal (no private) para que los tests deriven sus offsets de
+    // AQUÍ en vez de repetir literales mágicos que se desincronizarían en el próximo ajuste visual.
+    internal static int BarH => Dpi.Scale(20);
+    private static int BarRadius => Dpi.Scale(3);
+    /// <summary>Alto de la fila etiqueta + número grande (antes 22, T11).</summary>
+    // v0.4 "meter": 52 (antes 40) — Typography.Hero a 28pt tiene una línea real de ~48px, más alta que
+    // los 40px reservados; el sobrante lo tapaba la barra (bug real: número/sufijo recortados por la
+    // barra, reproducido con --render-test). 52 deja aire por debajo del número.
+    internal static int LabelRowH => Dpi.Scale(52);
+    /// <summary>Aire entre la barra y la línea de reset (antes 3).</summary>
+    internal static int BarBottomGap => Dpi.Scale(6);
+    /// <summary>Alto reservado para la línea de reset (antes 14, T11).</summary>
+    internal static int ResetRowH => Dpi.Scale(14);
+    /// <summary>Bloques del look "segmentado/LED" del tramo lleno (estético).</summary>
+    private const int Segments = 14;
 
     /// <summary>
     /// Dibuja etiqueta + % + barra + línea de reset y devuelve el nuevo y.
@@ -25,9 +39,15 @@ public static class QuotaBar
     /// (<c>win.UtilizationPct</c>) para que no parpadee de color durante el tween. Si es <c>null</c>
     /// (render-test, reduce-motion, cabecera sin motion) ⇒ comportamiento idéntico a hoy (usa <c>util</c>).</para>
     /// </summary>
+    /// <param name="meterStyle">
+    /// v0.4: estilo de la vista "meter" (referencia del usuario) — número grande + "% usado" en
+    /// sufijo pequeño (en vez de "número%" todo del mismo tamaño) y countdown/reset en formato reloj
+    /// ("03:15:51"/"4d 00:15" y "15:00" sin día de la semana). Default false: comportamiento previo,
+    /// usado por cualquier otro consumidor de QuotaBar (p.ej. tests, futura vista completa).
+    /// </param>
     public static int Draw(Graphics g, bool draw, string label, UsageWindow? win, PaceResult? pace, int x, int y, int w,
         AppConfig cfg, Strings s, Theme theme, Font labelFont, Font smallFont, Brush fg, Brush dim,
-        double? displayUtil = null)
+        double? displayUtil = null, bool meterStyle = false)
     {
         double util = win?.UtilizationPct ?? 0;
         // Número y ancho usan el valor eased (si lo hay); el color usa SIEMPRE el objetivo (sin arcoíris).
@@ -37,29 +57,82 @@ public static class QuotaBar
         // coherentes. Antes se coloreaba por PACE: una barra al 57% salía ROJA y otra al 84% VERDE en la
         // misma columna (el color contradecía la longitud). La señal de ritmo se mueve al pace-marker ▾
         // (más abajo), coloreado por PaceStatus. El relleno usa SIEMPRE el objetivo (no parpadea con el tween).
-        Color c = ColorMath.RiskColor(util, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
+        // v0.4 "meter": dos tonos planos (dorado hasta el umbral crítico, rojo desde ahí) en vez del
+        // degradado continuo Ok→Warn→Critical — la referencia del usuario no tiene un tercer estado
+        // "verde", solo dorado/rojo. Solo aplica con meterStyle; el resto de consumidores conserva el
+        // degradado continuo (RiskColor) sin cambios.
+        Color c = meterStyle
+            ? (util >= cfg.CriticalThresholdPct ? theme.Critical : theme.Warn)
+            : ColorMath.RiskColor(util, theme, cfg.WarnThresholdPct, cfg.CriticalThresholdPct);
         // Estado por forma (a11y, daltónicos): por UMBRAL de % real, coherente con el relleno — mismo
         // mapeo color↔forma que el tray. El ritmo (pace) ya no secuestra ni el relleno ni el glifo.
         UsageStatus status = util >= cfg.CriticalThresholdPct ? UsageStatus.Critical
             : util >= cfg.WarnThresholdPct ? UsageStatus.Warn : UsageStatus.Ok;
         // El TEXTO (glifo + %) usa la variante AA del color de estado por % real (T6b): como texto pequeño
         // Critical oscuro caía a 3.7:1 y Warn claro a 2.8:1. Sigue el % (no el pace), igual que el relleno.
-        Color textColor = Theme.PaceTextColor(theme, StatusToPace(status));
+        // meterStyle: el mismo criterio de dos tonos que el relleno (sin el "Ok" verde intermedio), para
+        // que el número/glifo queden del MISMO color que la barra en vez de desentonar con el verde.
+        Color textColor = meterStyle
+            ? (util >= cfg.CriticalThresholdPct ? theme.CriticalText : theme.WarnText)
+            : Theme.PaceTextColor(theme, StatusToPace(status));
 
         if (draw)
         {
             g.DrawString(label, labelFont, fg, x, y);
-            // Glifo de forma de 1 carácter + % a la derecha, ambos en el color de estado.
-            string glyph = Tray.ShapeGlyph(Tray.ShapeFor(status));
-            // El número usa el valor eased (shown); el glifo/estado va por el objetivo (no parpadea).
-            // % con la cultura del idioma elegido (T2): "12.5%" en inglés, "12,5%" en español.
-            string right = $"{glyph} {UsageFormat.Percent(shown, s.Culture)}";
-            using var valBrush = new SolidBrush(textColor);
-            // T10 (§3 #16): medida central tipográfica + pintado con el mismo formato → la tinta del %
-            // termina exacta en x+w y toda la columna derecha del panel queda alineada.
-            TextMetrics.DrawRight(g, right, Typography.Mono, valBrush, x + w, y);
+            // v0.3.9 "meter": número GRANDE y en negrita (antes mono pequeño junto al glifo). El % con
+            // la cultura del idioma elegido (T2): "12.5%" en inglés, "12,5%" en español.
+            // v0.4: en meterStyle NO se pinta el glifo de forma (●/▲/◆) — la referencia del usuario no
+            // lo lleva, y el glifo (con métricas de línea muy distintas a un dígito) quedaba flotando
+            // desalineado arriba del número al alinearlo por altura de línea (bug real, --render-test).
+            // Fuera de meterStyle se conserva sin cambios (glifo + "%" en un solo tamaño, como antes).
+            string glyph = meterStyle ? "" : Tray.ShapeGlyph(Tray.ShapeFor(status)) + " ";
+            using var bigBrush = new SolidBrush(textColor);
+            using var glyphBrush = new SolidBrush(textColor);
+            using var suffixBrush = new SolidBrush(textColor);
+
+            // v0.4 "meter": el número va SOLO en grande ("47") y "% usado" cuelga como sufijo chico a
+            // la derecha (referencia del usuario) — antes "47%" entero iba al mismo tamaño.
+            string bigNum = meterStyle ? UsageFormat.PercentNumber(shown, s.Culture) : UsageFormat.Percent(shown, s.Culture);
+            string suffix = meterStyle ? $"% {s.MeterUsedSuffix}" : "";
+
+            // v0.4: número más chico que el Typography.Hero original (28pt) — 22pt pedido tras ver el
+            // print final. Font LOCAL (no el Typography.Hero cacheado) para no afectar a otros
+            // consumidores futuros, y ya escalado por "Tamaño del panel" (Dpi.UserScale): a 85% el
+            // número seguía a tamaño completo mientras la geometría se encogía (bug real reportado).
+            const float BigFontPt = 22f;
+            using var bigFont = new Font(Typography.Hero.FontFamily, BigFontPt * Dpi.UserScale, Typography.Hero.Style);
+            {
+                float bigW = g.MeasureString(bigNum, bigFont, int.MaxValue, TextMetrics.Typographic).Width;
+                float suffixW = suffix.Length > 0
+                    ? g.MeasureString(suffix, smallFont, int.MaxValue, TextMetrics.Typographic).Width : 0;
+                float glyphW = glyph.Length > 0
+                    ? g.MeasureString(glyph, smallFont, int.MaxValue, TextMetrics.Typographic).Width : 0;
+
+                // Alineado por LÍNEA DE BASE real (no por la caja de GetHeight): la caja completa de una
+                // fuente incluye "leading" por encima del ascent, así que anclar el sufijo al fondo de
+                // esa caja lo dejaba flotando por encima de donde realmente termina la tinta del número
+                // (pedido de ajuste: "alinha com o % usado"). BaselineOffset da la distancia real
+                // top→línea-base a partir de las métricas de diseño de la fuente (ascent/line-spacing),
+                // así que colocando cada texto en "y + suOffset" ambas líneas de base COINCIDEN.
+                float bigBaseline = y + BaselineOffset(bigFont, g);
+                float suffixY = bigBaseline - BaselineOffset(smallFont, g);
+
+                // Orden de derecha a izquierda: sufijo "% usado" (si hay) → número grande → glifo chico,
+                // con un hueco de seguridad entre cada tramo. Typography.Hero pide FontStyle.Bold sobre
+                // una familia sin peso bold real ⇒ GDI+ lo simula RE-TRAZANDO el contorno más grueso SIN
+                // ensanchar el ancho de avance que MeasureString reporta (bigW salía sistemáticamente
+                // por debajo del ancho realmente pintado) — por eso el sufijo quedaba MONTADO sobre el
+                // número (bug real, --render-test). El hueco absorbe ese margen de error.
+                float gap = suffix.Length > 0 ? Dpi.Scale(6) : 0;
+                float suffixX = x + w - suffixW;
+                float bigX = suffixX - gap - bigW;
+                g.DrawString(bigNum, bigFont, bigBrush, bigX, y, TextMetrics.Typographic);
+                if (suffix.Length > 0)
+                    g.DrawString(suffix, smallFont, suffixBrush, suffixX, suffixY, TextMetrics.Typographic);
+                g.DrawString(glyph, smallFont, glyphBrush, bigX - gap - glyphW, suffixY, TextMetrics.Typographic);
+            }
         }
-        y += Dpi.Scale(22); // fila label/% (T11: escala con el DPI, como las fuentes)
+        y += LabelRowH;
 
         if (draw)
         {
@@ -68,8 +141,22 @@ public static class QuotaBar
             int fw = (int)Math.Round(w * clamped);
             if (fw > 1)
             {
+                // Look "segmentado/LED": el tramo lleno se pinta en BLOQUES con un hueco de Track entre
+                // ellos (no un rectángulo continuo) — el hueco deja ver el Track ya pintado arriba, así
+                // el sampler de color de los tests (que descarta píxeles Track) sigue promediando solo
+                // píxeles de relleno real y no se ve afectado por el nuevo look.
+                int segGap = Math.Max(1, Dpi.Scale(3));
+                float segW = (w - segGap * (Segments - 1)) / (float)Segments;
                 using var fillBrush = new SolidBrush(c);
-                Shapes.FillRounded(g, fillBrush, new Rectangle(x, y, fw, BarH), BarRadius);
+                for (int i = 0; i < Segments; i++)
+                {
+                    float segX = x + i * (segW + segGap);
+                    if (segX >= x + fw) break;                         // bloque fuera del % lleno
+                    float segRight = Math.Min(segX + segW, x + fw);    // recorta el último bloque parcial
+                    int sw = (int)Math.Round(segRight - segX);
+                    if (sw > 0)
+                        Shapes.FillRounded(g, fillBrush, new Rectangle((int)Math.Round(segX), y, sw, BarH), Dpi.Scale(2));
+                }
             }
 
             // Ticks de umbral: muescas finas (1px) en Warn/Critical, tras el relleno para no quedar
@@ -99,21 +186,49 @@ public static class QuotaBar
                 g.FillPolygon(markerBrush, QuotaBarGeometry.PaceTriangle(mx, y));
             }
         }
-        y += BarH + 3;
+        y += BarH + BarBottomGap;
 
-        string cd = UsageFormat.Countdown(win?.ResetsAt, s.Resetting);
-        if (draw && cd.Length > 0)
+        // v0.4 "meter": countdown/reset en formato reloj ("03:15:51"/"4d 00:15" y "15:00" sin día de la
+        // semana), la referencia del usuario — el resto de consumidores conserva "2h 13m"/"ddd HH:mm".
+        string cd = meterStyle
+            ? UsageFormat.CountdownClock(win?.ResetsAt, s.Resetting)
+            : UsageFormat.Countdown(win?.ResetsAt, s.Resetting);
+        if (draw)
         {
-            // "resetea en 2h 13m · mar 18:42" — relativo (countdown) + hora local absoluta, con el
-            // día abreviado del idioma elegido (T2: la UI inglesa mostraba "jue 02:12").
-            // T8c: la línea se elide al ancho de la fila (locales largos / panel angosto la
-            // desbordaban). Solo pintado: el alto reservado no cambia → medir==pintar.
-            string abs = UsageFormat.ResetAbsolute(win?.ResetsAt, s.Culture);
-            string line = abs.Length > 0 ? $"{s.ResetsIn} {cd} · {abs}" : $"{s.ResetsIn} {cd}";
-            line = TextWrap.FitLine(line, x, x + w, 0, t => g.MeasureString(t, smallFont).Width);
-            g.DrawString(line, smallFont, dim, x, y);
+            // dos columnas — hora absoluta de reset a la izquierda, countdown en mono a la derecha
+            // (antes una sola línea combinada). T8c: la izquierda se elide al ancho de la fila (locales
+            // largos / panel angosto la desbordaban); la derecha SIEMPRE termina en x+w (DrawRight), así
+            // que nunca pinta más allá del ancho de la fila.
+            string abs = meterStyle
+                ? UsageFormat.ResetAbsoluteTimeOnly(win?.ResetsAt, s.Culture)
+                : UsageFormat.ResetAbsolute(win?.ResetsAt, s.Culture);
+            string left = abs.Length > 0 ? $"{s.ResetsIn} {abs}" : s.ResetsIn;
+            left = TextWrap.FitLine(left, x, x + w, 0, t => g.MeasureString(t, smallFont).Width);
+            g.DrawString(left, smallFont, dim, x, y);
+            if (cd.Length > 0)
+            {
+                // T14: Typography.Mono escalado por UserScale para acompanhar o resize.
+                bool scm = Math.Abs(Dpi.UserScale - 1f) >= 0.001f;
+                using var scaledMono = scm ? new Font(Typography.Mono.FontFamily, Typography.Mono.SizeInPoints * Dpi.UserScale, Typography.Mono.Style) : null;
+                Font mono = scaledMono ?? Typography.Mono;
+                TextMetrics.DrawRight(g, cd, mono, dim, x + w, y);
+            }
         }
-        return y + Dpi.Scale(14); // línea de reset (T11)
+        return y + ResetRowH;
+    }
+
+    /// <summary>
+    /// Distancia en px, desde el TOP de la caja de línea de <paramref name="f"/>, hasta su línea de
+    /// base real — a partir de las métricas de DISEÑO de la fuente (ascent/line-spacing, en unidades de
+    /// em independientes del punto/píxel), aplicadas sobre <see cref="Font.GetHeight(Graphics)"/> (la
+    /// línea completa ya en píxeles para este <paramref name="g"/>). Dibujar dos fuentes de tamaño
+    /// distinto en <c>y + BaselineOffset</c> dos dibuja con la MISMA línea de base, en vez de compartir
+    /// solo el tope o el fondo de su caja (que no coinciden entre fuentes de tamaño distinto).
+    /// </summary>
+    private static float BaselineOffset(Font f, Graphics g)
+    {
+        var fam = f.FontFamily;
+        return f.GetHeight(g) * fam.GetCellAscent(f.Style) / fam.GetLineSpacing(f.Style);
     }
 
     /// <summary>

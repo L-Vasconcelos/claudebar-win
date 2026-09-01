@@ -21,6 +21,9 @@ public static class DashboardSettingsView
     // Opacidades ofrecidas en el panel (como en el menú original, recortado a 3 para caber).
     private static readonly (string val, string txt)[] OpacitySegs =
         { ("1", "100%"), ("0.85", "85%"), ("0.7", "70%") };
+    // Tamaños de panel ofrecidos (multiplicador de Dpi.UserScale, encima del DPI real del monitor).
+    private static readonly (string val, string txt)[] PanelScaleSegs =
+        { ("0.85", "85%"), ("1", "100%"), ("1.15", "115%"), ("1.3", "130%") };
     // Combinaciones de umbral warn/critical del menú original.
     private static readonly (double warn, double crit)[] ThresholdOptions = { (70, 90), (80, 95), (60, 85) };
     // Hitos de notificación individuales (toggles sobre NotifyMilestones).
@@ -180,6 +183,7 @@ public static class DashboardSettingsView
         // Posición: fila que cicla (5 opciones no caben en segmentos); muestra la posición actual.
         y = CycleRow(g, draw, "cycle:position", s.Position, PosLabel(cfg.DashboardPosition, s), x, y, w, theme, smallFont, rects);
         y = SegmentedRow(g, draw, "opacity", s.Opacity, OpacitySegs, FmtOpacity(cfg.DashboardOpacity), x, y, w, theme, smallFont, rects);
+        y = SegmentedRow(g, draw, "scale", s.PanelSize, PanelScaleSegs, FmtScale(cfg.PanelScale), x, y, w, theme, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:Sticky", s.Sticky, null, cfg.DashboardSticky, x, y, w, theme, labelFont, smallFont, rects);
         y = ToggleRow(g, draw, "toggle:OnTop", s.AlwaysOnTop, null, cfg.DashboardAlwaysOnTop, x, y, w, theme, labelFont, smallFont, rects);
         // "Reducir movimiento" lleva subtítulo aclaratorio ("Desactiva las animaciones").
@@ -262,6 +266,11 @@ public static class DashboardSettingsView
                 System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var op))
             return c => c.DashboardOpacity = op;
 
+        // Tamaño del panel: "scale:<double>"
+        if (key.StartsWith("scale:") && double.TryParse(key.AsSpan("scale:".Length),
+                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sc))
+            return c => c.PanelScale = sc;
+
         // Umbral: "threshold:<warn>/<crit>"
         if (key.StartsWith("threshold:"))
         {
@@ -314,6 +323,17 @@ public static class DashboardSettingsView
         return v.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    private static string FmtScale(double scale)
+    {
+        double v = scale <= 0 ? 1.0 : scale;
+        // Casa con PanelScaleSegs ("0.85"/"1"/"1.15"/"1.3") usando invariant culture.
+        if (Math.Abs(v - 0.85) < 0.001) return "0.85";
+        if (Math.Abs(v - 1.0) < 0.001) return "1";
+        if (Math.Abs(v - 1.15) < 0.001) return "1.15";
+        if (Math.Abs(v - 1.3) < 0.001) return "1.3";
+        return v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     // ---------------- helpers de dibujo (simetría medir/pintar; registran rects con clave) ----------------
 
     // -------- ritmo vertical sobre rejilla 8pt: DOS tokens uniformes (P2 #2) --------
@@ -321,8 +341,10 @@ public static class DashboardSettingsView
     // rowGap     = separación entre filas del MISMO grupo.
     // Antes los avances eran +Md arriba de la cabecera y +Sm entre filas (ritmo plano, poco "Apple").
     // Ahora la cabecera respira Xl arriba y las filas Md entre sí: agrupación perceptible y consistente.
-    internal const int SectionGap = Spacing.Xl;   // 24 — aire sobre cada cabecera
-    internal const int RowGap = Spacing.Md;       // 12 — separación entre filas
+    // T14: px de diseño escalados al DPI vigente (antes const raw → el espaciamento NÃO acompanhava o
+    // resize do painel enquanto as fontes sim, causando desproporção visual).
+    internal static int SectionGap => Dpi.Scale(Spacing.Xl);   // 24 @ 96 DPI — aire sobre cada cabecera
+    internal static int RowGap => Dpi.Scale(Spacing.Md);       // 12 @ 96 DPI — separación entre filas
     // Alto de contenido de una fila estándar de 1 línea; el avance suma RowGap entre filas.
     // T11: en px de diseño (96 DPI) proyectados al DPI vigente (a factor 1.0, idénticos a las const).
     private static int RowContentHeight => Dpi.Scale(18);
@@ -332,7 +354,8 @@ public static class DashboardSettingsView
     private static int SegmentRowAdvance => SegmentHeight + RowGap;   // fila de segmentos = alto + rowGap
     // Separación vertical entre las dos hileras cuando una fila de segmentos ENVUELVE (intra-control,
     // más apretada que rowGap: las 2 hileras son el MISMO control).
-    private const int SegmentWrapGap = Spacing.Sm;
+    // T14: escalado con DPI (antes const raw).
+    private static int SegmentWrapGap => Dpi.Scale(Spacing.Sm);
 
     // -------- TogglePill: cápsula+knob dibujada (sustituye ☑/☐) sobre rejilla 8pt --------
     // Track de 36×20 (múltiplos de 4) con knob circular ligeramente menor que el alto del track.
@@ -360,11 +383,11 @@ public static class DashboardSettingsView
         if (draw)
         {
             // Divisor 1px dentro de [x, x+w], centrado en el aire inferior.
-            int dy = y + Spacing.Sm / 2;
+            int dy = y + Dpi.Scale(Spacing.Sm) / 2;
             using var pen = new Pen(theme.Separator, 1);
             g.DrawLine(pen, x, dy, x + w, dy);
         }
-        return y + Spacing.Sm; // aire abajo (separa de la primera fila)
+        return y + Dpi.Scale(Spacing.Sm); // aire abajo (separa de la primera fila)
     }
 
     // -------- DrawDependent: sub-ajuste dependiente de un master (indent + atenuación + inercia) --------
@@ -410,8 +433,8 @@ public static class DashboardSettingsView
     internal static int DrawDependent(bool active, int x, int y, int w, Theme theme,
         Dictionary<string, Rectangle> rects, Func<int, int, Theme, int> drawInner)
     {
-        int ix = x + Spacing.Lg;        // sangría del dependiente
-        int iw = w - Spacing.Lg;        // ancho útil reducido por la sangría
+        int ix = x + Dpi.Scale(Spacing.Lg);        // sangría del dependiente
+        int iw = w - Dpi.Scale(Spacing.Lg);        // ancho útil reducido por la sangría
         Theme eff = active ? theme : Dimmed(theme);
         // Snapshot de claves para poder retirar las nuevas (inercia) si el master está off.
         var before = active ? null : new HashSet<string>(rects.Keys);
@@ -443,7 +466,7 @@ public static class DashboardSettingsView
     internal static Rectangle TogglePill(Graphics g, bool draw, bool on, int rightX, int y, int rowH, Theme theme)
     {
         // Anclado a la derecha con margen interno ≥ Spacing.Sm; centrado verticalmente en la fila.
-        int tx = rightX - Spacing.Sm - PillTrackW;
+        int tx = rightX - Dpi.Scale(Spacing.Sm) - PillTrackW;
         int ty = y + (rowH - PillTrackH) / 2;
         var track = new Rectangle(tx, ty, PillTrackW, PillTrackH);
         if (draw)
@@ -469,7 +492,7 @@ public static class DashboardSettingsView
 
     // -------- StatusBadge: cápsula semántica de estado (Activas/Instalar) a la derecha de la fila --------
     // Padding interno horizontal del badge (reusa la geometría de chip de DrawSegments → un solo lenguaje).
-    private const int BadgePadX = SegPadX;
+    private static int BadgePadX => SegPadX;
     // Alto del badge sobre la rejilla 8pt (coincide con el alto de un chip de segmento, ya escalado).
     private static int BadgeHeight => SegmentHeight;
     private const int BadgeRadius = 4;
@@ -485,7 +508,7 @@ public static class DashboardSettingsView
     {
         text ??= string.Empty;
         // Espacio disponible para el badge completo: desde contentLeft (x) hasta rightX con margen Sm.
-        int maxBadgeW = (rightX - Spacing.Sm) - x;
+        int maxBadgeW = (rightX - Dpi.Scale(Spacing.Sm)) - x;
         int maxTextW = maxBadgeW - BadgePadX * 2;
         if (maxTextW <= 0) return TextWrap.Ellipsis;
         return TextWrap.Ellipsize(text, maxTextW, t => g.MeasureString(t, f).Width);
@@ -506,7 +529,7 @@ public static class DashboardSettingsView
         string shown = StatusBadgeShownText(g, text, x, rightX, f);
         int textW = (int)Math.Ceiling(g.MeasureString(shown, f).Width);
         int badgeW = textW + BadgePadX * 2;
-        int rightEdge = rightX - Spacing.Sm;             // margen derecho de seguridad
+        int rightEdge = rightX - Dpi.Scale(Spacing.Sm);   // margen derecho de seguridad
         int bx = rightEdge - badgeW;
         if (bx < x) { bx = x; badgeW = Math.Max(0, rightEdge - bx); } // clamp izquierdo a contentLeft
         int by = y + (rowH - BadgeHeight) / 2;            // centrado vertical en la fila
@@ -548,7 +571,7 @@ public static class DashboardSettingsView
         // ANTI-CORTE (P0 #2): el texto NO se elide. La columna de texto izquierda mide su ancho útil hasta
         // el borde izquierdo del badge (gutter Spacing.Md) y, si no cabe en 1 línea, ENVUELVE a varias líneas
         // (WordBreak), sumando su alto en AMBAS pasadas → medir==pintar. Yovan quiere el TEXTO COMPLETO.
-        int textColW = (badge.Width > 0 ? badge.X : x + w) - Spacing.Md - x;
+        int textColW = (badge.Width > 0 ? badge.X : x + w) - Dpi.Scale(Spacing.Md) - x;
         if (textColW <= 0) textColW = Math.Max(1, x + w - x); // defensa: nunca ≤ 0
 
         var labelLines = TextWrap.WordWrap(label, textColW, t => g.MeasureString(t, labelFont).Width);
@@ -609,13 +632,16 @@ public static class DashboardSettingsView
         y = MasterToggleRow(g, draw, "special:hooktoggle",
             s.Enabled, s.LiveSessionsSubtitle, hooksInstalled,
             x, y, w, theme, labelFont, smallFont, rects);
-        // Dependientes: atenuados + inertes mientras no haya hooks (la mascota Idle solo cobra vida con hooks).
         // MASCOTA = toggle simple "Mostrar mascota" (v0.3.7): la talla grande se retiró, así que la
-        // decisión vuelve a ser binaria (oculta / gatito compacto) y el control de 3 estados sobra.
+        // decisión vuelve a ser binaria (oculta / calavera compacta) y el control de 3 estados sobra.
+        // A diferencia de los demás dependientes, este NO pasa por DrawDependent: la mascota Idle se ve
+        // con ShowMascot=on AUNQUE los hooks no estén instalados (ver DashboardHeaderTests, T0), así que
+        // dejarla inerte sin hooks era el bug real — el usuario no podía apagarla sin antes activar
+        // Sesiones en vivo (instalar hooks), aunque el sprite ya se mostrara sin ellos. Se conserva la
+        // sangría Lg por jerarquía visual, pero siempre en color pleno y clicable.
         int mascotY = y;
-        y = DrawDependent(hooksInstalled, x, mascotY, w, theme, rects,
-            (ix, iw, th) => ToggleRow(g, draw, "toggle:ShowMascot", s.MenuShowMascot, null,
-                cfg.ShowMascot, ix, mascotY, iw, th, labelFont, smallFont, rects));
+        y = ToggleRow(g, draw, "toggle:ShowMascot", s.MenuShowMascot, null,
+            cfg.ShowMascot, x + Dpi.Scale(Spacing.Lg), mascotY, w - Dpi.Scale(Spacing.Lg), theme, labelFont, smallFont, rects);
         int supY = y;
         y = DrawDependent(hooksInstalled, x, supY, w, theme, rects,
             (ix, iw, th) => ToggleRow(g, draw, "toggle:Suppress", s.MenuSuppressWhenFocused, null,
@@ -640,8 +666,8 @@ public static class DashboardSettingsView
         // El pill se ancla a la derecha (mismo cálculo que TogglePill, sin dibujar todavía): su borde
         // izquierdo fija el ancho de la columna de texto (gutter Spacing.Md), así el texto NUNCA pasa por
         // debajo del pill. Medir==pintar: la geometría del pill no depende de draw.
-        int pillLeft = (x + w) - Spacing.Sm - PillTrackW;
-        int textColW = pillLeft - Spacing.Md - x;
+        int pillLeft = (x + w) - Dpi.Scale(Spacing.Sm) - PillTrackW;
+        int textColW = pillLeft - Dpi.Scale(Spacing.Md) - x;
         if (textColW <= 0) textColW = Math.Max(1, w); // defensa: nunca ≤ 0
 
         var labelLines = TextWrap.WordWrap(label, textColW, t => g.MeasureString(t, labelFont).Width);
@@ -709,8 +735,8 @@ public static class DashboardSettingsView
         int x, int w, Font f)
     {
         int labelW = (int)Math.Ceiling(g.MeasureString(label, f).Width);
-        int rightEdge = x + w - Spacing.Sm;            // margen derecho de seguridad
-        int valueLeftBound = x + labelW + Spacing.Md;  // gutter mínimo etiqueta↔valor
+        int rightEdge = x + w - Dpi.Scale(Spacing.Sm);   // margen derecho de seguridad
+        int valueLeftBound = x + labelW + Dpi.Scale(Spacing.Md);  // gutter mínimo etiqueta↔valor
         int maxValueW = Math.Max(0, rightEdge - valueLeftBound);
         string shown = ShownInfoValue(g, value, maxValueW, f);
         int valueW = (int)Math.Ceiling(g.MeasureString(shown, f).Width);
@@ -745,9 +771,9 @@ public static class DashboardSettingsView
             var (_, _, rx, _) = InfoRowLayout(g, label, value, x, w, f);
             using (var lb = new SolidBrush(theme.TextMuted))
                 g.DrawString(label, f, lb, x, y);
-            int rightEdge = x + w - Spacing.Sm;
+            int rightEdge = x + w - Dpi.Scale(Spacing.Sm);
             int labelW = (int)Math.Ceiling(g.MeasureString(label, f).Width);
-            int maxValueW = Math.Max(0, rightEdge - (x + labelW + Spacing.Md));
+            int maxValueW = Math.Max(0, rightEdge - (x + labelW + Dpi.Scale(Spacing.Md)));
             string shown = ShownInfoValue(g, value, maxValueW, f);
             using var vb = new SolidBrush(theme.TextPrimary);
             g.DrawString(shown, f, vb, rx, y);
@@ -787,7 +813,7 @@ public static class DashboardSettingsView
     /// </summary>
     internal static int CycleRowValueLineCount(Graphics g, string current, int x, int w, Font f)
     {
-        int valueW = Math.Max(1, w - Spacing.Sm); // ancho útil del valor (deja margen derecho ≥ Sm)
+        int valueW = Math.Max(1, w - Dpi.Scale(Spacing.Sm)); // ancho útil del valor (deja margen derecho ≥ Sm)
         return TextWrap.WordWrap(current ?? string.Empty, valueW, t => g.MeasureString(t, f).Width).Count;
     }
 
@@ -804,7 +830,7 @@ public static class DashboardSettingsView
         int x, int y, int w, Theme theme, Font f, Dictionary<string, Rectangle> rects)
     {
         int lineH = (int)Math.Ceiling(g.MeasureString(label, f).Height);
-        int valueW = Math.Max(1, w - Spacing.Sm);
+        int valueW = Math.Max(1, w - Dpi.Scale(Spacing.Sm));
         var valueLines = TextWrap.WordWrap(current ?? string.Empty, valueW, t => g.MeasureString(t, f).Width);
         int contentH = lineH + valueLines.Count * lineH; // etiqueta + N líneas de valor
 
@@ -825,7 +851,9 @@ public static class DashboardSettingsView
     // DashboardDataView.DrawSegments (Accent activo + Contrast / BgElevated + borde Separator), pero la
     // SEPARACIÓN entre opciones sube a Spacing.Sm (más aire que el 3px de las tabs del chart) — P2 #2: las
     // afordancias del panel (segmented de Tema/Frecuencia/Icono/Mascota) comparten geometría y respiran.
-    private const int SegGap = Spacing.Sm, SegPadX = 7;
+    // T14: escalado con DPI (antes const raw → chips com padding fixo enquanto texto crescia).
+    private static int SegGap => Dpi.Scale(Spacing.Sm);
+    private static int SegPadX => Dpi.Scale(7);
 
     /// <summary>
     /// Etiqueta de una fila de segmentos ENVUELTA dentro de <c>[x, x+w-Spacing.Sm]</c> (T8a, §3 #13:
@@ -840,7 +868,7 @@ public static class DashboardSettingsView
         int x, int y, int w, Theme theme, Font f)
     {
         if (string.IsNullOrEmpty(label)) return (x, 0);
-        var lines = TextWrap.WordWrap(label, w - Spacing.Sm, t => g.MeasureString(t, f).Width);
+        var lines = TextWrap.WordWrap(label, w - Dpi.Scale(Spacing.Sm), t => g.MeasureString(t, f).Width);
         int lineH = (int)Math.Ceiling(g.MeasureString(label, f).Height);
         if (draw)
         {
@@ -849,7 +877,7 @@ public static class DashboardSettingsView
             foreach (var line in lines) { g.DrawString(line, f, b, x, ly); ly += lineH; }
         }
         return lines.Count == 1
-            ? (x + (int)Math.Ceiling(g.MeasureString(label, f).Width) + Spacing.Md, lineH)
+            ? (x + (int)Math.Ceiling(g.MeasureString(label, f).Width) + Dpi.Scale(Spacing.Md), lineH)
             : (x + w, lines.Count * lineH);
     }
 
@@ -884,7 +912,7 @@ public static class DashboardSettingsView
     {
         // T8a: la etiqueta envuelve dentro del ancho útil (con 2+ líneas los chips caen debajo del bloque).
         var (labelRight, labelBlockH) = SegmentRowLabel(g, draw, label, x, y, w, theme, f);
-        int rightEdge = x + w - Spacing.Sm;            // margen derecho de seguridad
+        int rightEdge = x + w - Dpi.Scale(Spacing.Sm);   // margen derecho de seguridad
 
         int total = SegmentsTotalWidth(g, f, segs.Select(s => s.txt).ToList());
         int avail = rightEdge - Math.Max(labelRight, x);
@@ -904,7 +932,7 @@ public static class DashboardSettingsView
         bool hasLabel = !string.IsNullOrEmpty(label);
         int chipsY = hasLabel ? y + Math.Max(SegmentHeight, labelBlockH) + SegmentWrapGap : y;
         int rowWidth = w; // ancho útil del renglón empezando en contentLeft
-        if (total <= rowWidth - Spacing.Sm)
+        if (total <= rowWidth - Dpi.Scale(Spacing.Sm))
         {
             // Caben todos en un renglón propio anclados a la izquierda.
             DrawSelectChips(g, draw, key, segs, active, x, chipsY, theme, f, rects);
@@ -988,7 +1016,7 @@ public static class DashboardSettingsView
 
         var activeSet = new HashSet<string>((active ?? Enumerable.Empty<int>())
             .Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-        int rightEdge = x + w - Spacing.Sm;            // margen derecho de seguridad
+        int rightEdge = x + w - Dpi.Scale(Spacing.Sm);   // margen derecho de seguridad
 
         // ANTI-TRUNCAMIENTO (igual que SegmentedRow): mide el ancho total; si los chips NO caben en el
         // espacio útil a la derecha de la etiqueta ([labelRight, rightEdge]) → ENVUELVE a 2 filas
@@ -1013,7 +1041,7 @@ public static class DashboardSettingsView
         // determinista en ambas pasadas). Con etiqueta de 1 línea el avance histórico se conserva.
         bool hasLabel = !string.IsNullOrEmpty(label);
         int chipsY = hasLabel ? y + Math.Max(SegmentHeight, labelBlockH) + SegmentWrapGap : y; // chips bajo la etiqueta
-        if (total <= w - Spacing.Sm)
+        if (total <= w - Dpi.Scale(Spacing.Sm))
         {
             // Caben todos en un renglón propio anclados a la izquierda.
             DrawMultiChips(g, draw, key, segs, activeSet, x, chipsY, theme, f, rects);

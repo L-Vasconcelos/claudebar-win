@@ -43,7 +43,7 @@ public static class MascotRenderer
         // de arranque elapsed-driven (state.SpinnerAngleDeg). Anclado a la fila de la CARA (y+lineH),
         // no a la oreja. Solo pintado y dentro de la celda → no ensancha el tamaño reservado.
         if (draw && state.SpinnerGlyph != '\0')
-            DrawSpinnerArc(g, x + maxW + Spacing.Sm, y + lineH, lineH, state.SpinnerAngleDeg, PhaseColor(theme, phase));
+            DrawSpinnerArc(g, x + maxW + Dpi.Scale(Spacing.Sm), y + lineH, lineH, state.SpinnerAngleDeg, PhaseColor(theme, phase));
 
         return new Size((int)Math.Ceiling(maxW), (int)Math.Ceiling(frame.Length * lineH));
     }
