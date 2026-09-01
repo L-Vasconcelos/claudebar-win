@@ -190,6 +190,11 @@ public static class TrayIconRenderer
     public static Color StaleFill(Color bg, bool taskbarLight)
         => ColorMath.Lerp(taskbarLight ? TaskbarColors.Light : TaskbarColors.Dark, bg, StaleAlpha / 255.0);
 
+    /// <summary>Amarillo fijo del ícono "sparkle" (v0.3.9 estética): ya no codifica riesgo por color,
+    /// así que es una constante, no <see cref="ColorMath.RiskColor"/>. Internal (no private) para que
+    /// los tests puedan derivar el mismo "ink" de contraste que usa el overlay de forma/punto.</summary>
+    internal static readonly Color SparkleYellow = Color.FromArgb(255, 224, 64);
+
     private static Icon RenderBadge(string text, Color bg, UsageStatus status, bool stale, bool pending,
         Color pendingDot, bool taskbarLight = false)
     {
@@ -202,28 +207,19 @@ public static class TrayIconRenderer
             g.TextRenderingHint = TextRenderingHint.AntiAlias;
             g.Clear(Color.Transparent);
 
-            // Estado "stale": dato envejecido → badge atenuado hacia el color de la barra para que se
-            // note de un vistazo que no es fresco. Atenuado SIN alpha (pre-compuesto a opaco, T6b):
-            // sobre la barra asumida se ve igual que el velo translúcido, pero el color pintado es el
-            // color real en pantalla y la decisión de contraste del texto deja de mentir.
-            Color fillColor = stale ? StaleFill(bg, taskbarLight) : bg;
+            // Ícono puramente decorativo (pedido del usuario): un "sparkle" de 8 puntas amarillo fijo en
+            // vez del badge redondeado con el % dentro. El dato real (cota, riesgo) sigue disponible en
+            // el tooltip del tray (TrayAppContext fija _tray.Text aparte) y en el panel al hacer clic —
+            // aquí solo cambia la FORMA/color del ícono, no la información que expone la app.
+            // Estado "stale": dato envejecido → ícono atenuado hacia el color de la barra para que se
+            // note de un vistazo que no es fresco (mismo criterio de antes, aplicado al amarillo fijo).
+            Color fillColor = stale ? StaleFill(SparkleYellow, taskbarLight) : SparkleYellow;
             using (var brush = new SolidBrush(fillColor))
-                Shapes.FillRounded(g, brush, new Rectangle(0, 0, size - 1, size - 1), 11);
+                FillSparkle(g, brush, size);
 
-            // Texto con contraste calculado sobre el relleno EFECTIVO (no el fresco): legible en barra
-            // clara/oscura también cuando el badge está atenuado por stale.
+            // Contraste calculado sobre el relleno EFECTIVO: usado por el overlay de forma (a11y) y el
+            // punto de atención, igual que antes — ya no hay texto que colorear.
             Color textColor = ColorMath.Contrast(fillColor);
-            // Larger glyph that fills more of the badge → readable even when shrunk into the tray.
-            // Fit-to-box: 1-2 dígitos llenan a BadgeFontPx; "99+" (3 chars) se REESCALA para llenar la
-            // caja (~22-24px) en vez del 18px fijo histórico — su peor caso de legibilidad. NoWrap deja
-            // "99+" en una sola línea (no "99 / +"). El tamaño ya no es un literal mágico (F9).
-            // El MISMO sf mide y dibuja: el fit contempla el side bearing real, así "99+" no se recorta
-            // por la derecha (regresión v039 g4: con métricas distintas GDI+ comía el '+').
-            using var sf = DrawBadgeFormat();
-            float fontPx = FitFontPx(g, text, BadgeTextBox, sf);
-            using var font = new Font("Segoe UI", fontPx, FontStyle.Bold, GraphicsUnit.Pixel);
-            using (var textBrush = new SolidBrush(textColor))
-                g.DrawString(text, font, textBrush, new RectangleF(0, -2f, size, size), sf);
 
             // Estado por forma (a11y): overlay de forma en la esquina inferior derecha para Warn/Critical.
             // Ok→círculo = sin overlay (el badge ya es el indicador). T9d (§3 #15): con el punto de
@@ -277,6 +273,27 @@ public static class TrayIconRenderer
         {
             DestroyIcon(hIcon);
         }
+    }
+
+    /// <summary>
+    /// Estrella/"sparkle" de 8 puntas centrada en un lienzo de <paramref name="size"/> px: alterna radio
+    /// externo (puntas) e interno (valles) cada 22.5°, con la primera punta apuntando hacia arriba.
+    /// Puramente estético (T-sparkle): sustituye el relleno redondeado del badge numérico.
+    /// </summary>
+    private static void FillSparkle(Graphics g, Brush brush, int size)
+    {
+        const int spikes = 8;
+        float cx = size / 2f, cy = size / 2f;
+        float outerR = size / 2f - 1f;
+        float innerR = outerR * 0.38f;
+        var pts = new PointF[spikes * 2];
+        for (int i = 0; i < spikes * 2; i++)
+        {
+            double angle = Math.PI / spikes * i - Math.PI / 2;
+            float r = i % 2 == 0 ? outerR : innerR;
+            pts[i] = new PointF(cx + r * (float)Math.Cos(angle), cy + r * (float)Math.Sin(angle));
+        }
+        g.FillPolygon(brush, pts);
     }
 
     /// <summary>Pinta la forma de estado en la esquina inferior derecha. Circle (Ok) no dibuja overlay.</summary>

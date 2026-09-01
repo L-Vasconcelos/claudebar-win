@@ -26,8 +26,15 @@ public static class Dpi
     // hilo, así que el default por hilo (1.0) se resuelve en la propiedad (null ⇒ 1.0).
     [ThreadStatic] private static float? _factor;
 
-    /// <summary>Factor de escala vigente en ESTE hilo (1.0 = 96 DPI, 1.25 = 120, 1.5 = 144…).</summary>
-    public static float Factor => _factor ?? 1f;
+    /// <summary>
+    /// Multiplicador elegido por el usuario en Ajustes ("Tamanho do painel", 0.85–1.3), aplicado ENCIMA
+    /// del factor de DPI real. A diferencia de <see cref="_factor"/> no es por-hilo: es una preferencia
+    /// global de la app (no depende de en qué monitor esté la ventana), así que un plain static basta.
+    /// </summary>
+    public static float UserScale { get; set; } = 1f;
+
+    /// <summary>Factor de escala vigente en ESTE hilo (1.0 = 96 DPI, 1.25 = 120, 1.5 = 144…) × UserScale.</summary>
+    public static float Factor => (_factor ?? 1f) * UserScale;
 
     /// <summary>Fija el factor ambiente del hilo actual a partir del DPI real del monitor.</summary>
     public static void Apply(int deviceDpi) => _factor = FactorFor(deviceDpi);

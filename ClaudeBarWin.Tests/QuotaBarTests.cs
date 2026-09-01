@@ -114,7 +114,7 @@ public class QuotaBarTests
         QuotaBar.Draw(g, draw: true, "Session (5h)", win, pace, x, y0, w,
             cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
 
-        int barY = y0 + 22;                                   // la barra arranca 22px bajo la fila del label
+        int barY = y0 + QuotaBar.LabelRowH;                   // la barra arranca bajo la fila del label
         int mx = QuotaBarGeometry.MarkerX(x, w, 50);
         var mk = Theme.Dark.TextMuted;
         for (int py = barY - 5; py <= barY - 3; py++)
@@ -146,12 +146,12 @@ public class QuotaBarTests
         QuotaBar.Draw(g, draw: true, "Session (5h)", win, pace: null, x, y0, w,
             cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
 
-        int barY = y0 + 22;
+        int barY = y0 + QuotaBar.LabelRowH;
         int wx = QuotaBarGeometry.TickX(x, w, cfg.WarnThresholdPct);
         bool visible = false;
         for (int px = wx - 1; px <= wx + 1 && !visible; px++)
         {
-            var p = bmp.GetPixel(px, barY + 5);               // mitad de la barra (BarH=11)
+            var p = bmp.GetPixel(px, barY + QuotaBar.BarH / 2); // mitad de la barra
             if (ColorMath.ContrastRatio(p, Theme.Dark.Track) >= 3.0) visible = true;
         }
         Assert.True(visible, "el tick de warn no se distingue del track (necesita TickOnTrack, ≥3:1)");
@@ -177,8 +177,8 @@ public class QuotaBarTests
         QuotaBar.Draw(g, draw: true, "5h", win, pace: null, x, y0, w,
             cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
 
-        // Banda de la línea de reset: tras la fila label/% (22) y la barra (BarH 11 + 3).
-        int resetY = y0 + 22 + 11 + 3;
+        // Banda de la línea de reset: tras la fila label/número y la barra + su aire inferior.
+        int resetY = y0 + QuotaBar.LabelRowH + QuotaBar.BarH + QuotaBar.BarBottomGap;
         var bg = Theme.Dark.Background;
         for (int px = x + w + 2; px < bmp.Width; px++)
             for (int py = resetY; py < resetY + 14; py++)
@@ -237,12 +237,12 @@ public class QuotaBarTests
     // medio de los que están dentro del tramo lleno. Aísla el relleno del track y de los ticks/marker.
     private static Color SampleFillColor(Bitmap bmp, Theme theme, int x, int barY, int fillW)
     {
-        // Centro vertical de la barra (BarH=11 ⇒ ~+5) y mitad izquierda del relleno (lejos del marker/ticks).
+        // Centro vertical de la barra y mitad izquierda del relleno (lejos del marker/ticks).
         long r = 0, gg = 0, b = 0; int n = 0;
         var track = theme.Track;
         for (int px = x + 2; px < x + Math.Max(3, fillW - 2); px++)
         {
-            var p = bmp.GetPixel(px, barY + 5);
+            var p = bmp.GetPixel(px, barY + QuotaBar.BarH / 2);
             bool isTrack = Math.Abs(p.R - track.R) <= 6 && Math.Abs(p.G - track.G) <= 6 && Math.Abs(p.B - track.B) <= 6;
             if (isTrack) continue;
             r += p.R; gg += p.G; b += p.B; n++;
@@ -266,7 +266,7 @@ public class QuotaBarTests
         QuotaBar.Draw(g, draw: true, "Session (5h)", win, pace, x, y0, w,
             cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
 
-        int barY = y0 + 22;
+        int barY = y0 + QuotaBar.LabelRowH;
         int fillW = (int)Math.Round(w * Math.Min(util / 100.0, 1.0));
         return SampleFillColor(bmp, Theme.Dark, x, barY, fillW);
     }
@@ -331,7 +331,7 @@ public class QuotaBarTests
         QuotaBar.Draw(g, draw: true, "Session (5h)", win, pace, x, y0, w,
             cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
 
-        int barY = y0 + 22;
+        int barY = y0 + QuotaBar.LabelRowH;
         int mx = QuotaBarGeometry.MarkerX(x, w, idealPct);
         // El marcador sobresale por encima de la barra (MarkerOvershoot): muestrear esa banda evita
         // confundirlo con el relleno. Tolerancia amplia por el AA de la línea de 2px.
@@ -394,9 +394,11 @@ public class QuotaBarTests
         QuotaBar.Draw(g, draw: true, "Session (5h)", win, pace: null, x, y0, w,
             cfg, s, Theme.Dark, Typography.Body, Typography.Caption, fg, dim);
 
-        // Banda de la fila etiqueta/% (la barra arranca en y0+22): la tinta más a la derecha es el %.
-        int ink = TextMetricsTests.RightmostInk(bmp, Theme.Dark.Background, y0, y0 + 18);
+        // Banda de la fila etiqueta/número (la barra arranca en y0+LabelRowH): con el número grande
+        // (Typography.Hero) la tinta es más alta que antes, así que la banda escaneada usa LabelRowH
+        // completo en vez del 18px histórico (pensado para el mono pequeño de antes).
+        int ink = TextMetricsTests.RightmostInk(bmp, Theme.Dark.Background, y0, y0 + QuotaBar.LabelRowH);
         Assert.True(ink >= 0, "no se pintó la fila etiqueta/%");
-        Assert.InRange(ink, x + w - 3, x + w);
+        Assert.InRange(ink, x + w - 6, x + w);
     }
 }

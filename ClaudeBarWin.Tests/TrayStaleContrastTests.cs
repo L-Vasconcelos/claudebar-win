@@ -14,64 +14,11 @@ public class TrayStaleContrastTests
 {
     private const double Warn = 70, Crit = 90;
 
-    /// <summary>Compone el icono sobre el color de barra de tareas, como hace Windows en el tray.</summary>
-    private static Bitmap ComposeOnBar(Icon ico, Color bar)
-    {
-        var b = new Bitmap(48, 48);
-        using var g = Graphics.FromImage(b);
-        g.Clear(bar);
-        using var ib = ico.ToBitmap();
-        g.DrawImage(ib, 0, 0, 48, 48);
-        return b;
-    }
-
-    /// <summary>
-    /// Contraste efectivo del dígito: relleno muestreado en el borde izquierdo (lejos de tinta y
-    /// overlay) y, como ink, el píxel del área central que MÁS contrasta con ese relleno (el núcleo
-    /// del glifo; los bordes AA contrastan menos, nunca más).
-    /// </summary>
-    private static (double ratio, Color ink, Color fill) InkContrast(Bitmap composed)
-    {
-        Color fill = composed.GetPixel(3, 24);
-        double best = 1.0;
-        Color ink = fill;
-        for (int y = 10; y <= 38; y++)
-            for (int x = 8; x <= 40; x++)
-            {
-                var p = composed.GetPixel(x, y);
-                double r = ColorMath.ContrastRatio(p, fill);
-                if (r > best) { best = r; ink = p; }
-            }
-        return (best, ink, fill);
-    }
-
-    [Theory]
-    [InlineData(12, UsageStatus.Ok)]        // regresó a 2.00:1 (negro sobre verde compuesto oscuro)
-    [InlineData(68, UsageStatus.Warn)]      // regresó a 2.07:1
-    [InlineData(95, UsageStatus.Critical)]  // no regresó (blanco), debe seguir cumpliendo
-    public void Stale_digit_is_readable_on_dark_taskbar(int pct, UsageStatus st)
-    {
-        using var ico = TrayIconRenderer.Render(pct, Theme.Dark, Warn, Crit, st, stale: true,
-            pending: false, taskbarLight: false);
-        using var composed = ComposeOnBar(ico, TaskbarColors.Dark);
-        var (ratio, ink, fill) = InkContrast(composed);
-        Assert.True(ratio >= 4.5,
-            $"stale {pct}% sobre barra oscura: ink {ink} sobre relleno efectivo {fill} = {ratio:0.00}:1 (< 4.5)");
-    }
-
-    [Theory]
-    [InlineData(12, UsageStatus.Ok)]
-    [InlineData(68, UsageStatus.Warn)]
-    [InlineData(95, UsageStatus.Critical)]
-    public void Stale_digit_is_readable_on_light_taskbar(int pct, UsageStatus st)
-    {
-        using var ico = TrayIconRenderer.Render(pct, Theme.Dark, Warn, Crit, st, stale: true,
-            pending: false, taskbarLight: true);
-        using var composed = ComposeOnBar(ico, TaskbarColors.Light);
-        var (ratio, ink, fill) = InkContrast(composed);
-        Assert.True(ratio >= 4.5,
-            $"stale {pct}% sobre barra clara: ink {ink} sobre relleno efectivo {fill} = {ratio:0.00}:1 (< 4.5)");
-    }
+    // NOTA (v0.3.9, ícono "sparkle"): el tray ya no dibuja el dígito del % (ícono puramente decorativo,
+    // el dato real sigue en el tooltip/panel) — Stale_digit_is_readable_on_dark_taskbar/light_taskbar (y
+    // sus helpers ComposeOnBar/InkContrast) se retiraron porque medían el contraste de un glifo que ya
+    // no se pinta. Los tests restantes de este archivo siguen probando las funciones puras subyacentes
+    // (StaleFill/Contrast), que no cambiaron.
 
     [Fact]
     public void StaleFill_is_opaque_and_its_contrast_side_meets_aa_for_all_risk_colors()

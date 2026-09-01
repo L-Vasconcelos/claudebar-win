@@ -3,8 +3,9 @@ using ClaudeBarWin.Models;
 namespace ClaudeBarWin.Services;
 
 /// <summary>
-/// Bestiario ASCII propio (clean-room). Un único tamaño: el gatito compacto de 4 líneas
-/// (la talla "grande" se retiró en v0.3.7 a petición de Yovan — solo queda la compacta).
+/// Bestiario ASCII propio (clean-room). Un único tamaño: la calavera compacta de 4 líneas
+/// (la talla "grande" se retiró en v0.3.7 a petición de Yovan — solo queda la compacta; el
+/// gato original se sustituyó por una calavera manteniendo la misma línea de diseño).
 /// La cara (ojos + nariz) cambia por fase; el cuerpo es fijo.
 /// El animador cicla frames con (frameIndex % Count): Idle y Ended son estáticos;
 /// el resto parpadea/pulsa con 2 frames.
@@ -33,16 +34,16 @@ public static class MascotSprite
         p is SessionPhase.Processing or SessionPhase.Compacting
           or SessionPhase.WaitingForApproval or SessionPhase.WaitingForInput;
 
-    // Gato propio, 4 líneas. Centrado en la columna de la nariz; cara variable, cuerpo fijo.
+    // Calavera propia, 4 líneas. Centrada en la columna de la nariz; cara variable, cráneo fijo.
     private static IReadOnlyList<string[]> Compact(SessionPhase p)
     {
         var (baseF, altF) = Face(p);
         static string[] Frame(string f) => new[]
         {
-            " /\\_/\\",
-            $"( {f} )",
-            " > ^ <",
-            "(\")_(\")",
+            " .-\"\"\"-.",
+            $"/ {f} \\",
+            "\\ === /",
+            " '-----'",
         };
         return Animated(p) ? new[] { Frame(baseF), Frame(altF) } : new[] { Frame(baseF) };
     }

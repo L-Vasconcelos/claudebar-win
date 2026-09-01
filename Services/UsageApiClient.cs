@@ -56,6 +56,21 @@ public sealed class UsageApiClient
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
     private DateTime _cooldownUntilUtc = DateTime.MinValue;
+    private DateTime _cliRefreshCooldownUntilUtc = DateTime.MinValue;
+
+    /// <summary>Backoff cuando el endpoint de REFRESH responde 429 (antes: ninguno — ver el bug abajo).</summary>
+    private const int RefreshRateLimitBackoffSec = 900;    // 15 min
+
+    /// <summary>
+    /// Intervalo mínimo del fallback por CLI. <see cref="TryCliRefresh"/> lanza <c>claude -p .</c>, que es
+    /// un prompt REAL de Claude Code y por tanto CONSUME CUOTA del usuario. Antes se lanzaba en CADA poll
+    /// en que el refresh OAuth fallara (cada 5 min = ~288 procesos/día quemando cuota en silencio).
+    /// </summary>
+    private const int CliRefreshMinIntervalSec = 3600;     // 1 h
+
+    /// <summary>Resultado de un intento de refresh: distinguir 429 de un fallo cualquiera es lo que
+    /// permite hacer backoff en vez de reintentar en bucle.</summary>
+    private enum RefreshOutcome { Ok, RateLimited, Failed }
 
     public async Task<UsageResult> FetchAsync()
     {
@@ -70,8 +85,19 @@ public sealed class UsageApiClient
         // If the cached token is expired, refresh it (OAuth endpoint first, CLI as fallback), then re-read.
         if (IsExpired(creds.Value.ExpiresAt))
         {
-            if (!await TryOAuthRefreshAsync().ConfigureAwait(false))
-                TryCliRefresh();
+            var outcome = await TryOAuthRefreshAsync().ConfigureAwait(false);
+
+            // BUG REAL (diagnosticado 2026-08-10): el 429 del endpoint de REFRESH no tenía backoff — solo
+            // lo tenía el de /usage. Con el token caducado, CADA poll (5 min) reintentaba el refresh, se
+            // comía otro 429, lanzaba `claude -p .` (prompt real → consume cuota) y encima pedía /usage con
+            // el token caducado para comerse un 429 más. El propio widget mantenía vivo el rate-limit
+            // durante 16 días. Ahora: si el refresh está limitado, se hace backoff y NO se toca nada más.
+            if (outcome == RefreshOutcome.RateLimited)
+            {
+                _cooldownUntilUtc = DateTime.UtcNow.AddSeconds(RefreshRateLimitBackoffSec);
+                return new UsageResult { State = UsageFetchState.RateLimited };
+            }
+            if (outcome == RefreshOutcome.Failed) TryCliRefresh();
             creds = ReadCreds() ?? creds;
         }
 
@@ -152,17 +178,17 @@ public sealed class UsageApiClient
     /// The write goes through <see cref="CredentialsWriter.WriteAtomic"/>: tmp+Replace
     /// atómico y sin pisar un refresh concurrente más nuevo (P0 auditoría 2026-06-10).
     /// </summary>
-    private static async Task<bool> TryOAuthRefreshAsync()
+    private static async Task<RefreshOutcome> TryOAuthRefreshAsync()
     {
         try
         {
             var path = CredPath();
-            if (!File.Exists(path)) return false;
+            if (!File.Exists(path)) return RefreshOutcome.Failed;
 
             var root = JsonNode.Parse(await File.ReadAllTextAsync(path).ConfigureAwait(false))?.AsObject();
             var oauth = root?["claudeAiOauth"]?.AsObject();
             var refreshToken = oauth?["refreshToken"]?.GetValue<string>();
-            if (string.IsNullOrEmpty(refreshToken)) return false;
+            if (string.IsNullOrEmpty(refreshToken)) return RefreshOutcome.Failed;
 
             var payload = new
             {
@@ -173,14 +199,16 @@ public sealed class UsageApiClient
             };
             using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
             using var resp = await Http.PostAsync(TokenUrl, content).ConfigureAwait(false);
-            if (!resp.IsSuccessStatusCode) return false;
+            // 429 se distingue del resto: el llamador hace backoff en vez de reintentar en cada poll.
+            if ((int)resp.StatusCode == 429) return RefreshOutcome.RateLimited;
+            if (!resp.IsSuccessStatusCode) return RefreshOutcome.Failed;
 
             var json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
             using var doc = JsonDocument.Parse(json);
             var r = doc.RootElement;
 
             string? accessToken = r.TryGetProperty("access_token", out var a) ? a.GetString() : null;
-            if (string.IsNullOrEmpty(accessToken)) return false;
+            if (string.IsNullOrEmpty(accessToken)) return RefreshOutcome.Failed;
 
             string newRefresh = r.TryGetProperty("refresh_token", out var nr) && nr.GetString() is { } s ? s : refreshToken;
             long expiresIn = r.TryGetProperty("expires_in", out var ei) && ei.ValueKind == JsonValueKind.Number
@@ -194,20 +222,28 @@ public sealed class UsageApiClient
                 path, root!.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
             // SkippedNewerOnDisk también es éxito: otro proceso ya dejó un token más fresco
             // en disco y FetchAsync re-lee el archivo justo después de este método.
-            return write is CredentialsWriteResult.Written or CredentialsWriteResult.SkippedNewerOnDisk;
+            return write is CredentialsWriteResult.Written or CredentialsWriteResult.SkippedNewerOnDisk
+                ? RefreshOutcome.Ok : RefreshOutcome.Failed;
         }
         catch
         {
-            return false;
+            return RefreshOutcome.Failed;
         }
     }
 
     /// <summary>
     /// Runs `claude -p .` headless to force Claude Code's internal OAuth refresh,
     /// which rewrites ~/.claude/.credentials.json. Best-effort, capped at 30s.
+    /// <para>
+    /// ⚠ <c>claude -p .</c> es un prompt REAL: consume cuota del usuario y arranca un proceso. Antes se
+    /// lanzaba en cada poll con el refresh OAuth caído (~288 veces/día). Ahora está limitado a uno cada
+    /// <see cref="CliRefreshMinIntervalSec"/> — es un último recurso, no un reintento de bucle.
+    /// </para>
     /// </summary>
-    private static void TryCliRefresh()
+    private void TryCliRefresh()
     {
+        if (DateTime.UtcNow < _cliRefreshCooldownUntilUtc) return;
+        _cliRefreshCooldownUntilUtc = DateTime.UtcNow.AddSeconds(CliRefreshMinIntervalSec);
         try
         {
             var claude = ResolveClaudePath();

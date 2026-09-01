@@ -94,9 +94,11 @@ public class DpiTests
         try { Dpi.Apply(144); at150 = RunQuotaBar(g); }
         finally { Dpi.Apply(96); }
 
-        // Composición exacta de la barra: fila label/% (22) + barra (BarH 11 + 3 de aire) + reset (14).
-        Assert.Equal(22 + 11 + 3 + 14, at100);
-        Assert.Equal(Dpi.Scale(22, 1.5f) + Dpi.Scale(11, 1.5f) + 3 + Dpi.Scale(14, 1.5f), at150);
+        // Composición exacta de la barra (v0.4 "meter"): fila label/número (52) + barra (BarH 20 +
+        // 6 de aire) + reset (14).
+        Assert.Equal(52 + 20 + 6 + 14, at100);
+        Assert.Equal(
+            Dpi.Scale(52, 1.5f) + Dpi.Scale(20, 1.5f) + Dpi.Scale(6, 1.5f) + Dpi.Scale(14, 1.5f), at150);
         Assert.True(at150 > at100, "a 150% la barra debe reservar más alto que a 96 DPI");
     }
 

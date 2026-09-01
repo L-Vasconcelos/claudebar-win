@@ -62,6 +62,12 @@ public sealed class AppConfig
     /// <summary>Dashboard window opacity (0.3–1.0).</summary>
     public double DashboardOpacity { get; set; } = 1.0;
 
+    /// <summary>Panel size multiplier on top of the real monitor DPI (0.5–3.0). Scales layout geometry
+    /// (padding, bar/chart height, fonts) so the panel can be made bigger/smaller than the default.
+    /// Set either by the preset buttons in Settings or by dragging the resize grip in the panel corner
+    /// (the grip covers the whole range; the buttons only offer the common 85–130%).</summary>
+    public double PanelScale { get; set; } = 1.0;
+
     // Live sessions (hook de Claude Code -> Named Pipe)
     /// <summary>Interruptor maestro de la feature de sesiones en vivo (listener del pipe + mascota + lista).</summary>
     public bool LiveSessionsEnabled { get; set; } = false;

@@ -1222,8 +1222,8 @@ public class DashboardSettingsViewTests
     [Fact]
     public void LiveSessions_dependents_inert_when_not_installed()
     {
-        // Sin hooks instalados: los 3 dependientes quedan INERTES (sus rects no se registran) → un clic
-        // no muta nada. La fila maestra (special:hooktoggle) SÍ responde (es lo que instala los hooks).
+        // Sin hooks instalados: Suppress queda INERTE (su rect no se registra) → un clic no muta nada.
+        // La fila maestra (special:hooktoggle) SÍ responde (es lo que instala los hooks).
         using var bmp = NewBmp();
         using var g = Graphics.FromImage(bmp);
         var cfg = Cfg();
@@ -1235,8 +1235,9 @@ public class DashboardSettingsViewTests
 
         Assert.True(rects.ContainsKey("special:hooktoggle"), "la fila maestra responde para poder instalar");
         Assert.False(rects.ContainsKey("toggle:Suppress"), "Suppress inerte sin hooks");
-        // v0.3.7: el toggle de la mascota queda INERTE sin hooks (su rect no se registra).
-        Assert.False(rects.ContainsKey("toggle:ShowMascot"), "toggle:ShowMascot inerte sin hooks");
+        // El toggle de la mascota SIEMPRE responde: el sprite Idle se ve con ShowMascot=on aunque los
+        // hooks no estén instalados (T0), así que dejarlo inerte aquí impedía apagarlo (bug real).
+        Assert.True(rects.ContainsKey("toggle:ShowMascot"), "toggle:ShowMascot debe responder incluso sin hooks");
     }
 
     [Fact]
@@ -2123,10 +2124,12 @@ public class DashboardSettingsViewTests
     }
 
     [Fact]
-    public void Mascot_toggle_row_is_dependent_of_hooks_master()
+    public void Mascot_toggle_row_is_independent_of_hooks_master()
     {
-        // Con hooks instalados la fila del toggle de la mascota existe y es clicable; con el master off
-        // queda inerte (DrawDependent retira sus rects). En ningún caso queda rastro del viejo segmented.
+        // La fila del toggle de la mascota existe y es clicable CON o SIN hooks instalados: el sprite
+        // Idle se ve con ShowMascot=on aunque el master (Sesiones en vivo) esté off (T0), así que el
+        // toggle no puede quedar inerte sin hooks o el usuario no podría apagarlo (bug real corregido).
+        // En ningún caso queda rastro del viejo segmented.
         using var bmp = NewBmp();
         using var g = Graphics.FromImage(bmp);
         var cfg = Cfg();
@@ -2145,8 +2148,8 @@ public class DashboardSettingsViewTests
         Assert.DoesNotContain(withHooks.Keys, k => k.StartsWith("mascot:"));
 
         var withoutHooks = Run(false);
-        Assert.False(withoutHooks.ContainsKey("toggle:ShowMascot"),
-            "con el master off, el toggle de la mascota debe ser inerte (sin rect)");
+        Assert.True(withoutHooks.ContainsKey("toggle:ShowMascot"),
+            "el toggle de la mascota debe responder incluso con el master off");
     }
 
     // ================= v0.3.5 P2 #2: afordancias estandarizadas + ritmo vertical =================

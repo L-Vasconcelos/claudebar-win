@@ -17,6 +17,10 @@ public static class UsageFormat
     /// </summary>
     public static string Percent(double pct, CultureInfo culture) => pct.ToString("0.#", culture) + "%";
 
+    /// <summary>Número del % SIN el signo "%" ("47", "12.5"): para la vista "meter", donde el número
+    /// grande y el "% usado" se pintan por separado con tamaños de fuente distintos.</summary>
+    public static string PercentNumber(double pct, CultureInfo culture) => pct.ToString("0.#", culture);
+
     /// <summary>"2h 13m", "1d 4h", "45m 12s", or the localized "resetting…" label.</summary>
     public static string Countdown(DateTimeOffset? resetsAt, string resettingLabel)
     {
@@ -28,11 +32,30 @@ public static class UsageFormat
         return $"{span.Minutes}m {span.Seconds}s";
     }
 
+    /// <summary>
+    /// Countdown estilo "reloj" para la vista "meter" ("03:15:51" si falta menos de 1 día, "4d 00:15"
+    /// si falta más) — el formato de referencia del usuario, distinto del "2h 13m" de <see cref="Countdown"/>
+    /// (que otros consumidores siguen usando sin cambios).
+    /// </summary>
+    public static string CountdownClock(DateTimeOffset? resetsAt, string resettingLabel)
+    {
+        if (resetsAt is null) return "";
+        var span = resetsAt.Value - DateTimeOffset.Now;
+        if (span <= TimeSpan.Zero) return resettingLabel;
+        if (span.TotalDays >= 1) return $"{(int)span.TotalDays}d {span.Hours:00}:{span.Minutes:00}";
+        return $"{(int)span.TotalHours:00}:{span.Minutes:00}:{span.Seconds:00}";
+    }
+
     /// <summary>Hora local absoluta del reset en formato "ddd HH:mm" (p.ej. "mar 18:42"), con el día
     /// abreviado en la cultura del idioma elegido (T2: antes "jue 02:12" se colaba en la UI inglesa);
     /// "" si es null.</summary>
     public static string ResetAbsolute(DateTimeOffset? resetsAt, CultureInfo culture)
         => resetsAt is { } r ? r.ToLocalTime().ToString("ddd HH:mm", culture) : "";
+
+    /// <summary>Hora local absoluta SIN día de la semana ("15:00"): para la vista "meter" (referencia
+    /// del usuario), que no muestra el día abreviado.</summary>
+    public static string ResetAbsoluteTimeOnly(DateTimeOffset? resetsAt, CultureInfo culture)
+        => resetsAt is { } r ? r.ToLocalTime().ToString("HH:mm", culture) : "";
 
     /// <summary>Antigüedad de un dato UTC en texto relativo localizado ("hace 5 min" / "hace 30 s").
     /// Espejo de <see cref="Countdown"/>. Normaliza Kind=Unspecified como UTC.</summary>

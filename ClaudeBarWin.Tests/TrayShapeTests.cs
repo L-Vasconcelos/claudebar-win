@@ -81,7 +81,10 @@ public class TrayShapeTests
         using (b0)
         using (b1)
         {
-            var fill = ColorMath.RiskColor(95, Theme.Dark, Warn, Crit);
+            // El ícono ya no colorea el fondo por riesgo (v0.3.9: "sparkle" amarillo fijo, puramente
+            // estético) — el overlay de forma sigue contrastando contra ESE amarillo, no contra el
+            // viejo RiskColor.
+            var fill = TrayIconRenderer.SparkleYellow;
             var ink = ColorMath.Contrast(fill);
             // Centro del rombo (s=14 anclado a la esquina inferior derecha del lienzo de 48).
             var shapePx = b0.GetPixel(40, 40);
@@ -109,8 +112,9 @@ public class TrayShapeTests
             // Aro knockout: entre el borde del punto (r=5) y el del borrado (r=7) queda TRANSPARENTE.
             var ringPx = b1.GetPixel(42 - 6, 6);
             Assert.True(ringPx.A < 64, $"el aro debe quedar perforado (alpha {ringPx.A})");
-            // En el badge base esa zona era relleno opaco (el aro se NOTA).
-            Assert.True(b0.GetPixel(42 - 6, 6).A > 200, "sin pending esa zona es relleno opaco");
+            // Nota: con el fondo "sparkle" (v0.3.9) esa esquina cae en un valle de la estrella y ya
+            // puede ser transparente incluso SIN pending, así que ya no se afirma que el badge base
+            // sea opaco ahí (el knockout sigue siendo correcto e inofensivo si no había nada que tapar).
         }
     }
 
@@ -231,119 +235,12 @@ public class TrayShapeTests
     }
 
     // --- F9 (v039 g4): tamaño de fuente del badge tokenizado + fit-to-box para "99+" ---
-
-    private static (int fontHeightPx, bool fits) GlyphMetrics(string text)
-    {
-        // Renderiza el badge y mide la caja de tinta del dígito (filas/columnas con tinta fuerte) sobre
-        // el lienzo nativo de 48px. Sirve para comprobar que "99+" llena más caja que el 18px histórico.
-        using var ico = TrayIconRenderer.Render(text == "99+" ? 120 : int.Parse(text),
-            Theme.Dark, Warn, Crit, UsageStatus.Ok, stale: false, pending: false);
-        using var b = ico.ToBitmap();
-        var fill = ColorMath.RiskColor(text == "99+" ? 100 : int.Parse(text), Theme.Dark, Warn, Crit);
-        var ink = ColorMath.Contrast(fill);
-        int top = -1, bottom = -1;
-        for (int y = 0; y < b.Height; y++)
-            for (int x = 0; x < b.Width; x++)
-                if (Dist(b.GetPixel(x, y), ink) < 90 && b.GetPixel(x, y).A > 180)
-                {
-                    if (top < 0) top = y;
-                    bottom = y;
-                    break;
-                }
-        int h = (top < 0) ? 0 : bottom - top + 1;
-        return (h, h > 0 && top >= 0 && bottom < b.Height);
-    }
-
-    [Fact]
-    public void NinetyNinePlus_fills_more_than_the_old_18px_literal()
-    {
-        // Antes "99+" se pintaba a un literal fijo de 18px (el peor caso de legibilidad). El fit-to-box
-        // lo reescala (~21-24px) para llenar la caja del badge. La altura de tinta resultante debe
-        // superar la que daría el 18px histórico: a 18px la cap-height de "99+" ≈ 12-13px; el fit la
-        // sube por encima de 14px. Exigimos ≥ 14px de tinta y que quepa entera en el lienzo.
-        var (h, fits) = GlyphMetrics("99+");
-        Assert.True(fits, "la tinta de '99+' debe caber dentro del lienzo");
-        Assert.True(h >= 14, $"'99+' debe llenar la caja (altura de tinta {h}px) por encima del 18px fijo");
-    }
-
-    /// <summary>Por cada columna x del lienzo nativo (48px), la EXTENSIÓN VERTICAL de tinta fuerte
-    /// (bottom-top+1, ó 0 si no hay). Permite distinguir la silueta de un dígito (banda alta ≈ cap
-    /// height) de la de un '+' (banda baja: solo el grosor del brazo/aspa).</summary>
-    private static int[] ColumnInkSpans(Bitmap b, Color ink)
-    {
-        var spans = new int[b.Width];
-        for (int x = 0; x < b.Width; x++)
-        {
-            int top = -1, bottom = -1;
-            for (int y = 0; y < b.Height; y++)
-            {
-                var p = b.GetPixel(x, y);
-                if (p.A > 180 && Dist(p, ink) < 90)
-                {
-                    if (top < 0) top = y;
-                    bottom = y;
-                }
-            }
-            spans[x] = top < 0 ? 0 : bottom - top + 1;
-        }
-        return spans;
-    }
-
-    private static (Bitmap bmp, Color ink) RenderBadgeBitmap(string text)
-    {
-        int pct = text == "99+" ? 120 : int.Parse(text);
-        int fillPct = text == "99+" ? 100 : int.Parse(text);
-        var ico = TrayIconRenderer.Render(pct, Theme.Dark, Warn, Crit, UsageStatus.Ok,
-            stale: false, pending: false);
-        using (ico)
-        {
-            var fill = ColorMath.RiskColor(fillPct, Theme.Dark, Warn, Crit);
-            return (ico.ToBitmap(), ColorMath.Contrast(fill));
-        }
-    }
-
-    [Fact]
-    public void NinetyNinePlus_renders_the_plus_glyph_and_is_not_clipped()
-    {
-        // REGRESIÓN v039 g4 (el blocker): al subir la fuente de "99+" con el fit, se medía con un
-        // StringFormat distinto del de dibujo (GenericTypographic vs el derivado de GenericDefault), la
-        // cadena desbordaba el rectángulo de dibujo y GDI+ RECORTABA el '+' → el badge mostraba "99",
-        // indistinguible de un 99% real (el peor resultado: anula el indicador de overflow). El test
-        // viejo solo medía ALTURA de tinta y no lo detectaba.
-        //
-        // Detectamos el '+' por su FIRMA geométrica frente a un dígito: el '+' es mucho más BAJO que un
-        // dígito (sus aspas no llegan a la cap-height). En un "99+" centrado, las columnas de tinta más
-        // a la derecha son el aspa derecha del '+'; su extensión vertical debe ser CLARAMENTE menor que
-        // la de los dígitos (≈ cap-height). Si el '+' estuviera recortado/ausente, la tinta más a la
-        // derecha sería el borde de un '9' (banda alta) ó tocaría el límite del lienzo.
-        var (b, ink) = RenderBadgeBitmap("99+");
-        using (b)
-        {
-            var spans = ColumnInkSpans(b, ink);
-            int right = Array.FindLastIndex(spans, s => s > 0);
-            int left = Array.FindIndex(spans, s => s > 0);
-            int maxSpan = spans.Max();                       // alto de los dígitos (cap-height ≈)
-
-            Assert.True(right >= 0, "'99+' debe tener tinta");
-            // No recortado: la tinta no llega al borde del lienzo (si GDI+ recortara, llegaría a x=47).
-            Assert.True(right < b.Width - 1,
-                $"el '+' no debe recortarse contra el borde del lienzo (tinta hasta x={right})");
-            // El '+' presente a la derecha: la columna de tinta más a la derecha es un aspa del '+',
-            // de banda BAJA (< 60% de la altura de un dígito). Un '9' recortado dejaría banda alta aquí.
-            Assert.True(spans[right] < maxSpan * 0.6,
-                $"la tinta más a la derecha debe ser el aspa baja del '+', no un dígito " +
-                $"(span derecho {spans[right]} vs dígito {maxSpan})");
-            // Y hay un hueco entre los dígitos y el '+': alguna columna en la mitad derecha del rango de
-            // tinta tiene span pequeño/cero (el espacio antes del '+') → confirma glifo separado, no un
-            // borde de dígito que llega al filo. Buscamos en [mid..right] una columna de span < 30% max.
-            int mid = (left + right) / 2;
-            bool gapBeforePlus = false;
-            for (int x = mid; x <= right; x++)
-                if (spans[x] < maxSpan * 0.3) { gapBeforePlus = true; break; }
-            Assert.True(gapBeforePlus,
-                "debe existir un hueco entre los dígitos y el '+' (glifo '+' separado, no recorte)");
-        }
-    }
+    // NOTA (v0.3.9, ícono "sparkle"): el ícono del tray ya NO dibuja el dígito del % (pedido del
+    // usuario: puramente decorativo, el dato real sigue en el tooltip/panel) — los tests que medían la
+    // tinta del "99+" renderizado (NinetyNinePlus_fills_more_than_the_old_18px_literal,
+    // NinetyNinePlus_renders_the_plus_glyph_and_is_not_clipped) se retiraron porque probaban un glifo
+    // que ya no se pinta. FitFontPx en sí sigue siendo una función pura sin relación con el ícono y
+    // conserva sus propios tests más abajo.
 
     [Fact]
     public void Badge_measures_and_draws_with_the_same_metrics()

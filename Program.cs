@@ -137,6 +137,13 @@ internal static class Program
         var now = DateTime.UtcNow;
 
         var result = await api.FetchAsync();
+        // Mismo respaldo local que usa la app (ver LocalPlanUsageReader): si la API OAuth no responde,
+        // el histórico que escribe la app de escritorio de Claude sigue teniendo la cota real.
+        if (result.State != UsageFetchState.Ok || result.Usage is null)
+        {
+            if (new LocalPlanUsageReader().Read(now) is { } local)
+                result = new UsageResult { State = UsageFetchState.Ok, Usage = local };
+        }
         WindowStats? spend = null;
         if (cfg.ShowSpendEstimate)
         {

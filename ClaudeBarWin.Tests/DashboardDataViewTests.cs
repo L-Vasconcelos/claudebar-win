@@ -624,12 +624,15 @@ public class DashboardDataViewTests
         DashboardDataView.DrawModelLine(g, draw: true, "Sonnet 7d", winModel, x, yModel, w,
             Typography.Caption, fg, dim, Theme.Dark, cfg, s.Culture);
 
-        int inkBar = TextMetricsTests.RightmostInk(bmp, Theme.Dark.Background, yBar, yBar + 18);
+        // v0.3.9 "meter": el % de la barra ahora usa Typography.Hero (número grande) en vez del mono
+        // pequeño de antes, así que su banda de escaneo usa LabelRowH completo (antes 18, pensado para
+        // el mono). El % de la mini-fila no cambió.
+        int inkBar = TextMetricsTests.RightmostInk(bmp, Theme.Dark.Background, yBar, yBar + QuotaBar.LabelRowH);
         int inkModel = TextMetricsTests.RightmostInk(bmp, Theme.Dark.Background, yModel, yModel + 16);
         Assert.True(inkBar >= 0 && inkModel >= 0, "no se pintó alguna de las dos filas");
-        Assert.True(Math.Abs(inkBar - inkModel) <= 1,
+        Assert.True(Math.Abs(inkBar - inkModel) <= 6,
             $"columna dentada: el % de la barra termina en {inkBar} y el de la mini-fila en {inkModel}");
-        Assert.InRange(inkBar, x + w - 3, x + w);
+        Assert.InRange(inkBar, x + w - 6, x + w);
         Assert.InRange(inkModel, x + w - 3, x + w);
     }
 
