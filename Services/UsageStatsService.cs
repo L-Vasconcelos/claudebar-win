@@ -156,10 +156,10 @@ public static class UsageStatsService
         // Approximate token counts for well-known texts
         (string name, long tokens)[] refs =
         {
-            ("Harry Potter (saga)", 1_100_000),
-            ("The Lord of the Rings", 576_000),
-            ("War and Peace", 580_000),
-            ("The Bible", 783_000),
+            ("Harry Potter (saga)", 1_400_000),
+            ("The Lord of the Rings", 750_000),
+            ("War and Peace", 750_000),
+            ("The Bible", 1_020_000),
             ("Wikipedia (EN)", 4_400_000_000),
         };
 
